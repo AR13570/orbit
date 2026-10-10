@@ -1,0 +1,140 @@
+import type { Vec2 } from "../game/types";
+
+export interface FieldBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+export interface Camera {
+  center: Vec2;
+  scale: number;
+}
+export type DisplayRect = Pick<DOMRect, "left" | "top" | "width" | "height">;
+
+export function fitCamera(
+  bounds: FieldBounds,
+  width: number,
+  height: number,
+): Camera {
+  const w = Math.max(1, width),
+    h = Math.max(1, height);
+  const padding = Math.min(44, Math.min(w, h) * 0.08);
+  return {
+    center: { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
+    scale: Math.min(
+      (w - padding * 2) / Math.max(1, bounds.width),
+      (h - padding * 2) / Math.max(1, bounds.height),
+    ),
+  };
+}
+
+/** Portrait follows a readable portion of the field instead of shrinking the entire journey. */
+export function fitFieldCamera(
+  bounds: FieldBounds,
+  launch: Vec2,
+  width: number,
+  height: number,
+  leadX?: number,
+): Camera {
+  if (width >= height) return fitCamera(bounds, width, height);
+  const scale = Math.min(
+    Math.max(1, width) / Math.min(900, bounds.width),
+    Math.max(1, height - 60) / bounds.height,
+  );
+  const visibleWidth = width / scale;
+  const desired = leadX === undefined ? launch.x + 300 : leadX + 160;
+  const low = bounds.x + visibleWidth / 2;
+  const high = bounds.x + bounds.width - visibleWidth / 2;
+  return {
+    center: {
+      x:
+        low <= high
+          ? Math.min(high, Math.max(low, desired))
+          : bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2,
+    },
+    scale,
+  };
+}
+
+export function interpolateCamera(
+  from: Camera,
+  to: Camera,
+  progress: number,
+): Camera {
+  const t = 1 - (1 - Math.min(1, Math.max(0, progress))) ** 3;
+  return {
+    center: {
+      x: from.center.x + (to.center.x - from.center.x) * t,
+      y: from.center.y + (to.center.y - from.center.y) * t,
+    },
+    scale: from.scale + (to.scale - from.scale) * t,
+  };
+}
+
+export function clientToWorld(
+  clientX: number,
+  clientY: number,
+  rect: DisplayRect,
+  camera: Camera,
+): Vec2 {
+  if (!(camera.scale > 0) || !(rect.width > 0) || !(rect.height > 0))
+    return { x: NaN, y: NaN };
+  return {
+    x: camera.center.x + (clientX - rect.left - rect.width / 2) / camera.scale,
+    y: camera.center.y + (clientY - rect.top - rect.height / 2) / camera.scale,
+  };
+}
+
+export function worldToClient(
+  point: Vec2,
+  rect: DisplayRect,
+  camera: Camera,
+): Vec2 {
+  return {
+    x: rect.left + rect.width / 2 + (point.x - camera.center.x) * camera.scale,
+    y: rect.top + rect.height / 2 + (point.y - camera.center.y) * camera.scale,
+  };
+}
+
+export function visibleWorldBounds(
+  camera: Camera,
+  width: number,
+  height: number,
+): FieldBounds {
+  return {
+    x: camera.center.x - width / (2 * camera.scale),
+    y: camera.center.y - height / (2 * camera.scale),
+    width: width / camera.scale,
+    height: height / camera.scale,
+  };
+}
+
+/** Clip the optical pull along its original ray, leaving the actual gesture unchanged. */
+export function visiblePullPoint(
+  anchor: Vec2,
+  pull: Vec2,
+  camera: Camera,
+  width: number,
+  height: number,
+): Vec2 {
+  const screen = worldToClient(
+    anchor,
+    { left: 0, top: 0, width, height },
+    camera,
+  );
+  const dx = (pull.x - anchor.x) * camera.scale,
+    dy = (pull.y - anchor.y) * camera.scale;
+  let fraction = Math.min(1, 85 / Math.max(0.001, Math.hypot(dx, dy)));
+  const inset = 14;
+  if (dx > 0) fraction = Math.min(fraction, (width - inset - screen.x) / dx);
+  if (dx < 0) fraction = Math.min(fraction, (inset - screen.x) / dx);
+  if (dy > 0) fraction = Math.min(fraction, (height - inset - screen.y) / dy);
+  if (dy < 0) fraction = Math.min(fraction, (inset - screen.y) / dy);
+  fraction = Math.max(0, fraction);
+  return {
+    x: anchor.x + (pull.x - anchor.x) * fraction,
+    y: anchor.y + (pull.y - anchor.y) * fraction,
+  };
+}
