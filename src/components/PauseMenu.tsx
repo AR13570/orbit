@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import Icon from "./Icon";
 export default function PauseMenu({
   onResume,
   onHelp,
@@ -21,10 +22,10 @@ export default function PauseMenu({
     ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, []);
   return (
-    <div className="dialog-backdrop">
+    <div className="dialog-backdrop pause-backdrop">
       <section
         ref={ref}
-        className="game-dialog"
+        className="game-dialog pause-menu"
         role="dialog"
         aria-modal="true"
         aria-labelledby="pause-title"
@@ -48,30 +49,62 @@ export default function PauseMenu({
           }
         }}
       >
-        <div className="dialog-header">
+        <div className="pause-heading">
+          <div className="pause-emblem" aria-hidden="true">
+            <Icon name="pause" />
+          </div>
           <h1 id="pause-title">Paused</h1>
         </div>
-        <div className="dialog-actions">
-          <button className="button-primary" onClick={onResume}>
+        <div className="pause-actions">
+          <button className="pause-resume" onClick={onResume}>
             Resume
+            <Icon name="play" />
           </button>
-          <button
-            className="button-secondary"
-            onClick={onSound}
-            aria-pressed={!muted}
-          >
-            {muted ? "Sound off" : "Sound on"}
-          </button>
-          <button className="button-secondary" onClick={onHelp}>
-            How to play
-          </button>
-          {flying && (
-            <button className="button-secondary" onClick={onResetShot}>
-              Reset shot
+          <div className="pause-options">
+            <button
+              className="pause-option"
+              onClick={onSound}
+              aria-pressed={!muted}
+            >
+              <Icon name={muted ? "muted" : "sound"} />
+              <span>{muted ? "Sound off" : "Sound on"}</span>
+              <span className="pause-switch" aria-hidden="true" />
             </button>
-          )}
-          <button className="button-secondary" onClick={onRestart}>
-            New seed
+            <button className="pause-option" onClick={onHelp}>
+              <Icon name="help" />
+              <span>How to play</span>
+              <span className="pause-chevron" aria-hidden="true" />
+            </button>
+            {flying && (
+              <button className="pause-option" onClick={onResetShot}>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 10a8 8 0 1 1 1.8 7M4 5v5h5" />
+                </svg>
+                <span>Reset shot</span>
+                <span className="pause-chevron" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          <button className="pause-option pause-new-seed" onClick={onRestart}>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m4 7 4-2 8 14 4-2M4 17l4 2L16 5l4 2M17 4l3 3-3 3m0 4 3 3-3 3" />
+            </svg>
+            <span>New seed</span>
+            <span className="pause-chevron" aria-hidden="true" />
           </button>
         </div>
       </section>

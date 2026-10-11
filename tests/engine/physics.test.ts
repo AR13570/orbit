@@ -65,6 +65,13 @@ describe('force and geometry', () => {
     expect(segmentCircleIntersection({ x: 0, y: 20 }, { x: 100, y: 20 }, { x: 50, y: 0 }, 10)).toBeNull();
     expect(segmentCircleIntersection({ x: 50, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 0 }, 10)).toBe(0);
   });
+  it('preserves tangent, diagonal and reverse swept contacts while rejecting distant segments',()=>{
+    expect(segmentCircleIntersection({x:0,y:10},{x:100,y:10},{x:50,y:0},10)).toBe(.5);
+    expect(segmentCircleIntersection({x:100,y:0},{x:0,y:0},{x:50,y:0},10)).toBe(.4);
+    expect(segmentCircleIntersection({x:-10,y:-10},{x:10,y:10},{x:0,y:0},Math.sqrt(2))).toBeCloseTo(.45,12);
+    expect(segmentCircleIntersection({x:0,y:0},{x:1,y:0},{x:500,y:0},120)).toBeNull();
+    expect(segmentCircleIntersection({x:0,y:20.0001},{x:100,y:20.0001},{x:50,y:0},20)).toBeNull();
+  });
   it('maps pull power continuously from zero to full speed', () => {
     expect(launchSpeed(0)).toBe(0);
     expect(launchSpeed(0.5)).toBe(210);

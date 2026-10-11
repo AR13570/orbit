@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRenderer } from "../../src/render/renderer";
+import { sampleGravityWave } from "../../src/render/gravity-surface";
 import type { GameSnapshot } from "../../src/game/types";
 
 function snapshot(index = 0): GameSnapshot {
@@ -59,150 +60,258 @@ function fixture() {
   renderer.resize(1440, 900, 3);
   return { renderer, canvas, context };
 }
-describe("obstacle force motion", () => {
-  function forceFixture(kind: "attractor" | "repellent" = "attractor") {
-    const { renderer, context } = fixture();
-    const board = snapshot();
+interface SurfacePoint {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  alpha: number;
+  color: unknown;
+}
+function surfaceFixture(
+  kind: "attractor" | "repellent" | "goal" = "attractor",
+  width = 1440,
+  height = 900,
+  radius = 60,
+) {
+  const { renderer, context } = fixture();
+  renderer.resize(width, height);
+  const board = snapshot();
+  const center =
+    kind === "goal" ? board.sector.checkpoint.position : { x: 3800, y: 300 };
+  if (kind !== "goal")
     board.sector = {
       ...board.sector,
-      bodies: [
-        {
-          id: "force",
-          kind,
-          position: { x: 3800, y: 300 },
-          radius: 60,
-          strength: 1,
-        },
-      ],
+      bodies: [{ id: "surface", kind, position: center, radius, strength: 1 }],
     };
-    const arcs = context.arc as ReturnType<typeof vi.fn>;
-    const samples: Array<{ radius: number; alpha: number }> = [];
-    arcs.mockImplementation((x: number, y: number, radius: number) => {
-      if (x === 3800 && y === 300 && radius > 60)
-        samples.push({ radius, alpha: context.globalAlpha as number });
-    });
-    function rings(time: number, options = {}) {
-      arcs.mockClear();
-      samples.length = 0;
-      renderer.render(board, [], time, options);
-      return arcs.mock.calls
-        .filter(([x, y, radius]) => x === 3800 && y === 300 && radius > 60)
-        .map(([, , radius]) => radius as number);
-    }
-    return { renderer, board, rings, samples };
+  const points: SurfacePoint[] = [];
+  (context.rect as ReturnType<typeof vi.fn>).mockImplementation(
+    (x, y, width, height) => {
+      if (width < 10 && Math.hypot(x - center.x, y - center.y) < radius + 180)
+        points.push({
+          x,
+          y,
+          width,
+          height,
+          alpha: Number(context.globalAlpha),
+          color: context.fillStyle,
+        });
+    },
+  );
+  function frame(time: number, options = {}) {
+    points.length = 0;
+    renderer.render(board, [], time, options);
+    return points.map((point) => ({ ...point }));
   }
-  it.each(["attractor", "repellent"] as const)(
-    "flows %s rings in their force direction",
-    (kind) => {
-      const { rings } = forceFixture(kind);
-      const first = rings(1);
-      const next = rings(1.05);
-      expect(first).toHaveLength(3);
-      expect(next).toHaveLength(3);
-      for (let i = 0; i < first.length; i++) {
-        if (kind === "attractor") expect(next[i]).toBeLessThan(first[i]);
-        else expect(next[i]).toBeGreaterThan(first[i]);
+  return { renderer, context, board, center, frame };
+}
+describe("sampled gravity surface", () => {
+  it.each([30, 125])(
+    "keeps circular crests at matching radii in every quadrant for radius %i",
+    (radius) => {
+      const { frame, center } = surfaceFixture("attractor", 1440, 900, radius);
+      const points = frame(1.05).map((p) => ({
+        x: p.x + p.width / 2 - center.x,
+        y: p.y + p.height / 2 - center.y,
+      }));
+      const axes = [
+        points.filter((p) => Math.abs(p.y) < 0.001 && p.x > 0).map((p) => p.x),
+        points.filter((p) => Math.abs(p.y) < 0.001 && p.x < 0).map((p) => -p.x),
+        points.filter((p) => Math.abs(p.x) < 0.001 && p.y > 0).map((p) => p.y),
+        points.filter((p) => Math.abs(p.x) < 0.001 && p.y < 0).map((p) => -p.y),
+      ].map((axis) => axis.sort((a, b) => a - b));
+      expect(axes[0].length).toBeGreaterThan(10);
+      for (const axis of axes.slice(1)) {
+        expect(axis).toHaveLength(axes[0].length);
+        axis.forEach((value, i) => expect(value).toBeCloseTo(axes[0][i], 3));
       }
     },
   );
-  it("freezes during pause and resumes without including suspended time or double-counting frame preparation", () => {
-    const { renderer, board, rings } = forceFixture();
-    rings(1);
-    const active = rings(1.05);
-    expect(rings(2, { paused: true })).toEqual(active);
-    expect(rings(200, { paused: true })).toEqual(active);
-    expect(rings(201)).toEqual(active);
-    renderer.prepareFrame(board, 201.05);
-    const resumed = rings(201.05);
-    expect(resumed[0]).toBeLessThan(active[0]);
-    expect(rings(201.05)).toEqual(resumed);
-    expect(rings(500)).toEqual(resumed);
-    expect(rings(500.05)[0]).toBeLessThan(resumed[0]);
+  it.each(["attractor", "repellent", "goal"] as const)(
+    "centers the complete %s surface on its physical object",
+    (kind) => {
+      const { frame, center } = surfaceFixture(kind);
+      const points = frame(1);
+      expect(
+        points.reduce((sum, p) => sum + p.x + p.width / 2, 0) / points.length,
+      ).toBeCloseTo(center.x, 3);
+      expect(
+        points.reduce((sum, p) => sum + p.y + p.height / 2, 0) / points.length,
+      ).toBeCloseTo(center.y, 3);
+    },
+  );
+  it("samples the gravity surface across aligned rows instead of stroked wave outlines", () => {
+    const { frame } = surfaceFixture();
+    const points = frame(1);
+    expect(points.length).toBeGreaterThan(500);
+    expect(new Set(points.map((p) => Math.round(p.x))).size).toBeGreaterThan(
+      20,
+    );
+    expect(new Set(points.map((p) => Math.round(p.y))).size).toBeGreaterThan(
+      20,
+    );
+    // Samples occupy valleys as well as crests throughout the annular patch.
+    const bands = new Set(
+      points.map((p) => Math.floor(Math.hypot(p.x - 3800, p.y - 300) / 5)),
+    );
+    expect(bands.size).toBeGreaterThan(24);
+    expect(new Set(points.map((p) => p.width.toFixed(2))).size).toBeGreaterThan(
+      20,
+    );
   });
-  it("keeps reduced-motion rings static across active and paused frames", () => {
-    const { rings } = forceFixture();
-    const first = rings(1, { reducedMotion: true });
-    expect(first).toHaveLength(3);
-    expect(rings(1.05, { reducedMotion: true })).toEqual(first);
-    expect(rings(200, { reducedMotion: true, paused: true })).toEqual(first);
-    expect(rings(201, { reducedMotion: true })).toEqual(first);
-  });
-  it("makes obstacle flow clearly visible without an opaque halo", () => {
-    const { rings, samples } = forceFixture();
-    rings(1);
-    const peak = Math.max(...samples.map((sample) => sample.alpha));
-    expect(peak).toBeGreaterThanOrEqual(0.18);
-    expect(peak).toBeLessThanOrEqual(0.24);
-  });
-  it("fades rings to invisibility at wraps while keeping count and contact radii bounded", () => {
-    const { rings, samples } = forceFixture("repellent");
-    rings(1);
-    let previous = samples.map((sample) => ({ ...sample }));
-    let wraps = 0;
-    for (let frame = 1; frame <= 120; frame++) {
-      const radii = rings(1 + frame * 0.05);
-      expect(radii).toHaveLength(3);
-      for (let i = 0; i < radii.length; i++) {
-        expect(radii[i]).toBeGreaterThan(60);
-        expect(radii[i]).toBeLessThanOrEqual(119.4);
-        if (radii[i] < previous[i].radius) {
-          wraps++;
-          expect(previous[i].alpha).toBeLessThan(0.001);
-          expect(samples[i].alpha).toBeLessThan(0.001);
+  it.each([
+    [1440, 900, 5329],
+    [390, 844, 2401],
+  ])(
+    "bounds the local point budget and projected footprint at %ix%i",
+    (width, height, budget) => {
+      const { renderer, context, center, frame } = surfaceFixture(
+        "attractor",
+        width,
+        height,
+      );
+      for (let tick = 0; tick <= 36; tick++) {
+        const points = frame(1 + tick * 0.05);
+        expect(points.length).toBeGreaterThan(150);
+        expect(points.length).toBeLessThanOrEqual(budget);
+        for (const p of points) {
+          expect(
+            Math.hypot(p.x - center.x, p.y - center.y) + p.width,
+          ).toBeLessThan(225);
+          expect(p.width * renderer.getViewport().scale).toBeLessThanOrEqual(
+            2.9,
+          );
+          expect(p.alpha).toBeGreaterThan(0);
+          expect(p.alpha).toBeLessThan(0.8);
         }
       }
-      previous = samples.map((sample) => ({ ...sample }));
-    }
-    expect(wraps).toBeGreaterThanOrEqual(3);
+      expect(context.createLinearGradient).not.toHaveBeenCalled();
+      expect(context.createRadialGradient).not.toHaveBeenCalled();
+    },
+  );
+  it.each([false, true])(
+    "softens the sampled surface with radial distance, reduced motion %s",
+    (reducedMotion) => {
+      const { frame } = surfaceFixture();
+      const points = frame(1, { reducedMotion });
+      const near = points.filter(
+        (p) => Math.hypot(p.x - 3800, p.y - 300) < 115,
+      );
+      const far = points.filter((p) => Math.hypot(p.x - 3800, p.y - 300) > 170);
+      const mean = (ps: SurfacePoint[]) =>
+        ps.reduce((sum, p) => sum + p.alpha, 0) / ps.length;
+      expect(mean(far)).toBeLessThan(mean(near) * 0.45);
+    },
+  );
+  it.each(["attractor", "repellent"] as const)(
+    "moves %s crests in its local force direction",
+    (kind) => {
+      const sample = { crest: 0, slope: 0 };
+      function peak(time: number) {
+        let bestDistance = 0,
+          bestHeight = -1;
+        for (let distance = 20; distance < 80; distance += 0.1) {
+          sampleGravityWave(distance, 60, time, kind === "repellent", sample);
+          if (sample.crest > bestHeight) {
+            bestHeight = sample.crest;
+            bestDistance = distance;
+          }
+        }
+        return bestDistance;
+      }
+      const initial = peak(0),
+        next = peak(0.3);
+      if (kind === "attractor") expect(next).toBeLessThan(initial - 4);
+      else expect(next).toBeGreaterThan(initial + 4);
+    },
+  );
+  it("uses tighter circular wave spacing for smaller objects", () => {
+    const sample = { crest: 0, slope: 0 };
+    const gaps = [25, 60, 130].map((radius) => {
+      const peaks: number[] = [];
+      let previousSlope = 0;
+      for (let distance = 1; distance < 220; distance += 0.1) {
+        sampleGravityWave(distance, radius, 0, false, sample);
+        if (previousSlope > 0 && sample.slope <= 0) peaks.push(distance);
+        previousSlope = sample.slope;
+      }
+      return peaks[1] - peaks[0];
+    });
+    expect(gaps[0]).toBeLessThan(gaps[1]);
+    expect(gaps[1]).toBeLessThan(gaps[2]);
+    expect(gaps[0]).toBeLessThan(50);
+    expect(gaps[2]).toBeGreaterThan(70);
   });
-});
-describe("checkpoint gravity motion", () => {
-  function goalFixture() {
-    const { renderer, context } = fixture();
-    const board = snapshot();
-    const center = board.sector.checkpoint.position;
-    const samples: Array<{ radius: number; alpha: number; color: unknown }> =
-      [];
-    (context.arc as ReturnType<typeof vi.fn>).mockImplementation(
-      (x: number, y: number, radius: number) => {
-        if (x === center.x && y === center.y)
-          samples.push({
-            radius,
-            alpha: context.globalAlpha as number,
-            color: context.strokeStyle,
-          });
-      },
-    );
-    function frame(time: number, options = {}) {
-      samples.length = 0;
-      renderer.render(board, [], time, options);
-      return samples.map((sample) => ({ ...sample }));
-    }
-    return { frame };
-  }
-  it("flows three stronger electric-blue goal rings inward while keeping its identity fixed", () => {
-    const { frame } = goalFixture();
-    const first = frame(1),
-      next = frame(1.05);
-    for (let i = 0; i < 3; i++) {
-      expect(next[i].radius).toBeLessThan(first[i].radius);
-      expect(first[i].radius).toBeGreaterThan(45);
-      expect(first[i].radius).toBeLessThanOrEqual(98.55);
-      expect(first[i].color).toBe("#168dff");
-    }
-    expect(
-      Math.max(...first.slice(0, 3).map((ring) => ring.alpha)),
-    ).toBeGreaterThanOrEqual(0.18);
-    expect(next.slice(3)).toEqual(first.slice(3));
-  });
-  it("freezes goal flow during pause and suspended gaps and uses fixed reduced-motion rings", () => {
-    const { frame } = goalFixture();
+  it("freezes during pause and resumes without suspended time or double-counted preparation", () => {
+    const { renderer, board, frame } = surfaceFixture();
     frame(1);
     const active = frame(1.05);
     expect(frame(2, { paused: true })).toEqual(active);
     expect(frame(200, { paused: true })).toEqual(active);
     expect(frame(201)).toEqual(active);
-    expect(frame(201.05)[0].radius).toBeLessThan(active[0].radius);
+    renderer.prepareFrame(board, 201.05);
+    const resumed = frame(201.05);
+    expect(resumed).not.toEqual(active);
+    expect(frame(201.05)).toEqual(resumed);
+    expect(frame(500)).toEqual(resumed);
+    expect(frame(500.05)).not.toEqual(resumed);
+  });
+  it("keeps reduced-motion relief static across active and paused frames", () => {
+    const { frame } = surfaceFixture();
+    const first = frame(1, { reducedMotion: true });
+    expect(first.length).toBeGreaterThan(500);
+    expect(frame(1.05, { reducedMotion: true })).toEqual(first);
+    expect(frame(200, { reducedMotion: true, paused: true })).toEqual(first);
+    expect(frame(201, { reducedMotion: true })).toEqual(first);
+  });
+  it("keeps the bounded lattice stable through a complete wave cycle", () => {
+    const { frame } = surfaceFixture("repellent");
+    const initial = frame(1);
+    let final = initial;
+    for (let tick = 1; tick <= 54; tick++) {
+      final = frame(1 + tick * 0.05);
+      expect(final).toHaveLength(initial.length);
+    }
+    final.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(initial[i].x, 6);
+      expect(p.y).toBeCloseTo(initial[i].y, 6);
+      expect(p.width).toBeCloseTo(initial[i].width, 6);
+    });
+  });
+});
+describe("checkpoint sampled surface", () => {
+  it("animates a blue surface beneath an unchanged goal identity", () => {
+    const { renderer, context, board, frame } = surfaceFixture("goal");
+    const first = frame(1);
+    const arcs = context.arc as ReturnType<typeof vi.fn>;
+    const identity = arcs.mock.calls.filter(
+      ([x, y]) =>
+        x === board.sector.checkpoint.position.x &&
+        y === board.sector.checkpoint.position.y,
+    );
+    arcs.mockClear();
+    const next = frame(1.05);
+    expect(next).not.toEqual(first);
+    expect(first.some((p) => p.color === "#168dff" && p.alpha > 0.1)).toBe(
+      true,
+    );
+    expect(
+      arcs.mock.calls.filter(
+        ([x, y]) =>
+          x === board.sector.checkpoint.position.x &&
+          y === board.sector.checkpoint.position.y,
+      ),
+    ).toEqual(identity);
+    expect(renderer.getViewport().scale).toBeGreaterThan(0);
+  });
+  it("freezes goal relief during pause, suspended gaps and reduced motion", () => {
+    const { frame } = surfaceFixture("goal");
+    frame(1);
+    const active = frame(1.05);
+    expect(frame(2, { paused: true })).toEqual(active);
+    expect(frame(200, { paused: true })).toEqual(active);
+    expect(frame(201)).toEqual(active);
+    expect(frame(201.05)).not.toEqual(active);
     const reduced = frame(202, { reducedMotion: true });
     expect(frame(203, { reducedMotion: true })).toEqual(reduced);
     expect(frame(300, { reducedMotion: true, paused: true })).toEqual(reduced);
@@ -261,10 +370,20 @@ describe("displayed camera contract", () => {
           y: 300 + side * 90 + n * n * 0.05,
         })),
       );
-      const samples: Array<{ x: number; y: number; alpha: number }> = [];
+      const samples: Array<{
+        x: number;
+        y: number;
+        alpha: number;
+        color: unknown;
+      }> = [];
       (context.arc as ReturnType<typeof vi.fn>).mockImplementation(
         (x: number, y: number) =>
-          samples.push({ x, y, alpha: context.globalAlpha as number }),
+          samples.push({
+            x,
+            y,
+            alpha: context.globalAlpha as number,
+            color: context.fillStyle,
+          }),
       );
       renderer.render(board, paths, 1, {
         slingshot: {
@@ -280,7 +399,8 @@ describe("displayed camera contract", () => {
       const end = samples.find(
         (sample) => sample.x === path[48].x && sample.y === path[48].y,
       )!;
-      expect(first.alpha).toBeGreaterThan(0.5);
+      expect(first.color).toBe("#69408d");
+      expect(first.alpha).toBeGreaterThan(0.8);
       expect(end.alpha).toBeLessThan(first.alpha * 0.02);
       for (const sidePath of paths.slice(1))
         expect(
@@ -382,9 +502,7 @@ describe("displayed camera contract", () => {
     const contact = rings.find((ring) => ring.radius === 45)!;
     expect(contact.color).toBe("#168dff");
     expect(contact.width * renderer.getViewport().scale).toBeCloseTo(2.8);
-    expect(
-      rings.filter((ring) => ring.radius > 45).length,
-    ).toBeGreaterThanOrEqual(3);
+    expect(rings.filter((ring) => ring.radius > 45)).toHaveLength(0);
     expect(
       rings.every((ring) => ring.start === 0 && ring.end === Math.PI * 2),
     ).toBe(true);

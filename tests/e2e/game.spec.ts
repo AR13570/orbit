@@ -257,6 +257,98 @@ for (const journeyViewport of [
   });
 }
 
+test("opening near-straight bypass collides before timeout while the curved gesture docks", async ({
+  page,
+}) => {
+  const viewport = { width: 1440, height: 900 };
+  const reference = new OrbitEngine(42);
+  const sector = reference.getSnapshot().sector;
+  reference.setFlightBounds(
+    visibleWorldBounds(
+      fitFieldCamera(
+        sector.bounds,
+        sector.launch,
+        viewport.width,
+        viewport.height,
+      ),
+      viewport.width,
+      viewport.height,
+    ),
+  );
+  const bearing = Math.atan2(
+    sector.checkpoint.position.y - sector.launch.y,
+    sector.checkpoint.position.x - sector.launch.x,
+  );
+  const shortcutAngle = bearing - 0.075;
+  reference.setAim(shortcutAngle, 0.975);
+  reference.launch();
+  for (
+    let step = 0;
+    step < 6 * 120 && reference.getSnapshot().status === "flying";
+    step++
+  )
+    reference.update(FIXED_STEP);
+  const collision = reference.getSnapshot();
+  expect(collision.status).toBe("failed");
+  expect(collision.elapsed).toBeLessThan(1);
+  expect(collision.particles[0].offscreenRemaining).toBeUndefined();
+  expect(
+    sector.bodies.some(
+      (body) =>
+        Math.abs(
+          Math.hypot(
+            collision.particles[0].position.x - body.position.x,
+            collision.particles[0].position.y - body.position.y,
+          ) -
+            body.radius -
+            SHIP_RADIUS,
+        ) < 1e-6,
+    ),
+  ).toBe(true);
+  const contact = sector.solution.path.at(-1)!;
+  const chord = {
+    x: contact.x - sector.launch.x,
+    y: contact.y - sector.launch.y,
+  };
+  const bend = Math.max(
+    ...sector.solution.path.map(
+      (point) =>
+        Math.abs(
+          (point.x - sector.launch.x) * chord.y -
+            (point.y - sector.launch.y) * chord.x,
+        ) / Math.hypot(chord.x, chord.y),
+    ),
+  );
+  expect(bend).toBeGreaterThanOrEqual(80);
+
+  await page.setViewportSize(viewport);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await page.goto("/?seed=42");
+  await page.clock.runFor(100);
+  await ready(page);
+  await pull(page, shortcutAngle, 0.975);
+  await page.clock.runFor((collision.elapsed - 0.12) * 1000);
+  await expect(page.getByRole("status")).toHaveText("In flight");
+  await page.clock.runFor(240);
+  await expect(page.getByRole("status")).toHaveText("Preparing another shot.");
+  await expect(page.locator(".offscreen-countdown")).toHaveCount(0);
+  await expect(page.getByLabel("Checkpoint 0", { exact: true })).toBeVisible();
+  await page.screenshot({
+    path: "test-results/redesign-shortcut-obstacle-contact.png",
+  });
+  await page.clock.runFor(750);
+  await ready(page);
+  await pull(page, sector.solution.angle, sector.solution.power);
+  await page.clock.runFor(600);
+  await expect(page.getByRole("status")).toHaveText("In flight");
+  await page.screenshot({
+    path: "test-results/redesign-curved-detour-desktop.png",
+  });
+  await runUntilStatus(page, "Ready to pull");
+  await expect(page.getByLabel("Checkpoint 1", { exact: true })).toBeVisible();
+});
+
 test("continuous free play retains progress through five misses and another checkpoint", async ({
   page,
 }) => {
@@ -571,7 +663,7 @@ test("real generated gravity flight returns from offscreen and clears its countd
     viewport.height,
   );
   reference.setFlightBounds(bounds);
-  reference.setAim(-1, 1);
+  reference.setAim(-1.1, 1);
   reference.launch();
   let outsideAt = 0,
     returnedAt = 0;
@@ -589,7 +681,7 @@ test("real generated gravity flight returns from offscreen and clears its countd
   expect(outsideAt).toBeGreaterThan(0);
   expect(returnedAt - outsideAt).toBeGreaterThan(0.35);
   expect(returnedAt - outsideAt).toBeLessThan(6);
-  await pull(page, -1, 1);
+  await pull(page, -1.1, 1);
   await page.clock.runFor((outsideAt + 0.1) * 1000);
   await expect(page.locator(".offscreen-countdown")).toHaveText(
     "Offscreen · 6s",

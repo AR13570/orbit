@@ -1,4 +1,5 @@
 import type { Body, GameSnapshot, Vec2 } from "../game/types";
+import { sampleGravityWave, type WaveSample } from "./gravity-surface";
 import {
   clientToWorld,
   fitCamera,
@@ -19,6 +20,7 @@ const COLOR = {
   blue: "#527c9a",
   checkpoint: "#168dff",
   rust: "#b76550",
+  aim: "#69408d",
 };
 
 type Sector = GameSnapshot["sector"];
@@ -89,63 +91,129 @@ function fieldBounds(sector: Sector): FieldBounds {
   return sector.bounds;
 }
 
-function drawGravityRings(
+// A regular XY lattice samples a local height field. Symmetric radial relief
+// keeps every circular crest concentric with its unchanged physical object.
+interface SurfaceScratch {
+  points: Float32Array;
+  wave: WaveSample;
+}
+function drawGravitySurface(
   ctx: CanvasRenderingContext2D,
   position: Vec2,
   radius: number,
-  rings: number,
   repels: boolean,
   scale: number,
   motionTime: number,
   reducedMotion: boolean,
+  color: string,
+  scratch: SurfaceScratch,
 ) {
   const opacity = ctx.globalAlpha;
-  const spread = 12 + radius * 0.13;
-  ctx.lineWidth = Math.max(2, 0.7 / scale);
-  for (let i = rings; i >= 1; i--) {
-    const phase =
-      ((((i - 0.5) / rings + ((repels ? 1 : -1) * motionTime) / 5.4) % 1) + 1) %
-      1;
-    ctx.globalAlpha =
-      opacity *
-      (reducedMotion
-        ? 0.12 + (rings + 1 - i) * 0.04
-        : 0.22 * Math.sin(Math.PI * phase) ** 2);
-    circle(
-      ctx,
-      position.x,
-      position.y,
-      radius + spread * (reducedMotion ? i : 0.35 + phase * (rings - 0.35)),
-    );
-    ctx.stroke();
+  const points = scratch.points;
+  const outer = radius + 140;
+  // At most 73 x 73 candidates per desktop patch, 49 x 49 on phones.
+  // Reuse one fixed scratch buffer for every patch and frame.
+  const halfCells = scale < 0.55 ? 24 : 36;
+  const step = Math.max(4, 3 / scale, outer / halfCells);
+  const cells = Math.min(halfCells, Math.floor(outer / step));
+  const clock = reducedMotion ? 0 : motionTime;
+  let count = 0;
+  for (let row = -cells; row <= cells; row++) {
+    for (let column = -cells; column <= cells; column++) {
+      const dx = column * step;
+      const dy = row * step;
+      const x = position.x + dx;
+      const y = position.y + dy;
+      const distance = Math.hypot(dx, dy);
+      const fromEdge = distance - radius;
+      if (fromEdge <= 3 || distance >= outer) continue;
+      const innerFade = Math.min(1, (fromEdge - 3) / 18);
+      const edgeFade = Math.min(1, (outer - distance) / 35);
+      const fade = Math.exp(-fromEdge / 82) * innerFade * edgeFade * edgeFade;
+      sampleGravityWave(fromEdge, radius, clock, repels, scratch.wave);
+      const { crest, slope } = scratch.wave;
+      const height = 28 * fade * crest * crest;
+      const lit = Math.max(0, (slope * (-dx - dy)) / (distance * Math.SQRT2));
+      const size = Math.min(
+        step * 0.65,
+        (1.3 + crest * 1.2 + lit * 0.3) / scale,
+      );
+      const alpha = fade * (0.28 + 0.3 * crest + 0.22 * lit);
+      const shade =
+        Math.min(7, Math.floor(alpha / 0.09)) + (lit > 0.08 ? 8 : 0);
+      const slot = count++ * 4;
+      points[slot] = x + (dx / distance) * height * 0.45 - size * 0.5;
+      points[slot + 1] = y + (dy / distance) * height * 0.45 - size * 0.36;
+      points[slot + 2] = size;
+      points[slot + 3] = shade;
+    }
+  }
+  // Sixteen flat shade paths replace thousands of individual fill calls.
+  // The lowest shade is barely visible, preserving rows between raised crests.
+  for (let shade = 0; shade < 16; shade++) {
+    ctx.beginPath();
+    ctx.globalAlpha = opacity * 0.7 * (0.02 + (shade % 8) * 0.09);
+    ctx.fillStyle = shade >= 8 ? color : COLOR.charcoal;
+    for (let i = 0; i < count; i++) {
+      const slot = i * 4;
+      if (points[slot + 3] !== shade) continue;
+      const size = points[slot + 2];
+      ctx.rect(points[slot], points[slot + 1], size, size * 0.72);
+    }
+    ctx.fill();
   }
   ctx.globalAlpha = opacity;
+}
+
+function drawGravityFields(
+  ctx: CanvasRenderingContext2D,
+  sector: Sector,
+  scale: number,
+  opacity: number,
+  motionTime: number,
+  reducedMotion: boolean,
+  includeGoal: boolean,
+  scratch: SurfaceScratch,
+) {
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  for (const body of sector.bodies)
+    drawGravitySurface(
+      ctx,
+      body.position,
+      body.radius,
+      body.kind === "repellent",
+      scale,
+      motionTime,
+      reducedMotion,
+      body.kind === "repellent" ? COLOR.rust : COLOR.blue,
+      scratch,
+    );
+  if (includeGoal)
+    drawGravitySurface(
+      ctx,
+      sector.checkpoint.position,
+      sector.checkpoint.radius,
+      false,
+      scale,
+      motionTime,
+      reducedMotion,
+      COLOR.checkpoint,
+      scratch,
+    );
+  ctx.restore();
 }
 
 function drawBody(
   ctx: CanvasRenderingContext2D,
   body: Readonly<Body>,
   scale: number,
-  motionTime: number,
-  reducedMotion: boolean,
 ) {
   const { x, y } = body.position,
     r = body.radius;
   const repels = body.kind === "repellent";
   const opacity = ctx.globalAlpha;
   ctx.save();
-  // Ring flow communicates force while leaving the physical contact edge fixed.
-  ctx.strokeStyle = repels ? COLOR.rust : COLOR.blue;
-  drawGravityRings(
-    ctx,
-    body.position,
-    r,
-    r < 42 ? 2 : 3,
-    repels,
-    scale,
-    motionTime,
-    reducedMotion,
-  );
   ctx.globalAlpha = opacity * 0.065;
   ctx.fillStyle = COLOR.charcoal;
   circle(
@@ -187,13 +255,10 @@ function drawGeometry(
   sector: Sector,
   scale: number,
   opacity = 1,
-  motionTime = 0,
-  reducedMotion = false,
 ) {
   ctx.save();
   ctx.globalAlpha = opacity;
-  for (const body of sector.bodies)
-    drawBody(ctx, body, scale, motionTime, reducedMotion);
+  for (const body of sector.bodies) drawBody(ctx, body, scale);
   ctx.restore();
 }
 
@@ -201,25 +266,12 @@ function drawDock(
   ctx: CanvasRenderingContext2D,
   snapshot: GameSnapshot,
   scale: number,
-  motionTime: number,
-  reducedMotion: boolean,
 ) {
   const {
     position: { x, y },
     radius,
   } = snapshot.sector.checkpoint;
   ctx.save();
-  ctx.strokeStyle = COLOR.checkpoint;
-  drawGravityRings(
-    ctx,
-    snapshot.sector.checkpoint.position,
-    radius,
-    3,
-    false,
-    scale,
-    motionTime,
-    reducedMotion,
-  );
   // Discrete blue bands give the well depth while leaving the capture aperture open.
   ctx.globalAlpha = 0.075;
   ctx.fillStyle = COLOR.blue;
@@ -385,11 +437,11 @@ function drawPreview(
   const path = paths[0];
   if (!path) return;
   ctx.save();
-  ctx.fillStyle = COLOR.blue;
+  ctx.fillStyle = COLOR.aim;
   const length = Math.min(path.length, 49);
   for (let n = 3; n < length; n += 3) {
     const fade = 1 - n / length;
-    ctx.globalAlpha = 0.82 * fade * fade;
+    ctx.globalAlpha = 0.98 * fade * fade;
     circle(ctx, path[n].x, path[n].y, Math.max(2.2, 1.2 / scale));
     ctx.fill();
   }
@@ -462,6 +514,10 @@ function drawCheckpointEdge(
 }
 
 export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
+  const surfaceScratch: SurfaceScratch = {
+    points: new Float32Array(73 * 73 * 4),
+    wave: { crest: 0, slope: 0 },
+  };
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Canvas2D is unavailable.");
   const ctx = context;
@@ -697,16 +753,30 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       ctx.scale(camera.scale, camera.scale);
       ctx.translate(-camera.center.x, -camera.center.y);
       if (previousSector)
-        drawGeometry(
+        drawGravityFields(
           ctx,
           previousSector,
           camera.scale,
           1 - progress,
           motionTime,
           reduced,
+          false,
+          surfaceScratch,
         );
-      drawGeometry(ctx, snapshot.sector, camera.scale, 1, motionTime, reduced);
-      drawDock(ctx, snapshot, camera.scale, motionTime, reduced);
+      drawGravityFields(
+        ctx,
+        snapshot.sector,
+        camera.scale,
+        1,
+        motionTime,
+        reduced,
+        true,
+        surfaceScratch,
+      );
+      if (previousSector)
+        drawGeometry(ctx, previousSector, camera.scale, 1 - progress);
+      drawGeometry(ctx, snapshot.sector, camera.scale);
+      drawDock(ctx, snapshot, camera.scale);
       if (snapshot.status === "aiming" && options.slingshot)
         drawPreview(ctx, preview, camera.scale);
       drawLauncher(ctx, snapshot, camera, width, height, options.slingshot);

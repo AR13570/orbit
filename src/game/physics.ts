@@ -51,6 +51,10 @@ export function stepParticle(position: Vec2, velocity: Vec2, bodies: readonly Bo
   return { position: { x: position.x + nextVelocity.x * dt, y: position.y + nextVelocity.y * dt }, velocity: nextVelocity };
 }
 export function segmentCircleIntersection(from: Vec2, to: Vec2, center: Vec2, radius: number): number | null {
+  // A segment outside one side of the circle's bounding box cannot contact it.
+  // Keep the exact quadratic unchanged for every possible swept contact.
+  const extent=Math.abs(radius);
+  if((from.x<center.x-extent&&to.x<center.x-extent)||(from.x>center.x+extent&&to.x>center.x+extent)||(from.y<center.y-extent&&to.y<center.y-extent)||(from.y>center.y+extent&&to.y>center.y+extent))return null;
   const x = from.x - center.x;
   const y = from.y - center.y;
   const c = x * x + y * y - radius * radius;

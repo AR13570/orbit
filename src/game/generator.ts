@@ -3,7 +3,7 @@ import type { Body, Checkpoint, Sector, SectorFamily, ValidatedSolution, Vec2, W
 import { describeComposition,freshComposition,preservesFallbackCoverage } from './composition';
 import { CERTIFIED_LAYOUTS } from './certified-layouts';
 import type { CompositionDescriptor } from './composition';
-import { acceptsChallenge,CHALLENGE_OFFSETS,CHALLENGE_POWERS,probeFlight } from './challenge';
+import { acceptsChallenge,blocksStraightCorridor,CHALLENGE_OFFSETS,CHALLENGE_POWERS,probeFlight } from './challenge';
 import type { SearchBudget } from './challenge';
 
 const LOCAL_LAUNCH:Vec2={x:0,y:0};
@@ -30,14 +30,13 @@ function clearPlacement(body:Body,existing:Body[],goal:Checkpoint):boolean {
 /** Sample clusters in corridor space, never reserve an empty horizontal strip. */
 function sampleLayout(random:()=>number,count:number,safe=false,budget?:SearchBudget):Layout|null {
  const checkpoint={position:{x:660+random()*160,y:(random()-0.5)*240},radius:45};
- const centralKind=random()<0.35?'repellent':'attractor';
- if(centralKind==='repellent')checkpoint.position.y=(random()<0.5?-1:1)*(80+random()*40);
- const center=makeBody(0,centralKind==='repellent'?checkpoint.position.x-160-random()*60:250+random()*230,0,55+random()*(centralKind==='repellent'?10:safe?7:27),centralKind);
+ const centerX=280+random()*200;
+ // An attractive solid makes the required detour a usable slingshot under the
+ // unchanged radius-derived mass. Surrounding repellent wells vary the approach.
+ const centerY=checkpoint.position.y*centerX/checkpoint.position.x+(random()-.5)*12;
+ const center=makeBody(0,centerX,centerY,110+random()*(safe?12:30),'attractor');
  const bodies=[center];
- if(centralKind==='repellent'){
-  const helper=makeBody(1,180+random()*240,-Math.sign(checkpoint.position.y)*(170+random()*110),62+random()*20,'attractor');
-  if(!clearPlacement(helper,bodies,checkpoint))return null;bodies.push(helper);
- }
+ if(!clearPlacement(center,[],checkpoint)||!blocksStraightCorridor({launch:LOCAL_LAUNCH,bodies,checkpoint}))return null;
  // Find a provisional path around the real central barrier, then keep a readable gap
  // through the sampled clusters. Final validation still includes every added force.
  let guide=findRoute({bodies,checkpoint},random,budget);if(!guide)return null;
@@ -112,14 +111,17 @@ function neighborhood(layout:Layout,angle:number,power:number,budget?:SearchBudg
 }
 function findRoute(layout:Layout,random:()=>number,budget?:SearchBudget):ValidatedSolution|null {
  if(layout.hint)return layout.hint;
+ const searchBudget={remaining:Math.min(8000,budget?.remaining??8000)},initialBudget=searchBudget.remaining;
+ try {
  const sign=random()<0.5?-1:1,powers=[0.6,0.75,0.52];
  const rotation=Math.floor(random()*powers.length);powers.push(...powers.splice(0,rotation));
  // Interleave both sides of the central obstacle; search broad angles before fine gaps.
- for(const offset of [0.45,0.65,0.25,0.8,0.95,1.1,0.35,0.55,0.18,0.73,0.3,0.4,0.5,0.6,0.7,0.215,0.285,0.385,0.485,0.585,0.685])for(const power of powers)for(const side of [sign,-sign]){
-  if(budget&&budget.remaining<=0)return null;
-  const angle=side*offset,route=neighborhood(layout,angle,power,budget);if(route)return route;
+ for(const offset of [0.8,0.95,0.65,1.1,0.45,0.25,0.35,0.55,0.18,0.73,0.3,0.4,0.5,0.6,0.7,0.215,0.285,0.385,0.485,0.585,0.685])for(const power of powers)for(const side of [sign,-sign]){
+  if(searchBudget.remaining<=0)return null;
+  const angle=side*offset,route=neighborhood(layout,angle,power,searchBudget);if(route)return route;
  }
  return null;
+ }finally {if(budget)budget.remaining-=initialBudget-searchBudget.remaining;}
 }
 function familyOf(layout:Layout,route:ValidatedSolution):SectorFamily {
  if(layout.bodies[0].kind==='repellent')return 'repellent-gate';

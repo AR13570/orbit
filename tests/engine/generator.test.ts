@@ -15,9 +15,10 @@ function verifyRoute(sector:Sector,angleDelta=0,powerDelta=0):string|null {
 }
 function assertLayout(sector:Sector):void {
  const {launch,checkpoint,bodies}=sector;
- const central=bodies.filter(b=>b.position.y===launch.y&&b.position.x-launch.x>=180&&b.position.x<checkpoint.position.x-100&&b.radius>=55);
+ const dx=checkpoint.position.x-launch.x,dy=checkpoint.position.y-launch.y,length=Math.hypot(dx,dy);
+ const central=bodies.filter(b=>b.position.x-launch.x>=180&&b.position.x<checkpoint.position.x-100&&b.radius+SHIP_RADIUS-Math.abs((b.position.x-launch.x)*dy-(b.position.y-launch.y)*dx)/length>=100);
  expect(central.length,`centerline seed${sector.seed},index${sector.index}`).toBeGreaterThanOrEqual(1);
- expect(central.some(b=>segmentCircleIntersection(launch,{x:checkpoint.position.x,y:launch.y},b.position,b.radius+SHIP_RADIUS)!==null)).toBe(true);
+ expect(central.some(b=>segmentCircleIntersection(launch,checkpoint.position,b.position,b.radius+SHIP_RADIUS)!==null)).toBe(true);
  expect(bodies.length).toBeGreaterThanOrEqual(4);expect(bodies.length).toBeLessThanOrEqual(7);
  expect(bodies.some(b=>b.kind==='attractor')).toBe(true);expect(bodies.some(b=>b.kind==='repellent')).toBe(true);
  for(let a=0;a<bodies.length;a++){
@@ -75,7 +76,7 @@ describe('centerline corridor generation',()=>{
    assertLayout(sector);recent.push(descriptor);if(recent.length>RECENT_LAYOUT_LIMIT)recent.shift();
   }
  });
- it('puts a substantial obstacle directly in the forward center strip in every field',()=>{
+ it('puts a substantial solid across the true launch-to-goal corridor in every field',()=>{
   for(let seed=0;seed<10;seed++)for(const index of [0,6,16])assertLayout(generateSector(seed,index));
   assertLayout(generateFallbackSector(23,16,{x:-8500,y:2400}));
  });
