@@ -20,7 +20,7 @@ const COLOR = {
   blue: "#527c9a",
   checkpoint: "#168dff",
   rust: "#b76550",
-  aim: "#69408d",
+  aim: "#8a0f4b",
 };
 
 type Sector = GameSnapshot["sector"];
@@ -438,11 +438,14 @@ function drawPreview(
   if (!path) return;
   ctx.save();
   ctx.fillStyle = COLOR.aim;
+  ctx.strokeStyle = "#f8f9fa";
+  ctx.lineWidth = 1.6 / scale;
   const length = Math.min(path.length, 49);
   for (let n = 3; n < length; n += 3) {
     const fade = 1 - n / length;
     ctx.globalAlpha = 0.98 * fade * fade;
-    circle(ctx, path[n].x, path[n].y, Math.max(2.2, 1.2 / scale));
+    circle(ctx, path[n].x, path[n].y, 2.1 / scale);
+    ctx.stroke();
     ctx.fill();
   }
   ctx.restore();
@@ -582,6 +585,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       width,
       height,
       lead?.position.x,
+      currentSector.checkpoint,
     );
     fromCamera = camera;
     targetCamera = camera;
@@ -624,6 +628,8 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
         snapshot.sector.launch,
         width,
         height,
+        undefined,
+        snapshot.sector.checkpoint,
       );
       fromCamera = camera;
       progress = first || reset || reduced ? 1 : 0;
@@ -645,6 +651,8 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
           snapshot.sector.launch,
           width,
           height,
+          undefined,
+          snapshot.sector.checkpoint,
         );
         progress =
           reduced || Math.abs(camera.center.x - targetCamera.center.x) < 0.5
@@ -681,6 +689,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
           width,
           height,
           lead.position.x,
+          snapshot.sector.checkpoint,
         );
         const blend = reduced ? 1 : 1 - Math.exp(-dt * 4);
         camera = {
@@ -773,12 +782,12 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
         true,
         surfaceScratch,
       );
+      if (snapshot.status === "aiming" && options.slingshot)
+        drawPreview(ctx, preview, camera.scale);
       if (previousSector)
         drawGeometry(ctx, previousSector, camera.scale, 1 - progress);
       drawGeometry(ctx, snapshot.sector, camera.scale);
       drawDock(ctx, snapshot, camera.scale);
-      if (snapshot.status === "aiming" && options.slingshot)
-        drawPreview(ctx, preview, camera.scale);
       drawLauncher(ctx, snapshot, camera, width, height, options.slingshot);
       drawParticles(ctx, snapshot, camera.scale);
       for (const effect of effects) {

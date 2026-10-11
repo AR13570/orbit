@@ -318,6 +318,167 @@ describe("checkpoint sampled surface", () => {
   });
 });
 describe("displayed camera contract", () => {
+  it.each([
+    [320, 568],
+    [390, 844],
+    [1440, 900],
+  ])(
+    "keeps the complete long-span checkpoint visible after settling at %ix%i",
+    (width, height) => {
+      const { renderer, canvas } = fixture();
+      vi.mocked(canvas.getBoundingClientRect).mockReturnValue({
+        left: 17,
+        top: 29,
+        width,
+        height,
+        right: 17 + width,
+        bottom: 29 + height,
+        x: 17,
+        y: 29,
+        toJSON: () => ({}),
+      });
+      renderer.resize(width, height);
+      renderer.render(snapshot(), [], 0);
+      const board = snapshot(1);
+      board.sector = {
+        ...board.sector,
+        bounds: { x: 8420, y: 50, width: 1250, height: 900 },
+        width: 1250,
+        height: 900,
+        launch: { x: 8520, y: 500 },
+        checkpoint: { position: { x: 9340, y: 700 }, radius: 45 },
+      };
+      for (let frame = 1; frame <= 20; frame++)
+        renderer.render(board, [], frame * 0.05);
+      expect(renderer.getViewport().transitioning).toBe(false);
+      const launch = renderer.worldToScreen(board.sector.launch);
+      const goal = renderer.worldToScreen(board.sector.checkpoint.position);
+      const radius = 45 * renderer.getViewport().scale + 1.4;
+      expect(launch.x - 22).toBeGreaterThanOrEqual(25);
+      expect(goal.x + radius).toBeLessThanOrEqual(17 + width - 18);
+      const aiming = renderer.getViewport();
+      renderer.render(board, [], 1.05, { cameraLocked: true });
+      expect(renderer.getViewport()).toEqual(aiming);
+      renderer.render(
+        {
+          ...board,
+          status: "flying",
+          particles: [
+            {
+              id: 1,
+              alive: true,
+              position: { x: 8560, y: 500 },
+              velocity: { x: 240, y: 0 },
+              trail: [],
+            },
+          ],
+        },
+        [],
+        1.1,
+      );
+      expect(renderer.getViewport().scale).toBe(aiming.scale);
+    },
+  );
+  it.each([1440, 390])(
+    "separates aim dots from wave crests while preserving physical occlusion at %ipx",
+    (width) => {
+      const { renderer, context } = fixture();
+      renderer.resize(width, width === 390 ? 844 : 900);
+      const board = snapshot();
+      board.sector = {
+        ...board.sector,
+        bodies: [
+          {
+            id: "overlap",
+            kind: "attractor",
+            position: { x: 3800, y: 300 },
+            radius: 60,
+            strength: 1,
+          },
+        ],
+      };
+      const path = Array.from({ length: 49 }, (_, n) => ({
+        x: 3670 + n * 5,
+        y: 300,
+      }));
+      let shape: "surface" | number[] | null = null;
+      const paint: Array<{
+        kind: string;
+        shape: "surface" | number[] | null;
+        color: unknown;
+        alpha: number;
+        width: number;
+      }> = [];
+      (context.beginPath as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        shape = null;
+      });
+      (context.rect as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        shape = "surface";
+      });
+      (context.arc as ReturnType<typeof vi.fn>).mockImplementation(
+        (...args: number[]) => {
+          shape = args;
+        },
+      );
+      for (const kind of ["fill", "stroke"])
+        (context[kind] as ReturnType<typeof vi.fn>).mockImplementation(() => {
+          paint.push({
+            kind,
+            shape,
+            color: context[kind === "fill" ? "fillStyle" : "strokeStyle"],
+            alpha: Number(context.globalAlpha),
+            width: Number(context.lineWidth),
+          });
+        });
+      renderer.render(board, [path], 1, {
+        slingshot: {
+          anchor: board.sector.launch,
+          pull: { x: board.sector.launch.x - 80, y: 500 },
+          power: 0.5,
+        },
+      });
+      const atDot = (entry: (typeof paint)[number]) =>
+        Array.isArray(entry.shape) &&
+        entry.shape[0] === path[3].x &&
+        entry.shape[1] === path[3].y;
+      const core = paint.findIndex(
+        (entry) => entry.kind === "fill" && atDot(entry),
+      );
+      const halo = paint.findIndex(
+        (entry) => entry.kind === "stroke" && atDot(entry),
+      );
+      expect(halo).toBeGreaterThanOrEqual(0);
+      expect(core).toBe(halo + 1);
+      expect(paint[halo].color).not.toBe(paint[core].color);
+      expect(
+        paint[halo].width * renderer.getViewport().scale,
+      ).toBeGreaterThanOrEqual(1);
+      expect(
+        paint[halo].width * renderer.getViewport().scale,
+      ).toBeLessThanOrEqual(2);
+      expect(paint[halo].alpha).toBe(paint[core].alpha);
+      const dotShape = paint[core].shape as number[];
+      expect(dotShape[2] * renderer.getViewport().scale).toBeGreaterThanOrEqual(
+        2,
+      );
+      expect(dotShape[2] * renderer.getViewport().scale).toBeLessThanOrEqual(
+        2.5,
+      );
+      const lastSurface = paint
+        .map((entry) => entry.shape)
+        .lastIndexOf("surface");
+      const solid = paint.findIndex(
+        (entry) =>
+          entry.kind === "fill" &&
+          Array.isArray(entry.shape) &&
+          entry.shape[0] === 3800 &&
+          entry.shape[1] === 300 &&
+          entry.shape[2] === 60,
+      );
+      expect(halo).toBeGreaterThan(lastSurface);
+      expect(core).toBeLessThan(solid);
+    },
+  );
   it.each([320, 390])(
     "keeps one projectile glyph in both modes and shows split-mode dots on %ipx phones",
     (width) => {
@@ -399,7 +560,6 @@ describe("displayed camera contract", () => {
       const end = samples.find(
         (sample) => sample.x === path[48].x && sample.y === path[48].y,
       )!;
-      expect(first.color).toBe("#69408d");
       expect(first.alpha).toBeGreaterThan(0.8);
       expect(end.alpha).toBeLessThan(first.alpha * 0.02);
       for (const sidePath of paths.slice(1))
@@ -537,6 +697,21 @@ describe("displayed camera contract", () => {
     const { renderer, context } = fixture();
     const board = snapshot();
     renderer.resize(320, 568);
+    renderer.render(
+      {
+        ...board,
+        sector: {
+          ...board.sector,
+          checkpoint: {
+            position: { x: 3800, y: 500 },
+            radius: 45,
+          },
+        },
+      },
+      [],
+      0.95,
+    );
+    board.status = "flying";
     const edgeColors: unknown[] = [];
     const effectColors: unknown[] = [];
     (context.arc as ReturnType<typeof vi.fn>).mockImplementation(
@@ -562,15 +737,30 @@ describe("displayed camera contract", () => {
     [4356.25, true, "fully outside the right edge"],
     [3343.75, true, "fully outside the left edge"],
   ] as const)(
-    "does not cover a rendered phone goal: %s, cue=%s (%s)",
+    "does not cover a rendered phone goal during flight: %s, cue=%s (%s)",
     (x, expectedCue, _description) => {
       const { renderer, context } = fixture();
       const board = snapshot();
+      renderer.resize(320, 568);
+      renderer.render(
+        {
+          ...board,
+          sector: {
+            ...board.sector,
+            checkpoint: {
+              position: { x: 3800, y: 500 },
+              radius: 45,
+            },
+          },
+        },
+        [],
+        0.95,
+      );
+      board.status = "flying";
       board.sector = {
         ...board.sector,
         checkpoint: { radius: 45, position: { x, y: 409.4375 } },
       };
-      renderer.resize(320, 568);
       renderer.render(board, [], 1);
       const arcs = context.arc as ReturnType<typeof vi.fn>;
       const hasCueBacking = arcs.mock.calls.some(
@@ -659,7 +849,11 @@ describe("displayed camera contract", () => {
     expect(renderer.getViewport().transitioning).toBe(false);
     renderer.render(snapshot(2), [], 1.15);
     renderer.resize(390, 844);
-    expect(renderer.getViewport().center.x).toBe(6850);
+    const resized = renderer.getViewport();
+    const goal = snapshot(2).sector.checkpoint;
+    expect(
+      (goal.position.x + goal.radius - resized.center.x) * resized.scale + 195,
+    ).toBeLessThanOrEqual(390 - 18);
     expect(renderer.getViewport().transitioning).toBe(false);
   });
   it("follows the live ship in portrait, freezes while held or paused, and returns for retry", () => {

@@ -2,7 +2,7 @@ import { describe,expect,it } from 'vitest';
 import { OrbitEngine } from '../../src/game/engine';
 import { fitFieldCamera,visibleWorldBounds } from '../../src/render/coordinates';
 import { generateSector } from '../../src/game/generator';
-import { acceptsChallenge,blocksStraightCorridor,probeFlight } from '../../src/game/challenge';
+import { acceptsChallenge,blocksStraightCorridor,captureChordBend,MIN_CAPTURE_CHORD_BEND,probeFlight } from '../../src/game/challenge';
 import { bodyStrength,FIXED_STEP,SHIP_RADIUS } from '../../src/game/physics';
 import { CERTIFIED_LAYOUTS } from '../../src/game/certified-layouts';
 import type { Sector } from '../../src/game/types';
@@ -18,18 +18,15 @@ describe('meaningful curved transfers',()=>{
  it('closes reproduced near-straight captures outside the old cone and at ordinary power',()=>{
   for(const [seed,power,offset] of [[42,.975,-.075],[42,.4,-.325],[1,.975,-.1625],[7,.95,.225],[19,.65,-.2625],[31,1,-.1625]]){
    const sector=generateSector(seed),bearing=Math.atan2(sector.checkpoint.position.y-sector.launch.y,sector.checkpoint.position.x-sector.launch.x),shot=probeFlight(sector,bearing+offset,power,true,undefined,true);
-   expect(shot.ending!=='dock'||excursion(sector,shot.path)>=100,`seed${seed},power${power},offset${offset},bend${excursion(sector,shot.path)}`).toBe(true);
+   expect(shot.ending!=='dock'||chordBend(shot.path)>=MIN_CAPTURE_CHORD_BEND,`seed${seed},power${power},offset${offset},bend${excursion(sector,shot.path)}`).toBe(true);
   }
  });
- it('physically blocks the full near-straight corridor, independent of discrete launch samples',()=>{
-  for(const seed of Array.from({length:40},(_,index)=>index)){
-   const sector=generateSector(seed),dx=sector.checkpoint.position.x-sector.launch.x,dy=sector.checkpoint.position.y-sector.launch.y,length=Math.hypot(dx,dy);
-   const covered=sector.bodies.some(body=>{
-    const bx=body.position.x-sector.launch.x,by=body.position.y-sector.launch.y,along=(bx*dx+by*dy)/length,lateral=Math.abs(bx*dy-by*dx)/length;
-    const aperture=sector.checkpoint.radius+SHIP_RADIUS,cone=Math.asin(aperture/length),worstOffset=lateral*Math.cos(cone)+along*Math.sin(cone);
-    return along>body.radius+SHIP_RADIUS&&along<length-aperture&&body.radius+SHIP_RADIUS-lateral>=100&&body.radius+SHIP_RADIUS-worstOffset>=80;
-   });
-   expect(covered,`seed${seed}`).toBe(true);expect(excursion(sector,sector.solution.path)).toBeGreaterThanOrEqual(100);expect(chordBend(sector.solution.path)).toBeGreaterThanOrEqual(80);
+ it('uses a geometric guarantee or truthful sampled validation and measured capture-chord curvature',()=>{
+  for(let seed=0;seed<40;seed++){
+   const sector=generateSector(seed);
+   if(sector.generation.validation==='geometric')expect(blocksStraightCorridor(sector)).toBe(true);
+   else expect(sector.generation.validation).toBe('sampled');
+   expect(chordBend(sector.solution.path)).toBeGreaterThanOrEqual(MIN_CAPTURE_CHORD_BEND);
   }
  });
  it('measures the actual swept capture contact rather than the preceding preview sample',()=>{
@@ -37,11 +34,11 @@ describe('meaningful curved transfers',()=>{
   expect(shot.ending).toBe('dock');expect(Math.hypot(shot.path.at(-1)!.x-400,shot.path.at(-1)!.y)).toBeCloseTo(50,8);
  });
  it('includes the entire capture aperture when certifying bend and rechecks every emergency layout',()=>{
-  const layout={launch:{x:0,y:0},checkpoint:{position:{x:700,y:0},radius:45},bodies:[{id:'barrier',position:{x:500,y:0},radius:105,kind:'attractor' as const,strength:0}]};
+  const layout={launch:{x:0,y:0},checkpoint:{position:{x:700,y:0},radius:45},bodies:[{id:'barrier',position:{x:500,y:0},radius:90,kind:'attractor' as const,strength:0}]};
   expect(blocksStraightCorridor(layout)).toBe(false);layout.bodies[0].radius=125;expect(blocksStraightCorridor(layout)).toBe(true);
   for(const entry of CERTIFIED_LAYOUTS){
    const certificate={launch:{x:0,y:0},checkpoint:{position:{x:entry.goal[0],y:entry.goal[1]},radius:45},bodies:entry.bodies.map(([x,y,radius,kind],id)=>({id:String(id),position:{x,y},radius,kind,strength:bodyStrength(radius)}))};
-   expect(blocksStraightCorridor(certificate)).toBe(true);expect(acceptsChallenge(certificate,entry)).toBe(true);
+   expect(blocksStraightCorridor(certificate)).toBe(entry.validation==='geometric');expect(acceptsChallenge(certificate,entry,undefined,entry.validation)).toBe(true);
   }
  });
  it('rejects near-straight captures across a dense independent range of powers and angles',()=>{
@@ -49,7 +46,7 @@ describe('meaningful curved transfers',()=>{
    const sector=generateSector(seed,index,{x:150000,y:-300}),bearing=Math.atan2(sector.checkpoint.position.y-sector.launch.y,sector.checkpoint.position.x-sector.launch.x);
    for(let p=4;p<=20;p++)for(let a=-24;a<=24;a++){
     const shot=probeFlight(sector,bearing+a*.025,p*.05,true,undefined,true);
-    if(shot.ending==='dock'){expect(excursion(sector,shot.path)).toBeGreaterThanOrEqual(100);expect(chordBend(shot.path)).toBeGreaterThanOrEqual(80);}
+    if(shot.ending==='dock'){expect(chordBend(shot.path)).toBeGreaterThanOrEqual(MIN_CAPTURE_CHORD_BEND);}
    }
   }
  });

@@ -14,6 +14,40 @@ describe("global field camera", () => {
   it.each([
     [320, 568],
     [390, 844],
+    [1440, 900],
+    [844, 390],
+  ])(
+    "shows the launcher and complete 820-unit checkpoint route at %ix%i",
+    (width, height) => {
+      const compact = { x: 3420, y: 50, width: 1250, height: 900 };
+      const launch = { x: 3520, y: 500 };
+      const checkpoint = { position: { x: 4340, y: 700 }, radius: 45 };
+      const camera = fitFieldCamera(
+        compact,
+        launch,
+        width,
+        height,
+        undefined,
+        checkpoint,
+      );
+      const rect = { left: 17, top: 29, width, height };
+      const start = worldToClient(launch, rect, camera);
+      const goal = worldToClient(checkpoint.position, rect, camera);
+      const radius = checkpoint.radius * camera.scale + 1.4;
+      expect(start.x - 22).toBeGreaterThanOrEqual(rect.left + 8);
+      expect(goal.x + radius).toBeLessThanOrEqual(rect.left + width - 18);
+      expect(goal.y + radius).toBeLessThan(rect.top + height);
+      expect(goal.y - radius).toBeGreaterThan(rect.top);
+      if (width >= height)
+        expect(camera).toEqual(fitCamera(compact, width, height));
+      const mapped = clientToWorld(goal.x, goal.y, rect, camera);
+      expect(mapped.x).toBeCloseTo(checkpoint.position.x, 9);
+      expect(mapped.y).toBeCloseTo(checkpoint.position.y, 9);
+    },
+  );
+  it.each([
+    [320, 568],
+    [390, 844],
   ])(
     "keeps a full-power backward ghost inside %ipx portrait",
     (width, height) => {

@@ -3,6 +3,8 @@ import { generateFallbackSector,generateGuaranteedFallbackSector,generateSector 
 import { bodyStrength,distance,segmentCircleIntersection,SHIP_RADIUS,stepParticle } from '../../src/game/physics';
 import type { Sector,Vec2 } from '../../src/game/types';
 import { compositionDistance,describeComposition,freshComposition,geometryDistance,MIN_COMPOSITION_DISTANCE,MIN_GEOMETRY_DISTANCE,RECENT_LAYOUT_LIMIT } from '../../src/game/composition';
+import { blocksStraightCorridor,captureChordBend,MIN_CAPTURE_CHORD_BEND,probeFlight } from '../../src/game/challenge';
+import { matchesStructure } from '../../src/game/structures';
 import { CERTIFIED_LAYOUTS } from '../../src/game/certified-layouts';
 import type { CompositionDescriptor } from '../../src/game/composition';
 function verifyRoute(sector:Sector,angleDelta=0,powerDelta=0):string|null {
@@ -15,19 +17,18 @@ function verifyRoute(sector:Sector,angleDelta=0,powerDelta=0):string|null {
 }
 function assertLayout(sector:Sector):void {
  const {launch,checkpoint,bodies}=sector;
- const dx=checkpoint.position.x-launch.x,dy=checkpoint.position.y-launch.y,length=Math.hypot(dx,dy);
- const central=bodies.filter(b=>b.position.x-launch.x>=180&&b.position.x<checkpoint.position.x-100&&b.radius+SHIP_RADIUS-Math.abs((b.position.x-launch.x)*dy-(b.position.y-launch.y)*dx)/length>=100);
- expect(central.length,`centerline seed${sector.seed},index${sector.index}`).toBeGreaterThanOrEqual(1);
- expect(central.some(b=>segmentCircleIntersection(launch,checkpoint.position,b.position,b.radius+SHIP_RADIUS)!==null)).toBe(true);
- expect(bodies.length).toBeGreaterThanOrEqual(4);expect(bodies.length).toBeLessThanOrEqual(7);
+ expect(matchesStructure(sector.generation.family,bodies,launch,checkpoint),`structural identity ${sector.seed}:${sector.index}`).toBe(true);
+ if(sector.generation.validation==='geometric')expect(blocksStraightCorridor(sector)).toBe(true);
+ expect(captureChordBend(sector.solution.path)).toBeGreaterThanOrEqual(MIN_CAPTURE_CHORD_BEND);
+ expect(bodies.length).toBeGreaterThanOrEqual(3);expect(bodies.length).toBeLessThanOrEqual(8);
  expect(bodies.some(b=>b.kind==='attractor')).toBe(true);expect(bodies.some(b=>b.kind==='repellent')).toBe(true);
  for(let a=0;a<bodies.length;a++){
   const body=bodies[a];expect(body.strength).toBe(bodyStrength(body.radius));expect(distance(body.position,launch)-body.radius).toBeGreaterThanOrEqual(65);
   expect(distance(body.position,checkpoint.position)-body.radius-checkpoint.radius).toBeGreaterThanOrEqual(30-1e-8);
-  expect(body.position.x-launch.x).toBeGreaterThan(100);expect(body.position.x-launch.x).toBeLessThan(950);
+  expect(body.position.x-body.radius).toBeGreaterThanOrEqual(sector.bounds.x);expect(body.position.x+body.radius).toBeLessThanOrEqual(sector.bounds.x+sector.bounds.width);expect(body.radius).toBeLessThanOrEqual(104);
   for(let b=a+1;b<bodies.length;b++)expect(distance(body.position,bodies[b].position)-body.radius-bodies[b].radius).toBeGreaterThanOrEqual(65-1e-8);
  }
- expect(checkpoint.radius).toBe(45);expect(checkpoint.position.x-launch.x).toBeGreaterThanOrEqual(600);expect(checkpoint.position.x-launch.x).toBeLessThanOrEqual(850);expect(Math.abs(checkpoint.position.y-launch.y)).toBeLessThanOrEqual(140);
+ expect(checkpoint.radius).toBe(45);expect(checkpoint.position.x-launch.x).toBeGreaterThanOrEqual(600);expect(checkpoint.position.x-launch.x).toBeLessThanOrEqual(850);expect(Math.abs(checkpoint.position.y-launch.y)).toBeLessThanOrEqual(200);
  expect(sector.bounds.width).toBe(1250);expect(sector.bounds.height).toBe(900);expect(sector.solution.power).toBeGreaterThanOrEqual(0.5);expect(sector.solution.power).toBeLessThanOrEqual(0.75);expect(sector.solution.speed).toBe(sector.solution.power*420);
 }
 function assertRoutes(sector:Sector):void {for(const [angle,power] of [[0,0],[0.025,0],[-0.025,0],[0,0.025],[0,-0.025]])expect(verifyRoute(sector,angle,power),`seed${sector.seed},index${sector.index},angle${angle},power${power}`).toBeNull();}
@@ -45,7 +46,7 @@ function assertChallenge(sector:Sector):void {
  expect(collisionProbe(sector,sector.solution.angle,sector.solution.power,false),`gravity dependence ${sector.seed}:${sector.index}`).toBe('collision');
 }
 
-describe('centerline corridor generation',()=>{
+describe('structural field generation',()=>{
  it('blocks the seed42 opening shortcuts with real collisions and requires obstacle gravity',()=>{
   const recent:CompositionDescriptor[]=[];let origin={x:120,y:500};
   for(let index=0;index<3;index++){const sector=generateSector(42,index,origin,recent);assertChallenge(sector);assertRoutes(sector);recent.push(describeComposition(sector));origin=sector.checkpoint.position;}
@@ -76,21 +77,21 @@ describe('centerline corridor generation',()=>{
    assertLayout(sector);recent.push(descriptor);if(recent.length>RECENT_LAYOUT_LIMIT)recent.shift();
   }
  });
- it('puts a substantial solid across the true launch-to-goal corridor in every field',()=>{
+ it('preserves structural identity, clearance and a meaningful validated bend in every field',()=>{
   for(let seed=0;seed<10;seed++)for(const index of [0,6,16])assertLayout(generateSector(seed,index));
   assertLayout(generateFallbackSector(23,16,{x:-8500,y:2400}));
  });
- it('produces varied seeded clusters and useful ordinary-power routes without relying on fallback',()=>{
+ it('produces varied seeded clusters and useful ordinary-power routes across primary search and backups',()=>{
   const fields=Array.from({length:25},(_,seed)=>generateSector(seed,seed%20));
   const signatures=new Set(fields.map(s=>s.bodies.map(b=>`${Math.round(b.position.x-s.launch.x)/20|0}:${Math.round(b.position.y-s.launch.y)/20|0}:${b.kind}`).join('|')));
-  expect(signatures.size).toBeGreaterThan(20);expect(fields.filter(s=>s.generation.fallback).length).toBeLessThanOrEqual(3);
+  expect(signatures.size).toBeGreaterThan(20);
   expect(new Set(fields.map(s=>s.solution.power)).size).toBeGreaterThanOrEqual(2);
   const goalYs=fields.map(s=>s.checkpoint.position.y-s.launch.y);expect(Math.max(...goalYs)-Math.min(...goalYs)).toBeGreaterThan(80);
   for(const field of fields){expect(field).toEqual(generateSector(field.seed,field.index));expect(field).not.toHaveProperty('pickups');expect(field).not.toHaveProperty('obstacles');}
  });
- it('validates fifty seeds at four difficulties and translated origins using actual assisted physics',()=>{
+ it.each(Array.from({length:50},(_,seed)=>seed))('validates seed %i at four indices and translated origins using actual assisted physics',(seed)=>{
   const origins:Vec2[]=[{x:120,y:500},{x:18120,y:-300},{x:-8500,y:2400},{x:150000,y:50}];
-  for(let seed=0;seed<50;seed++)for(const index of [0,6,16,1000000]){const sector=generateSector(seed,index,origins[(seed+index)%4]);assertLayout(sector);assertRoutes(sector);assertChallenge(sector);}
+  for(const index of [0,6,16,1000000]){const sector=generateSector(seed,index,origins[(seed+index)%4]);assertLayout(sector);assertRoutes(sector);assertChallenge(sector);}
  });
  it('preserves seeded geometry and solution choices under translated origins and high indices',()=>{
   for(const seed of [1,10,31])for(const index of [0,16,1000000]){
@@ -100,7 +101,7 @@ describe('centerline corridor generation',()=>{
    expect(b.checkpoint.position.x-150000).toBeCloseTo(a.checkpoint.position.x,8);expect(b.checkpoint.position.y+8500).toBeCloseTo(a.checkpoint.position.y,8);
   }
  });
- it('uses a new populated central-obstacle fallback with honest validated routes and translation',()=>{
+ it('uses a family-preserving populated fallback with honest validated routes and translation',()=>{
   for(const origin of [{x:4120,y:700},{x:-8500,y:2400},{x:150000,y:-300}]){
    const sector=generateFallbackSector(23,4,origin);expect(sector).toEqual(generateFallbackSector(23,4,origin));expect(sector.generation.fallback).toBe(true);assertLayout(sector);assertRoutes(sector);assertChallenge(sector);
   }
@@ -114,8 +115,8 @@ describe('centerline corridor generation',()=>{
   expect(CERTIFIED_LAYOUTS.length).toBeGreaterThan(RECENT_LAYOUT_LIMIT);
   const descriptors=CERTIFIED_LAYOUTS.map(entry=>describeComposition({launch:{x:0,y:0},checkpoint:{position:{x:entry.goal[0],y:entry.goal[1]},radius:45},bodies:entry.bodies.map(([x,y,radius,kind],id)=>({id:String(id),position:{x,y},radius,kind,strength:bodyStrength(radius)}))}));
   for(const entry of CERTIFIED_LAYOUTS){
-   const sector:Sector={seed:0,index:0,launch:{x:0,y:0},bounds:{x:-100,y:-450,width:1250,height:900},width:1250,height:900,generation:{family:'upper-bend',fallback:true},checkpoint:{position:{x:entry.goal[0],y:entry.goal[1]},radius:45},bodies:entry.bodies.map(([x,y,radius,kind],id)=>({id:String(id),position:{x,y},radius,kind,strength:bodyStrength(radius)})),solution:{angle:entry.angle,power:entry.power,speed:entry.power*420,path:[],flightSeconds:0}};
-   assertLayout(sector);assertRoutes(sector);assertChallenge(sector);
+   const sector:Sector={seed:0,index:0,launch:{x:0,y:0},bounds:{x:-100,y:-450,width:1250,height:900},width:1250,height:900,generation:{family:entry.family,fallback:true,validation:entry.validation},checkpoint:{position:{x:entry.goal[0],y:entry.goal[1]},radius:45},bodies:entry.bodies.map(([x,y,radius,kind],id)=>({id:String(id),position:{x,y},radius,kind,strength:bodyStrength(radius)})),solution:{angle:entry.angle,power:entry.power,speed:entry.power*420,path:[],flightSeconds:0}};
+   sector.solution.path=probeFlight(sector,sector.solution.angle,sector.solution.power,true,undefined,true).path;assertLayout(sector);assertRoutes(sector);assertChallenge(sector);
   }
   for(let a=0;a<descriptors.length;a++)for(let b=a+1;b<descriptors.length;b++)expect(freshComposition(descriptors[a],[descriptors[b]])).toBe(true);
   const recent:CompositionDescriptor[]=[];

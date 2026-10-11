@@ -257,6 +257,84 @@ for (const journeyViewport of [
   });
 }
 
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 320, height: 568 },
+]) {
+  test(`top reset and R retain the current level ${viewport.width}x${viewport.height}`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport,
+      hasTouch: viewport.width <= 760,
+      isMobile: viewport.width <= 760,
+    });
+    const page = await context.newPage();
+    try {
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await page.goto("/?seed=42");
+      await page.clock.runFor(100);
+      await ready(page);
+      const reset = page.getByRole("button", {
+        name: "Reset level (R)",
+        exact: true,
+      });
+      const resetBox = (await reset.boundingBox())!;
+      const pauseBox = (await page
+        .getByRole("button", { name: "Pause", exact: true })
+        .boundingBox())!;
+      const hudBox = (await page.getByLabel("Journey status").boundingBox())!;
+      expect(resetBox.width).toBeGreaterThanOrEqual(44);
+      expect(resetBox.height).toBeGreaterThanOrEqual(44);
+      expect(resetBox.x).toBeGreaterThanOrEqual(0);
+      expect(resetBox.y).toBeGreaterThanOrEqual(0);
+      expect(resetBox.x + resetBox.width).toBeLessThanOrEqual(pauseBox.x);
+      expect(pauseBox.x + pauseBox.width).toBeLessThanOrEqual(viewport.width);
+      expect(hudBox.x + hudBox.width).toBeLessThanOrEqual(resetBox.x);
+      await expect(reset).toHaveAttribute("title", "Reset level (R)");
+      await paintedField(page);
+      await page.screenshot({
+        path: `test-results/redesign-reset-hud-${viewport.width}.png`,
+      });
+      const x = viewport.width * 0.55,
+        y = viewport.height * 0.55;
+      await page.mouse.dblclick(x, y, { delay: 0 });
+      await expect(page.getByText("Split mode", { exact: true })).toBeVisible();
+      // Frozen time keeps this check independent of generated route geometry.
+      await pull(page, Math.PI, 1, viewport.width <= 760 ? 120 : 160);
+      await expect(page.getByRole("status")).toHaveText("In flight");
+      if (viewport.width <= 760) await reset.tap();
+      else await reset.click();
+      await ready(page);
+      await expect(
+        page.getByLabel("Checkpoint 0", { exact: true }),
+      ).toBeVisible();
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x - 80, y);
+      await page.keyboard.press("r");
+      await page.mouse.up();
+      await ready(page);
+      await pull(page, Math.PI, 1, viewport.width <= 760 ? 120 : 160);
+      await page.keyboard.press("r");
+      await ready(page);
+      // One more aiming double tap switches back only if reset retained split mode.
+      await page.mouse.dblclick(x, y, { delay: 0 });
+      await expect(
+        page.getByText("Single shooter", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByLabel("Checkpoint 0", { exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(page.url()).toContain("seed=42");
+    } finally {
+      await context.close();
+    }
+  });
+}
+
 test("opening near-straight bypass collides before timeout while the curved gesture docks", async ({
   page,
 }) => {
@@ -663,7 +741,7 @@ test("real generated gravity flight returns from offscreen and clears its countd
     viewport.height,
   );
   reference.setFlightBounds(bounds);
-  reference.setAim(-1.1, 1);
+  reference.setAim(-1.2, 0.8);
   reference.launch();
   let outsideAt = 0,
     returnedAt = 0;
@@ -681,7 +759,7 @@ test("real generated gravity flight returns from offscreen and clears its countd
   expect(outsideAt).toBeGreaterThan(0);
   expect(returnedAt - outsideAt).toBeGreaterThan(0.35);
   expect(returnedAt - outsideAt).toBeLessThan(6);
-  await pull(page, -1.1, 1);
+  await pull(page, -1.2, 0.8);
   await page.clock.runFor((outsideAt + 0.1) * 1000);
   await expect(page.locator(".offscreen-countdown")).toHaveText(
     "Offscreen · 6s",
@@ -694,6 +772,92 @@ test("real generated gravity flight returns from offscreen and clears its countd
   await expect(page.getByRole("status")).toHaveText("In flight");
   await expect(page.getByLabel("Checkpoint 0", { exact: true })).toBeVisible();
   await page.screenshot({ path: "test-results/redesign-offscreen-return.png" });
+});
+
+test("open shelves remain playable in landscape", async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await page.goto("/?seed=21");
+  await page.clock.runFor(100);
+  await ready(page);
+  const sector = new OrbitEngine(21).getSnapshot().sector;
+  expect(sector.generation.family).toBe("stepped-shelves");
+  await paintedField(page);
+  await page.screenshot({
+    path: "test-results/redesign-open-shelves-landscape.png",
+  });
+  await pull(page, sector.solution.angle, sector.solution.power);
+  await runUntilStatus(page, "Ready to pull");
+  await expect(page.getByLabel("Checkpoint 1", { exact: true })).toBeVisible();
+});
+
+test("portrait checkpoint advance keeps the complete blue goal inside the viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await page.goto("/?seed=4");
+  await page.clock.runFor(100);
+  await ready(page);
+  const solution = new OrbitEngine(4).getSnapshot().sector.solution;
+  await pull(page, solution.angle, solution.power, 120);
+  await runUntilStatus(page, "Ready to pull");
+  await expect(page.getByLabel("Checkpoint 1", { exact: true })).toBeVisible();
+  // Finish the known checkpoint-camera easing with controlled active time.
+  await page.clock.runFor(1000);
+  const goal = await page
+    .getByLabel("Slingshot flight field")
+    .evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const pixels = canvas
+        .getContext("2d")!
+        .getImageData(0, 0, canvas.width, canvas.height).data;
+      let left = canvas.width,
+        right = -1,
+        top = canvas.height,
+        bottom = -1,
+        count = 0;
+      for (let y = 0; y < canvas.height; y++)
+        for (let x = 0; x < canvas.width; x++) {
+          const offset = (y * canvas.width + x) * 4;
+          // The saturated electric-blue capture ring, excluding muted wave relief.
+          if (
+            pixels[offset] <= 40 &&
+            pixels[offset + 1] >= 120 &&
+            pixels[offset + 1] <= 160 &&
+            pixels[offset + 2] >= 240
+          ) {
+            left = Math.min(left, x);
+            right = Math.max(right, x);
+            top = Math.min(top, y);
+            bottom = Math.max(bottom, y);
+            count++;
+          }
+        }
+      return {
+        left,
+        right,
+        top,
+        bottom,
+        count,
+        width: canvas.width,
+        height: canvas.height,
+        dpr: canvas.width / canvas.getBoundingClientRect().width,
+      };
+    });
+  expect(goal.count).toBeGreaterThan(40);
+  expect(goal.left).toBeGreaterThanOrEqual(3 * goal.dpr);
+  expect(goal.right).toBeLessThan(goal.width - 3 * goal.dpr);
+  expect(goal.top).toBeGreaterThanOrEqual(3 * goal.dpr);
+  expect(goal.bottom).toBeLessThan(goal.height - 3 * goal.dpr);
+  expect(
+    Math.abs(goal.right - goal.left - (goal.bottom - goal.top)),
+  ).toBeLessThanOrEqual(3 * goal.dpr);
+  await page.screenshot({
+    path: "test-results/redesign-portrait-complete-goal.png",
+  });
 });
 
 test("actual touch portrait flight docks and automatically prepares the next launcher", async ({

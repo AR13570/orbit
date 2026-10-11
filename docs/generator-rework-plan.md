@@ -1,5 +1,7 @@
 # Central Corridor Generator Implementation Plan
 
+> Historical plan and evidence. The final twenty-family generator supersedes the mandatory central-body geometry, body-count and universal bend requirements below. See redesign-plan.md and engine-api.md for the current structural rules, hybrid validation and final verification.
+
 Status: completed and verified against frozen source. Final evidence is recorded below and in docs/redesign-progress.md.
 
 > **For agentic workers:** Apply the existing delegated ownership task by task. Use superpowers:executing-plans for each owner's implementation. The human has approved this rework and execution method; no additional design approval or commits.

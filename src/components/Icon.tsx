@@ -1,7 +1,7 @@
 export default function Icon({
   name,
 }: {
-  name: "sound" | "muted" | "help" | "pause" | "play";
+  name: "sound" | "muted" | "help" | "pause" | "play" | "reset";
 }) {
   const paths = {
     sound: (
@@ -28,6 +28,7 @@ export default function Icon({
       </>
     ),
     play: <path d="m8 5 11 7-11 7V5Z" />,
+    reset: <path d="M4 10a8 8 0 1 1 1.8 7M4 5v5h5" />,
   };
   return (
     <svg

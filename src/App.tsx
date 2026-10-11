@@ -84,6 +84,41 @@ export default function App() {
     resume();
     refresh();
   };
+  const resetLevel = useCallback(() => {
+    // A completed checkpoint must finish its existing once-only advance.
+    if (engine.getSnapshot().status === "docked") return;
+    cancel();
+    engine.retry();
+    clock.current.reset();
+    pauseRef.current = false;
+    setPaused(false);
+    canvas.current?.focus();
+    refresh();
+  }, [engine, cancel, refresh]);
+  useEffect(() => {
+    const resetKey = (e: KeyboardEvent) => {
+      if (
+        e.key.toLowerCase() !== "r" ||
+        e.repeat ||
+        e.isComposing ||
+        e.defaultPrevented ||
+        helpRef.current ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        (e.target instanceof Element &&
+          e.target.closest(
+            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+          ))
+      )
+        return;
+      e.preventDefault();
+      resetLevel();
+    };
+    // Capture R before the pause dialog's focus/keyboard boundary.
+    window.addEventListener("keydown", resetKey, true);
+    return () => window.removeEventListener("keydown", resetKey, true);
+  }, [resetLevel]);
   useEffect(() => {
     if (!canvas.current || !scene.current) return;
     const r = createRenderer(canvas.current);
@@ -440,9 +475,20 @@ export default function App() {
           {snapshot.checkpointCount}
         </span>
       </div>
-      <button className="pause-button" aria-label="Pause" onClick={openPause}>
-        <Icon name="pause" />
-      </button>
+      <div className="scene-actions">
+        <button
+          className="pause-button"
+          aria-label="Reset level (R)"
+          title="Reset level (R)"
+          disabled={snapshot.status === "docked"}
+          onClick={resetLevel}
+        >
+          <Icon name="reset" />
+        </button>
+        <button className="pause-button" aria-label="Pause" onClick={openPause}>
+          <Icon name="pause" />
+        </button>
+      </div>
       {hint && !paused && snapshot.status === "aiming" && (
         <p className="gesture-hint">
           Pull back. Release to fly. Double tap to change shoot modes.
@@ -475,13 +521,7 @@ export default function App() {
             setHelp(true);
           }}
           onRestart={restart}
-          onResetShot={() => {
-            cancel();
-            engine.retry();
-            clock.current.reset();
-            resume();
-            refresh();
-          }}
+          onResetShot={resetLevel}
           onSound={() => {
             if (muted) sound.current.unlock();
             setMuted((m) => !m);

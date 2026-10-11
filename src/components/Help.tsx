@@ -108,9 +108,10 @@ export default function Help({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <p className="help-controls">
-          Escape or P pauses and cancels a held pull. Rotating, resizing, or
-          switching apps cancels safely. Sound, New seed, and a free shot reset
-          are in the pause menu.
+          Escape or P pauses and cancels a held pull. R or the top reset icon
+          resets your current shot without losing checkpoint progress. Rotating,
+          resizing, or switching apps cancels safely. Sound, New seed, and a
+          free shot reset are in the pause menu.
         </p>
         <div className="dialog-actions">
           <button className="button-primary" onClick={onClose}>

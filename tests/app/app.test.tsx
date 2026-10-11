@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import App from "../../src/App";
 import { OrbitEngine } from "../../src/game/engine";
+import { FeedbackClock } from "../../src/transitions";
 vi.mock("../../src/render/renderer", () => ({
   createRenderer: () => ({
     resize: vi.fn(),
@@ -70,6 +71,124 @@ function field() {
   return canvas;
 }
 describe("minimal scene lifecycle", () => {
+  it("does not reset docked feedback or duplicate its checkpoint advance", () => {
+    let nextFrame: FrameRequestCallback;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      nextFrame = callback;
+      return 1;
+    });
+    const aim = vi.spyOn(OrbitEngine.prototype, "setAim");
+    const advance = vi.spyOn(OrbitEngine.prototype, "advance");
+    const resetClock = vi.spyOn(FeedbackClock.prototype, "reset");
+    render(<App />);
+    const canvas = field();
+    pointer(canvas, "pointerdown", 200, 200);
+    pointer(canvas, "pointercancel", 200, 200);
+    const engine = aim.mock.instances[0] as OrbitEngine;
+    const solution = engine.getSnapshot().sector.solution;
+    engine.setAim(solution.angle, solution.power);
+    engine.launch();
+    for (let step = 0; step < 22 * 120; step++) engine.update(1 / 120);
+    expect(engine.getSnapshot().status).toBe("docked");
+    fireEvent.keyDown(window, { key: "r" });
+    expect(resetClock).not.toHaveBeenCalled();
+    act(() => nextFrame(100));
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Reset level (R)",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Reset level (R)" }));
+    for (let time = 150; time <= 1000; time += 50) act(() => nextFrame(time));
+    expect(advance).toHaveBeenCalledTimes(1);
+    expect(engine.getSnapshot().sector.index).toBe(1);
+    expect(engine.getSnapshot().checkpointCount).toBe(1);
+    expect(resetClock).not.toHaveBeenCalled();
+  });
+  it("button and R reset the current checkpoint and cancel a held pull", () => {
+    const launch = vi.spyOn(OrbitEngine.prototype, "launch");
+    const restart = vi.spyOn(OrbitEngine.prototype, "restart");
+    render(<App />);
+    restart.mockClear();
+    const canvas = field();
+    tap(canvas);
+    tap(canvas);
+    pointer(canvas, "pointerdown", 200, 200);
+    pointer(canvas, "pointerup", 120, 200);
+    const engine = launch.mock.instances[0] as OrbitEngine;
+    engine.retry();
+    const solution = engine.getSnapshot().sector.solution;
+    engine.setAim(solution.angle, solution.power);
+    engine.launch();
+    for (let step = 0; step < 22 * 120; step++) engine.update(1 / 120);
+    expect(engine.getSnapshot().status).toBe("docked");
+    engine.advance();
+    const before = engine.getSnapshot();
+    expect(before.checkpointCount).toBe(1);
+    engine.launch();
+    fireEvent.click(screen.getByRole("button", { name: "Reset level (R)" }));
+    const reset = engine.getSnapshot();
+    expect(reset.status).toBe("aiming");
+    expect(reset.particles).toHaveLength(0);
+    expect(reset.sector).toBe(before.sector);
+    expect(reset.checkpointCount).toBe(1);
+    expect(reset.shotCount).toBe(3);
+    expect(restart).not.toHaveBeenCalled();
+    const count = launch.mock.calls.length;
+    pointer(canvas, "pointerdown", 200, 200);
+    pointer(canvas, "pointermove", 120, 200);
+    fireEvent.keyDown(canvas, { key: "r" });
+    pointer(canvas, "pointerup", 120, 200);
+    expect(launch).toHaveBeenCalledTimes(count);
+    expect(engine.getSnapshot().sector).toBe(before.sector);
+    expect(screen.getByRole("status").textContent).toBe("Ready to pull");
+    engine.launch();
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Resume" }), {
+      key: "R",
+    });
+    expect(engine.getSnapshot().status).toBe("aiming");
+    expect(engine.getSnapshot().checkpointCount).toBe(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(canvas);
+  });
+  it("ignores reset repeats, browser shortcuts, composition and editable targets", () => {
+    const retry = vi.spyOn(OrbitEngine.prototype, "retry");
+    render(<App />);
+    const canvas = field();
+    for (const guard of [
+      { repeat: true },
+      { ctrlKey: true },
+      { metaKey: true },
+      { altKey: true },
+      { isComposing: true },
+    ])
+      fireEvent.keyDown(canvas, { key: "r", ...guard });
+    for (const tag of ["input", "textarea", "select"]) {
+      const editable = document.createElement(tag);
+      document.body.append(editable);
+      fireEvent.keyDown(editable, { key: "r" });
+      editable.remove();
+    }
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    const child = document.createElement("span");
+    editable.append(child);
+    document.body.append(editable);
+    fireEvent.keyDown(child, { key: "r" });
+    editable.remove();
+    expect(retry).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "How to play" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "r" });
+    expect(retry).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Close help" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    fireEvent.keyDown(window, { key: "r" });
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
   it("shows the last offscreen chance without announcing each countdown tick", () => {
     const initial = new OrbitEngine(42).getSnapshot();
     const piece = (id: number, remaining?: number, alive = true) =>

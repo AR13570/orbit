@@ -36,22 +36,45 @@ export function fitFieldCamera(
   width: number,
   height: number,
   leadX?: number,
+  checkpoint?: { position: Vec2; radius: number },
 ): Camera {
   if (width >= height) return fitCamera(bounds, width, height);
-  const scale = Math.min(
+  let scale = Math.min(
     Math.max(1, width) / Math.min(900, bounds.width),
     Math.max(1, height - 60) / bounds.height,
   );
+  const inset = 32;
+  const left = Math.min(
+    launch.x,
+    checkpoint ? checkpoint.position.x - checkpoint.radius : launch.x,
+  );
+  const right = Math.max(
+    launch.x,
+    checkpoint ? checkpoint.position.x + checkpoint.radius : launch.x,
+  );
+  // Include the full capture ring and the fixed-size launcher affordance.
+  // Keep this scale during flight so launching does not cause a zoom jump.
+  if (checkpoint)
+    scale = Math.min(
+      scale,
+      Math.max(1, width - inset * 2) / Math.max(1, right - left),
+    );
   const visibleWidth = width / scale;
   const desired = leadX === undefined ? launch.x + 300 : leadX + 160;
   const low = bounds.x + visibleWidth / 2;
   const high = bounds.x + bounds.width - visibleWidth / 2;
+  let centerX =
+    low <= high
+      ? Math.min(high, Math.max(low, desired))
+      : bounds.x + bounds.width / 2;
+  if (checkpoint && leadX === undefined)
+    centerX = Math.min(
+      left + visibleWidth / 2 - inset / scale,
+      Math.max(right - visibleWidth / 2 + inset / scale, centerX),
+    );
   return {
     center: {
-      x:
-        low <= high
-          ? Math.min(high, Math.max(low, desired))
-          : bounds.x + bounds.width / 2,
+      x: centerX,
       y: bounds.y + bounds.height / 2,
     },
     scale,

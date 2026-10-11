@@ -117,7 +117,7 @@ p {
   align-items: center;
   gap: 15px;
   min-height: 30px;
-  max-width: calc(100% - 100px);
+  max-width: calc(100% - 132px);
   color: var(--charcoal);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -134,10 +134,14 @@ p {
 .positive {
   color: var(--blue);
 }
-.pause-button {
+.scene-actions {
   position: absolute;
   top: max(13px, calc(env(safe-area-inset-top) + 5px));
   right: max(16px, calc(env(safe-area-inset-right) + 10px));
+  display: flex;
+  gap: 4px;
+}
+.pause-button {
   display: grid;
   place-items: center;
   width: 44px;
@@ -445,7 +449,7 @@ p {
   }
 }
 @media (hover: hover) and (pointer: fine) {
-  .pause-button:hover,
+  .pause-button:hover:not(:disabled),
   .icon-button:hover {
     background: rgb(48 57 67 / 5%);
   }
@@ -465,7 +469,7 @@ p {
     top: max(16px, calc(env(safe-area-inset-top) + 8px));
     gap: 12px;
   }
-  .pause-button {
+  .scene-actions {
     top: max(9px, calc(env(safe-area-inset-top) + 1px));
     right: max(10px, calc(env(safe-area-inset-right) + 6px));
   }
@@ -478,7 +482,7 @@ p {
     top: max(9px, calc(env(safe-area-inset-top) + 4px));
     left: max(18px, calc(env(safe-area-inset-left) + 12px));
   }
-  .pause-button {
+  .scene-actions {
     top: max(2px, env(safe-area-inset-top));
   }
   .gesture-hint {

@@ -1,7 +1,8 @@
 /** Global world coordinates. Positive angles turn clockwise on the canvas. */
 export interface Vec2 { x: number; y: number }
 export interface WorldBounds { x: number; y: number; width: number; height: number }
-export type SectorFamily = 'upper-bend' | 'lower-bend' | 'slalom' | 'binary-transfer' | 'repellent-gate';
+export type SectorFamily = 'staggered-binary' | 'three-step-slalom' | 'twin-well-entrance' | 'forked-approach' | 'split-exit' | 'alternating-corridor' | 'diagonal-ladder' | 'crescent-basin' | 'horseshoe-pocket' | 'unequal-binary' | 'separated-clusters' | 'opposing-banks' | 'outer-hairpin' | 'offset-paired-gates' | 'asymmetric-fan' | 'stepped-shelves' | 'triangular-islands' | 'sparse-anchors' | 'repellent-catch' | 'chained-binaries';
+export type ChallengeValidation = 'geometric' | 'sampled';
 export type GameStatus = 'aiming' | 'flying' | 'docked' | 'failed';
 export type ShotCount = 1 | 3;
 export type BodyKind = 'attractor' | 'repellent';
@@ -15,7 +16,7 @@ export interface Sector {
   width: number;
   height: number;
   bounds: WorldBounds;
-  generation: { family: SectorFamily; fallback: boolean };
+  generation: { family: SectorFamily; fallback: boolean; validation?: ChallengeValidation };
   launch: Vec2;
   checkpoint: Checkpoint;
   bodies: Body[];
