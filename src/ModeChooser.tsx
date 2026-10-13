@@ -7,6 +7,7 @@ export default function ModeChooser({
   return (
     <main className="mode-chooser">
       <div className="mode-intro">
+        <img className="mode-logo" src="/orbit.svg" alt="" width="56" height="56" />
         <p className="mode-eyebrow">A little space to play</p>
         <h1>Orbit</h1>
         <p>Follow a path. Or make a world of your own.</p>

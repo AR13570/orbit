@@ -542,6 +542,10 @@ p {
 }
 
 /* Mode selection and Gravity share the quiet palette of the flight field. */
+.mode-logo {
+  display: block;
+  margin: 0 auto 16px;
+}
 .mode-chooser {
   height: 100%;
   overflow-y: auto;
