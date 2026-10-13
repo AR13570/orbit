@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+test-results
+playwright-report
+*.log
+*.tsbuildinfo
+.git
+.DS_Store
+.env*
+!.env.example
+.vercel
+.agents
+.codex
+.aws

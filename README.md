@@ -11,6 +11,27 @@ npm run dev
 
 Open http://localhost:5173. Phones on the same network can use the Network URL printed by Vite. No backend, keys, remote fonts or images are needed. Add `?seed=42` to share the initial field of a deterministic run.
 
+## Deploy with Docker on Vercel
+
+Import this repository into Vercel and set the project root to the directory containing `Dockerfile.vercel`. Vercel automatically detects that filename, builds the container and routes requests to its HTTP server on port 80. See [Vercel's Docker deployment guide](https://vercel.com/kb/guide/does-vercel-support-docker-deployments) and [Docker documentation](https://vercel.com/kb/guide/docker).
+
+The multi-stage build installs locked dependencies with `npm ci --include=dev`, runs TypeScript and Vite through `npm run build`, then copies only `dist` into the nginx runtime. No custom server configuration or environment variables are required for Orbit.
+
+Deploy through the connected Git repository, or, with the Vercel CLI already installed, run this from the project root:
+
+```sh
+vercel deploy
+```
+
+To build and run the same container locally with Docker installed and running:
+
+```sh
+docker build -f Dockerfile.vercel -t orbit .
+docker run --rm --name orbit -p 8080:80 orbit
+```
+
+Open http://localhost:8080 or http://localhost:8080/?seed=42. Stop the foreground container with Ctrl+C.
+
 ## Play
 
 Click or touch anywhere in the field, pull backward, and release. Your ship flies opposite the drag. Pull farther for more power. Small taps cancel. Double-tap or double-click the field to switch between single and split modes. Both launch one ship; in split mode, tap during flight to split it into three pieces around its current direction. Each shot can split once. The selected mode persists across checkpoints and New seed. There are no sliders or separate launch action. A short dotted prediction appears during the pull. You cannot steer in flight.
