@@ -26,7 +26,7 @@ export interface Sector {
 export type DeepReadonly<T> = T extends readonly (infer Item)[] ? readonly DeepReadonly<Item>[] : T extends object ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> } : T;
 export type StaticSector = DeepReadonly<Sector>;
 export type SectorSnapshot = StaticSector;
-export interface Particle { id: number; position: Vec2; velocity: Vec2; alive: boolean; /** Active seconds until expiry, present only while fully outside the viewport. */ offscreenRemaining?: number; trail: Vec2[] }
+export interface Particle { id: number; position: Vec2; velocity: Vec2; alive: boolean; /** Active seconds until expiry, present only while fully outside the viewport. */ offscreenRemaining?: number; trail: (Vec2 & { time?: number })[] }
 export type EngineEventKind = 'launch' | 'dock' | 'fail' | 'restart';
 export interface EngineEvent { id: number; kind: EngineEventKind }
 export interface GameSnapshot {
@@ -41,5 +41,7 @@ export interface GameSnapshot {
   checkpointCount: number;
   message: string;
   elapsed: number;
+  /** Active visual time, continuing after flight ends so tails can expire. */
+  trailElapsed?: number;
   event: EngineEvent | null;
 }

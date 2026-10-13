@@ -6,7 +6,7 @@ import {
   cleanup,
   act,
 } from "@testing-library/react";
-import App from "../../src/App";
+import { ZenGame as App } from "../../src/App";
 import { OrbitEngine } from "../../src/game/engine";
 import { FeedbackClock } from "../../src/transitions";
 vi.mock("../../src/render/renderer", () => ({

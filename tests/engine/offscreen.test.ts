@@ -22,7 +22,7 @@ describe('off-screen flight and return',()=>{
   const paused=engine.getSnapshot();engine.update(0);engine.update(-1);engine.update(Number.NaN);expect(engine.getSnapshot()).toEqual(paused);
   tick(engine,5.416666666666667);expect(engine.getSnapshot().status).toBe('flying');engine.update(FIXED_STEP);
   const expired=engine.getSnapshot();expect(expired.status).toBe('failed');expect(expired.particles[0].position.x).toBeCloseTo(1705,7);expect(remaining(engine)).toBe(0);expect(expired.checkpointCount).toBe(0);
-  tick(engine,10);expect(engine.getSnapshot()).toEqual(expired);engine.retry();expect(engine.getSnapshot().status).toBe('aiming');expect(engine.getSnapshot().sector).toBe(expired.sector);engine.launch();tick(engine,.5);expect(remaining(engine)).toBeCloseTo(5.92,8);
+  tick(engine,10);const faded=engine.getSnapshot();expect({...faded,trailElapsed:expired.trailElapsed,particles:faded.particles.map((p,i)=>({...p,trail:expired.particles[i].trail}))}).toEqual(expired);expect(faded.particles[0].trail).toEqual([]);engine.retry();expect(engine.getSnapshot().status).toBe('aiming');expect(engine.getSnapshot().sector).toBe(expired.sector);engine.launch();tick(engine,.5);expect(remaining(engine)).toBeCloseTo(5.92,8);
  });
  it('returns under actual gravity and resets continuous outside time on each orbit',()=>{
   const engine=field();Object.assign(state(engine).sector,{launch:{x:200,y:500},bounds:{x:0,y:0,width:800,height:550},checkpoint:{position:{x:10000,y:10000},radius:45},bodies:[{id:'orbit',kind:'attractor',position:{x:400,y:500},radius:90,strength:0}]});engine.setAim(Math.PI/2,180/420);engine.launch();

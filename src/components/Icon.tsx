@@ -1,7 +1,16 @@
 export default function Icon({
   name,
 }: {
-  name: "sound" | "muted" | "help" | "pause" | "play" | "reset";
+  name:
+    | "sound"
+    | "muted"
+    | "help"
+    | "pause"
+    | "play"
+    | "reset"
+    | "duplicate"
+    | "swap"
+    | "trash";
 }) {
   const paths = {
     sound: (
@@ -29,6 +38,18 @@ export default function Icon({
     ),
     play: <path d="m8 5 11 7-11 7V5Z" />,
     reset: <path d="M4 10a8 8 0 1 1 1.8 7M4 5v5h5" />,
+    duplicate: (
+      <>
+        <rect x="8" y="8" width="12" height="12" rx="2" />
+        <path d="M16 8V4H4v12h4" />
+      </>
+    ),
+    swap: <path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4" />,
+    trash: (
+      <>
+        <path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" />
+      </>
+    ),
   };
   return (
     <svg

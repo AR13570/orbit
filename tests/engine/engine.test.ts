@@ -170,7 +170,7 @@ describe('tap-to-branch shooter', () => {
   expect(before.position.x).toBeGreaterThan(100);expect(before.velocity.y).not.toBe(0);engine.branch();
   const particles=engine.getSnapshot().particles;expect(particles).toHaveLength(3);expect(particles[0]).toEqual(before);
   for(const index of [1,2]){
-   expect(particles[index].position).toEqual(before.position);expect(particles[index].trail).toEqual([before.position]);
+   expect(particles[index].position).toEqual(before.position);expect(particles[index].trail).toEqual([{...before.position,time:engine.getSnapshot().elapsed}]);
    expect(Math.hypot(particles[index].velocity.x,particles[index].velocity.y)).toBeCloseTo(speed,9);
    expect(Math.atan2(particles[index].velocity.y,particles[index].velocity.x)-angle).toBeCloseTo(index===1?-Math.PI/60:Math.PI/60,9);
   }
@@ -230,7 +230,7 @@ describe('tap-to-branch shooter', () => {
  });
  it('bounds all branched trails during a long on-screen flight', () => {
   const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:10000};engine.setFlightBounds({x:-10000,y:-10000,width:20000,height:20000});engine.setShotCount(3);engine.launch();tick(engine,0.4);engine.branch();tick(engine,24);
-  expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles.map(p=>p.trail.length)).toEqual([180,180,180]);expect(engine.getSnapshot().particles).toHaveLength(3);
+  expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles.every(p=>p.trail.length>=90&&p.trail.length<=91)).toBe(true);expect(engine.getSnapshot().particles).toHaveLength(3);
  });
  it('copies outside elapsed independently when branching before the center re-enters view', () => {
   const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:500};engine.setShotCount(3);engine.launch();tick(engine,0.4);
@@ -240,3 +240,15 @@ describe('tap-to-branch shooter', () => {
   const snapshot=engine.getSnapshot();expect(snapshot.particles.map(p=>p.alive)).toEqual([true,true,true]);expect(snapshot.particles[0].position.y).toBeGreaterThan(515);expect(snapshot.particles[1].position.y).toBeLessThan(515);
  });
 });
+
+ describe('time-fading projectile tails', () => {
+  it('expires old samples during flight and after impact without advancing gameplay time', () => {
+   const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:10000};engine.setFlightBounds({x:-10000,y:-10000,width:20000,height:20000});engine.launch();tick(engine,4);
+   expect(engine.getSnapshot().particles[0].trail[0].x).toBeGreaterThan(100);
+   internal(engine).particles[0].alive=false;engine.update(1/60);
+   const stopped=engine.getSnapshot();tick(engine,3.1);
+   expect(engine.getSnapshot().particles[0].trail).toEqual([]);
+   expect(engine.getSnapshot().elapsed).toBe(stopped.elapsed);
+   expect(engine.getSnapshot().status).toBe(stopped.status);
+  });
+ });

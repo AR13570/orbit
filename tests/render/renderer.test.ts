@@ -56,6 +56,7 @@ function fixture() {
     y: 29,
     toJSON: () => ({}),
   });
+  context.createLinearGradient = vi.fn(() => ({ addColorStop: vi.fn() }));
   const renderer = createRenderer(canvas);
   renderer.resize(1440, 900, 3);
   return { renderer, canvas, context };
@@ -928,4 +929,94 @@ describe("displayed camera contract", () => {
     ).toBe(fills);
     expect(canvas.width).toBe(2880);
   });
+});
+
+it("fades distinct colored projectile tails by age and hides expired segments", () => {
+  const { renderer, context } = fixture();
+  const board = snapshot();
+  board.status = "flying";
+  board.elapsed = 3;
+  board.particles = [
+    {
+      id: 0,
+      alive: false,
+      position: { x: 3700, y: 500 },
+      velocity: { x: 1, y: 0 },
+      trail: [
+        Object.assign({ x: 3550, y: 500 }, { time: 0 }),
+        Object.assign({ x: 3600, y: 500 }, { time: 0.5 }),
+        Object.assign({ x: 3650, y: 500 }, { time: 2.5 }),
+      ],
+    },
+  ];
+  const alphas: number[] = [];
+  const polygons: unknown[][] = [];
+  context.fill = vi.fn(() => {
+    if (typeof context.fillStyle !== "object") return;
+    alphas.push(context.globalAlpha as number);
+    polygons.push([
+      (context.moveTo as ReturnType<typeof vi.fn>).mock.calls.at(-1),
+      ...(context.lineTo as ReturnType<typeof vi.fn>).mock.calls.slice(-3),
+    ]);
+  });
+  renderer.render(board, [], 3);
+  expect(alphas).toHaveLength(2);
+  expect(polygons[0][1]).toEqual(polygons[1][0]);
+  expect(polygons[0][2]).toEqual(polygons[1][3]);
+  const gradients = (context.createLinearGradient as ReturnType<typeof vi.fn>)
+    .mock.results;
+  expect(gradients[0].value.addColorStop).toHaveBeenCalledWith(
+    0,
+    "rgba(164, 92, 82, 0)",
+  );
+  expect(gradients[1].value.addColorStop).toHaveBeenCalledWith(1, "#a45c52");
+  expect(alphas[0]).toBeCloseTo(0.8 * Math.pow(1 / 6, 1.6));
+  expect(alphas[1]).toBeCloseTo(0.8 * Math.pow(5 / 6, 1.6));
+  alphas.length = 0;
+  board.elapsed = 6;
+  renderer.render(board, [], 6);
+  expect(alphas).toHaveLength(0);
+});
+
+it("gives branched ships matching, distinct and visible tails", () => {
+  const { renderer, context } = fixture();
+  const board = snapshot();
+  board.status = "flying";
+  board.elapsed = 1;
+  board.particles = [0, 1, 2].map((id) => ({
+    id,
+    alive: true,
+    position: { x: 3700, y: 500 + id * 20 },
+    velocity: { x: 1, y: 0 },
+    trail: [
+      { x: 3600, y: 500 + id * 20, time: 0.5 },
+      { x: 3700, y: 500 + id * 20, time: 1 },
+    ],
+  }));
+  const colors = ["#a45c52", "#64846a", "#8c6796"];
+  const tails: { color: unknown; alpha: unknown; width: number }[] = [];
+  const ships: unknown[] = [];
+  context.fill = vi.fn(() => {
+    if (typeof context.fillStyle === "object")
+      tails.push({
+        color: context.strokeStyle,
+        alpha: context.globalAlpha,
+        width: context.lineWidth as number,
+      });
+    else if (colors.includes(context.fillStyle as string))
+      ships.push(context.fillStyle);
+  });
+  const coloredStrokes: unknown[] = [];
+  context.stroke = vi.fn(() => {
+    if (colors.includes(context.strokeStyle as string))
+      coloredStrokes.push(context.strokeStyle);
+  });
+
+  renderer.render(board, [], 1);
+  expect(tails.map((tail) => tail.color)).toEqual(colors);
+  expect(tails.every((tail) => tail.alpha === 0.8 && tail.width >= 2.4)).toBe(
+    true,
+  );
+  expect(ships).toEqual(colors);
+  expect(coloredStrokes).toHaveLength(0);
 });

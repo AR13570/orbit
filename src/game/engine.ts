@@ -66,7 +66,7 @@ function planMovement(particle:Particle,sector:Sector,boundary:Boundary):Movemen
  return {from,to:next.position,velocity:next.velocity,time,ending};
 }
 /** Resolve all trajectories before applying the earliest docking in this fixed step. */
-function stepVolley(particles:Particle[],sector:Sector,boundaries:Map<number,Boundary>,sample:boolean):'dock'|'dead'|null {
+function stepVolley(particles:Particle[],sector:Sector,boundaries:Map<number,Boundary>,sample:boolean,elapsed=0):'dock'|'dead'|null {
  const movements=particles.map(particle=>particle.alive?planMovement(particle,sector,boundaries.get(particle.id)!):null);
  const dockTime=Math.min(...movements.map(movement=>movement?.ending==='dock'?movement.time:Infinity));
  particles.forEach((particle,index)=>{
@@ -75,7 +75,7 @@ function stepVolley(particles:Particle[],sector:Sector,boundaries:Map<number,Bou
   particle.position={x:from.x+(to.x-from.x)*time,y:from.y+(to.y-from.y)*time};particle.velocity=movement.velocity;
   const boundary=boundaries.get(particle.id)!;boundary.outsideElapsed=outsideProgress(from,particle.position,boundary,FIXED_STEP*time).elapsed;publishOutside(particle,boundary);
   if(Number.isFinite(dockTime)||movement.ending!==null)particle.alive=false;
-  if(sample||!particle.alive){if(distance(particle.trail.at(-1)!,particle.position)>1e-8)particle.trail.push({...particle.position});if(particle.trail.length>180)particle.trail.shift();}
+  if(sample||!particle.alive){if(!particle.trail.length||distance(particle.trail.at(-1)!,particle.position)>1e-8)particle.trail.push({...particle.position,time:elapsed});if(particle.trail.length>180)particle.trail.shift();}
  });
  return Number.isFinite(dockTime)?'dock':particles.every(particle=>!particle.alive)?'dead':null;
 }
@@ -90,12 +90,13 @@ export class OrbitEngine {
  private accumulator=0;
  private steps=0;
  private eventId=0;
+ private trailElapsed=0;
  private branched=false;
  private recentLayouts:CompositionDescriptor[]=[];
  constructor(seed?:number){this.restart(seed);}
  getSnapshot():GameSnapshot {
   if(this.cachedSectorSource!==this.state.sector||!this.cachedStaticSector){this.cachedStaticSector=freezeGeometry(structuredClone(this.state.sector));this.cachedSectorSource=this.state.sector;}
-  return {...this.state,canBranch:this.branchIsAvailable(),sector:this.cachedStaticSector,aim:{...this.state.aim},particles:this.state.particles.map(p=>({...p,position:{...p.position},velocity:{...p.velocity},trail:p.trail.map(point=>({...point}))})),event:this.state.event?{...this.state.event}:null};
+  return {...this.state,trailElapsed:this.trailElapsed,canBranch:this.branchIsAvailable(),sector:this.cachedStaticSector,aim:{...this.state.aim},particles:this.state.particles.map(p=>({...p,position:{...p.position},velocity:{...p.velocity},trail:p.trail.map(point=>({...point}))})),event:this.state.event?{...this.state.event}:null};
  }
  setFlightBounds(bounds:WorldBounds|null):void {
   if(bounds!==null&&(!Object.values(bounds).every(Number.isFinite)||bounds.width<=SHIP_RADIUS*2||bounds.height<=SHIP_RADIUS*2))return;
@@ -113,7 +114,7 @@ export class OrbitEngine {
  launch():void {
   if(this.state.status!=='aiming')return;
   this.branched=false;
-  this.state.particles=this.makeParticles();this.state.elapsed=0;this.accumulator=0;this.steps=0;
+  this.state.particles=this.makeParticles();this.state.elapsed=0;this.trailElapsed=0;this.accumulator=0;this.steps=0;
   this.boundaries=new Map(this.state.particles.map(particle=>[particle.id,this.makeBoundary()]));this.state.status='flying';this.state.message='In flight.';this.emit('launch');
  }
  branch():void {
@@ -121,18 +122,20 @@ export class OrbitEngine {
   const center=this.state.particles[0],boundary=this.boundaries.get(center.id)!;
   const sides=[-Math.PI/60,Math.PI/60].map((offset,index):Particle=>{
    const position={...center.position},cosine=Math.cos(offset),sine=Math.sin(offset);
-   return {id:index+1,position,velocity:{x:center.velocity.x*cosine-center.velocity.y*sine,y:center.velocity.x*sine+center.velocity.y*cosine},alive:true,trail:[{...position}]};
+   return {id:index+1,position,velocity:{x:center.velocity.x*cosine-center.velocity.y*sine,y:center.velocity.x*sine+center.velocity.y*cosine},alive:true,trail:[{...position,time:this.state.elapsed}]};
   });
   this.state.particles.push(...sides);
   for(const side of sides){const copy={bounds:{...boundary.bounds},outsideElapsed:boundary.outsideElapsed};this.boundaries.set(side.id,copy);publishOutside(side,copy);}
   this.branched=true;
  }
  update(deltaSeconds:number):void {
-  if(this.state.status!=='flying'||!Number.isFinite(deltaSeconds)||deltaSeconds<=0)return;
+  if(!Number.isFinite(deltaSeconds)||deltaSeconds<=0)return;
+  if(this.state.status!=='flying'){if(this.state.particles.some(particle=>particle.trail.length)){this.trailElapsed+=Math.min(deltaSeconds,0.25);this.expireTrails();}return;}
   this.accumulator+=Math.min(deltaSeconds,0.25);
   while(this.accumulator+1e-12>=FIXED_STEP&&this.state.status==='flying'){
    this.accumulator=Math.max(0,this.accumulator-FIXED_STEP);this.steps++;this.state.elapsed=this.steps*FIXED_STEP;
-   const result=stepVolley(this.state.particles,this.state.sector,this.boundaries,this.steps%4===0);
+   const result=stepVolley(this.state.particles,this.state.sector,this.boundaries,this.steps%4===0,this.state.elapsed);
+   this.trailElapsed=this.state.elapsed;this.expireTrails();
    if(result==='dock')this.dock();else if(result==='dead')this.fail('Trajectory lost.');
   }
  }
@@ -147,7 +150,7 @@ export class OrbitEngine {
  }
  restart(seed?:number):void {
   const shotCount=this.state?.shotCount??1;
-  this.runSeed=Number.isFinite(seed)?seed!>>>0:(Date.now()^Math.floor(Math.random()*0xffffffff))>>>0;this.accumulator=0;this.steps=0;this.branched=false;
+  this.runSeed=Number.isFinite(seed)?seed!>>>0:(Date.now()^Math.floor(Math.random()*0xffffffff))>>>0;this.accumulator=0;this.steps=0;this.trailElapsed=0;this.branched=false;
   this.state={status:'aiming',sector:generateSector(this.runSeed),aim:{angle:0,power:0.5},shotCount,particles:[],checkpointCount:0,message:'Pull back and release.',elapsed:0,event:null};
   this.recentLayouts=[];this.rememberLayout();
   this.setDefaultAim();this.boundaries.clear();this.emit('restart');
@@ -166,13 +169,14 @@ export class OrbitEngine {
   }
   return paths;
  }
+ private expireTrails():void {for(const particle of this.state.particles)particle.trail=particle.trail.filter(point=>this.trailElapsed-(point.time??0)<=3);}
  private makeBoundary():Boundary {return {bounds:{...(this.injectedBounds??this.state.sector.bounds)},outsideElapsed:0};}
  private branchIsAvailable():boolean {return this.state.status==='flying'&&this.state.shotCount===3&&!this.branched&&this.state.particles.length===1&&this.state.particles[0].alive;}
  private makeParticles():Particle[] {
   const speed=launchSpeed(this.state.aim.power),offsets=[0];
   return offsets.map((offset,id)=>{
    const position={...this.state.sector.launch},angle=this.state.aim.angle+offset;
-   const particle:Particle={id,position,velocity:{x:Math.cos(angle)*speed,y:Math.sin(angle)*speed},alive:true,trail:[{...position}]};publishOutside(particle,this.makeBoundary());return particle;
+   const particle:Particle={id,position,velocity:{x:Math.cos(angle)*speed,y:Math.sin(angle)*speed},alive:true,trail:[{...position,time:0}]};publishOutside(particle,this.makeBoundary());return particle;
   });
  }
  private setDefaultAim():void {this.state.aim={angle:this.state.sector.solution.angle+0.07,power:clamp01(this.state.sector.solution.power+0.035)};}

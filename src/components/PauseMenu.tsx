@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import Icon from "./Icon";
 export default function PauseMenu({
+  onModes,
   onResume,
   onHelp,
   onRestart,
@@ -9,6 +10,7 @@ export default function PauseMenu({
   muted,
   flying,
 }: {
+  onModes?: () => void;
   onResume: () => void;
   onHelp: () => void;
   onRestart: () => void;
@@ -106,6 +108,11 @@ export default function PauseMenu({
             <span>New seed</span>
             <span className="pause-chevron" aria-hidden="true" />
           </button>
+          {onModes && (
+            <button className="pause-option" onClick={onModes}>
+              Choose mode
+            </button>
+          )}
         </div>
       </section>
     </div>

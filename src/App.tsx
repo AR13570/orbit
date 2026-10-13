@@ -1,3 +1,6 @@
+import ModeChooser, { type OrbitMode } from "./ModeChooser";
+import GravityGame from "./gravity/GravityGame";
+import GravityCreator from "./gravity/creator/GravityCreator";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OrbitEngine } from "./game/engine";
 import { createRenderer } from "./render/renderer";
@@ -9,7 +12,7 @@ import Help from "./components/Help";
 import PauseMenu from "./components/PauseMenu";
 import Icon from "./components/Icon";
 import type { Vec2 } from "./game/types";
-export default function App() {
+export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
   const [engine] = useState(
     () => new OrbitEngine(runSeed(window.location.search)),
   );
@@ -514,6 +517,7 @@ export default function App() {
         />
       ) : paused ? (
         <PauseMenu
+          onModes={onExit}
           onResume={resume}
           onHelp={() => {
             cancel();
@@ -532,4 +536,24 @@ export default function App() {
       ) : null}
     </main>
   );
+}
+
+export default function App() {
+  const [mode, setMode] = useState<OrbitMode | null>(() => {
+    const value = new URLSearchParams(window.location.search).get("mode");
+    return value === "zen" || value === "gravity" || value === "creator"
+      ? value
+      : null;
+  });
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (mode) url.searchParams.set("mode", mode);
+    else url.searchParams.delete("mode");
+    window.history.replaceState(window.history.state, "", url);
+  }, [mode]);
+  if (mode === "zen") return <ZenGame onExit={() => setMode(null)} />;
+  if (mode === "gravity") return <GravityGame onExit={() => setMode(null)} />;
+  if (mode === "creator")
+    return <GravityCreator onExit={() => setMode(null)} />;
+  return <ModeChooser onSelect={setMode} />;
 }

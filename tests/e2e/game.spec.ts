@@ -156,7 +156,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto("/?seed=42");
+    await page.goto("/?mode=zen&seed=42");
     await ready(page);
     expect(
       await page
@@ -215,7 +215,7 @@ for (const journeyViewport of [
   }) => {
     test.setTimeout(65000);
     await page.setViewportSize(journeyViewport);
-    await page.goto("/?seed=42");
+    await page.goto("/?mode=zen&seed=42");
     await ready(page);
     const engine = new OrbitEngine(42);
     for (let index = 0; index < 2; index++) {
@@ -273,7 +273,7 @@ for (const viewport of [
     try {
       await page.clock.install();
       await page.clock.pauseAt(new Date());
-      await page.goto("/?seed=42");
+      await page.goto("/?mode=zen&seed=42");
       await page.clock.runFor(100);
       await ready(page);
       const reset = page.getByRole("button", {
@@ -402,7 +402,7 @@ test("opening near-straight bypass collides before timeout while the curved gest
   await page.setViewportSize(viewport);
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?seed=42");
+  await page.goto("/?mode=zen&seed=42");
   await page.clock.runFor(100);
   await ready(page);
   await pull(page, shortcutAngle, 0.975);
@@ -434,7 +434,7 @@ test("continuous free play retains progress through five misses and another chec
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?seed=42");
+  await page.goto("/?mode=zen&seed=42");
   await page.clock.runFor(100);
   await ready(page);
   await expect(page.locator(".life-meter,.life-dot,.scene-score")).toHaveCount(
@@ -495,7 +495,7 @@ test("continuous free play retains progress through five misses and another chec
   await expect(page.getByRole("status")).toHaveText("In flight");
 });
 test("resize and pause cancel held pulls without firing", async ({ page }) => {
-  await page.goto("/?seed=42");
+  await page.goto("/?mode=zen&seed=42");
   await ready(page);
   await page.mouse.move(500, 400);
   await page.mouse.down();
@@ -522,7 +522,7 @@ test("real touch drag releases to fire and ignores additional touch", async ({
   });
   const page = await context.newPage();
   try {
-    await page.goto("/?seed=42");
+    await page.goto("/?mode=zen&seed=42");
     await ready(page);
     const solution = new OrbitEngine(42).getSnapshot().sector.solution;
     const pullPoint = {
@@ -605,7 +605,7 @@ test("real touch drag releases to fire and ignores additional touch", async ({
 });
 test("denser seeded scene has no page errors", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/?seed=137");
+  await page.goto("/?mode=zen&seed=137");
   await ready(page);
   await page.screenshot({ path: "test-results/redesign-dense.png" });
 });
@@ -617,7 +617,7 @@ test("offscreen flight survives exit, freezes while paused and retries once afte
   await page.setViewportSize(viewport);
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?seed=42");
+  await page.goto("/?mode=zen&seed=42");
   await page.clock.runFor(50);
   await ready(page);
   const reference = new OrbitEngine(42),
@@ -725,7 +725,7 @@ test("real generated gravity flight returns from offscreen and clears its countd
   await page.setViewportSize(viewport);
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?seed=42");
+  await page.goto("/?mode=zen&seed=42");
   await page.clock.runFor(100);
   await ready(page);
   const reference = new OrbitEngine(42);
@@ -778,7 +778,7 @@ test("open shelves remain playable in landscape", async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?seed=21");
+  await page.goto("/?mode=zen&seed=21");
   await page.clock.runFor(100);
   await ready(page);
   const sector = new OrbitEngine(21).getSnapshot().sector;
@@ -798,7 +798,7 @@ test("portrait checkpoint advance keeps the complete blue goal inside the viewpo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?seed=4");
+  await page.goto("/?mode=zen&seed=4");
   await page.clock.runFor(100);
   await ready(page);
   const solution = new OrbitEngine(4).getSnapshot().sector.solution;
@@ -872,7 +872,7 @@ test("actual touch portrait flight docks and automatically prepares the next lau
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   try {
-    await page.goto("/?seed=42");
+    await page.goto("/?mode=zen&seed=42");
     await ready(page);
     const reference = new OrbitEngine(42),
       solution = reference.getSnapshot().sector.solution;
@@ -920,7 +920,7 @@ test("mouse selects split mode, launches one piece and taps in flight to branch 
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/?seed=42");
+  await page.goto("/?mode=zen&seed=42");
   await ready(page);
   await page.mouse.dblclick(600, 400, { delay: 60 });
   await expect(page.getByText("Split mode", { exact: true })).toHaveText(
@@ -984,7 +984,7 @@ test("actual touch selects split mode and branches only on a valid in-flight tap
   });
   const page = await context.newPage();
   try {
-    await page.goto("/?seed=42");
+    await page.goto("/?mode=zen&seed=42");
     await ready(page);
     const cdp = await context.newCDPSession(page);
     const touch = async (
@@ -1147,7 +1147,7 @@ test("blue checkpoint gravity captures a near miss using the predicted real gest
   expect(assisted!.missDistance).toBeGreaterThanOrEqual(120);
   console.info("Goal-assisted fixture", assisted);
   await page.setViewportSize(viewport);
-  await page.goto(`/?seed=${assisted!.seed}`);
+  await page.goto(`/?mode=zen&seed=${assisted!.seed}`);
   await ready(page);
   await pull(
     page,

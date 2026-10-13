@@ -13,6 +13,7 @@ import {
 } from "./coordinates";
 
 const TAU = Math.PI * 2;
+const PROJECTILE_COLORS = ["#a45c52", "#64846a", "#8c6796"];
 const COLOR = {
   ground: "#e9ecef",
   charcoal: "#303943",
@@ -97,7 +98,7 @@ interface SurfaceScratch {
   points: Float32Array;
   wave: WaveSample;
 }
-function drawGravitySurface(
+export function drawGravitySurface(
   ctx: CanvasRenderingContext2D,
   position: Vec2,
   radius: number,
@@ -204,10 +205,11 @@ function drawGravityFields(
   ctx.restore();
 }
 
-function drawBody(
+export function drawBody(
   ctx: CanvasRenderingContext2D,
   body: Readonly<Body>,
   scale: number,
+  labelGap = 0,
 ) {
   const { x, y } = body.position,
     r = body.radius;
@@ -234,13 +236,13 @@ function drawBody(
   // Directional chevrons add a second force cue beyond color.
   const mark = Math.min(r * 0.34, Math.max(7, 4 / scale));
   ctx.strokeStyle = repels ? "#e9cbc1" : "#b5c8d7";
-  ctx.lineWidth = 1.15 / scale;
+  ctx.lineWidth = 1.8 / scale;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.translate(x, y);
   for (const side of [-1, 1]) {
-    const tip = side * (repels ? mark : mark * 0.32),
-      back = side * (repels ? mark * 0.35 : mark);
+    const tip = side * (labelGap + (repels ? mark : mark * 0.32)),
+      back = side * (labelGap + (repels ? mark * 0.35 : mark));
     ctx.beginPath();
     ctx.moveTo(back, -mark * 0.45);
     ctx.lineTo(tip, 0);
@@ -458,14 +460,61 @@ function drawParticles(
 ) {
   for (const particle of snapshot.particles) {
     ctx.save();
-    ctx.strokeStyle = COLOR.blue;
+    const color = PROJECTILE_COLORS[particle.id % PROJECTILE_COLORS.length];
+    ctx.strokeStyle = color;
     ctx.lineCap = "round";
     const trail = particle.trail;
+    const halfWidth = Math.max(1.5, 2.4 / scale) / 2;
+    ctx.lineWidth = halfWidth * 2;
+    const red = parseInt(color.slice(1, 3), 16),
+      green = parseInt(color.slice(3, 5), 16),
+      blue = parseInt(color.slice(5, 7), 16);
+    const now = snapshot.trailElapsed ?? snapshot.elapsed;
+    const opacity = (time: number) =>
+      0.8 * Math.pow(Math.max(0, 1 - (now - time) / 3), 1.6);
+    // Shared miter edges join the ribbon without overlapping translucent caps.
+    const normals = trail.slice(1).map((to, index) => {
+      const from = trail[index],
+        dx = to.x - from.x,
+        dy = to.y - from.y;
+      const length = Math.hypot(dx, dy);
+      return length > 1e-8
+        ? { x: -dy / length, y: dx / length }
+        : { x: 0, y: 0 };
+    });
+    const edges = trail.map((point, index) => {
+      const before = normals[Math.max(0, index - 1)] ?? { x: 0, y: 0 };
+      const after = normals[Math.min(index, normals.length - 1)] ?? before;
+      const x = before.x + after.x,
+        y = before.y + after.y;
+      const length = Math.hypot(x, y);
+      const normal = length > 1e-8 ? { x: x / length, y: y / length } : after;
+      const projection = normal.x * after.x + normal.y * after.y;
+      const width = halfWidth / Math.max(0.5, projection);
+      return {
+        left: { x: point.x + normal.x * width, y: point.y + normal.y * width },
+        right: { x: point.x - normal.x * width, y: point.y - normal.y * width },
+      };
+    });
     for (let n = 1; n < trail.length; n++) {
-      const f = n / trail.length;
-      ctx.globalAlpha = f * f * (particle.alive ? 0.35 : 0.1);
-      ctx.lineWidth = Math.max(1.5, 1.2 / scale);
-      line(ctx, trail[n - 1].x, trail[n - 1].y, trail[n].x, trail[n].y);
+      const from = trail[n - 1],
+        to = trail[n];
+      const alpha = opacity(to.time ?? 0);
+      if (alpha === 0 || Math.hypot(to.x - from.x, to.y - from.y) < 1e-8)
+        continue;
+      const gradient = ctx.createLinearGradient(from.x, from.y, to.x, to.y);
+      const ratio = Math.min(1, opacity(from.time ?? 0) / alpha);
+      gradient.addColorStop(0, `rgba(${red}, ${green}, ${blue}, ${ratio})`);
+      gradient.addColorStop(1, color);
+      ctx.fillStyle = gradient;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.moveTo(edges[n - 1].left.x, edges[n - 1].left.y);
+      ctx.lineTo(edges[n].left.x, edges[n].left.y);
+      ctx.lineTo(edges[n].right.x, edges[n].right.y);
+      ctx.lineTo(edges[n - 1].right.x, edges[n - 1].right.y);
+      ctx.closePath();
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
     if (particle.alive) {
@@ -474,6 +523,7 @@ function drawParticles(
         particle.position,
         Math.atan2(particle.velocity.y, particle.velocity.x),
         scale,
+        color,
       );
     }
     ctx.restore();
