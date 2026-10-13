@@ -1,4 +1,4 @@
-import { bodyStrength,distance,FIXED_STEP,launchSpeed,segmentCircleIntersection,SHIP_RADIUS,stepParticle,WORLD_SIZE,WORLD_WIDTH } from './physics';
+import { bodyStrength,distance,FIXED_STEP,launchSpeed,segmentCircleIntersection,SHIP_RADIUS,stepParticle,stepZenParticle,zenLaunchSpeed,ZEN_FIXED_STEP,WORLD_SIZE,WORLD_WIDTH } from './physics';
 import type { Body,Checkpoint,Sector,SectorFamily,ValidatedSolution,Vec2,WorldBounds } from './types';
 import { matchesStructure,STRUCTURES } from './structures';
 import type { StructureGrammar } from './structures';
@@ -30,19 +30,19 @@ function sampleStructure(grammar:StructureGrammar,random:()=>number):Layout|null
  });
  const layout={bodies,checkpoint,family:grammar.id};return clearLayout(layout)&&bodies.some(b=>b.kind==='repellent')&&blocksStraightCorridor({launch:LOCAL_LAUNCH,...layout})?layout:null;
 }
-function captureRoute(layout:Layout,angle:number,power:number,launch:Vec2=LOCAL_LAUNCH,bounds:WorldBounds=LOCAL_BOUNDS,budget?:SearchBudget):ValidatedSolution|null {
+function captureRoute(layout:Layout,angle:number,power:number,launch:Vec2=LOCAL_LAUNCH,bounds:WorldBounds=LOCAL_BOUNDS,budget?:SearchBudget,playback=false):ValidatedSolution|null {
  angle=Math.atan2(Math.sin(angle),Math.cos(angle));
- const speed=launchSpeed(power),{bodies,checkpoint}=layout;
+ const speed=(playback?zenLaunchSpeed:launchSpeed)(power),dt=playback?ZEN_FIXED_STEP:FIXED_STEP,advance=playback?stepZenParticle:stepParticle,{bodies,checkpoint}=layout;
  let position={...launch},velocity={x:Math.cos(angle)*speed,y:Math.sin(angle)*speed};
  const path:Vec2[]=[{...launch}];
  for(let step=0;step<MAX_ROUTE_STEPS;step++){
   if(budget&&budget.remaining--<=0)return null;
-  const next=stepParticle(position,velocity,bodies,FIXED_STEP,checkpoint),dock=segmentCircleIntersection(position,next.position,checkpoint.position,checkpoint.radius+SHIP_RADIUS);
+  const next=advance(position,velocity,bodies,dt,checkpoint),dock=segmentCircleIntersection(position,next.position,checkpoint.position,checkpoint.radius+SHIP_RADIUS);
   for(const body of bodies){const hit=segmentCircleIntersection(position,next.position,body.position,body.radius+SHIP_RADIUS);if(hit!==null&&(dock===null||hit<=dock))return null;}
   if(dock!==null){
    const contact={x:position.x+(next.position.x-position.x)*dock,y:position.y+(next.position.y-position.y)*dock};
    if(distance(path.at(-1)!,contact)>1e-8)path.push(contact);
-   return {angle,power,speed,flightSeconds:(step+1)*FIXED_STEP,path};
+   return {angle,power,speed,flightSeconds:(step+1)*dt,path};
   }
   if(next.position.x<bounds.x+SHIP_RADIUS||next.position.x>bounds.x+bounds.width-SHIP_RADIUS||next.position.y<bounds.y+SHIP_RADIUS||next.position.y>bounds.y+bounds.height-SHIP_RADIUS)return null;
   position=next.position;velocity=next.velocity;if((step+1)%4===0)path.push({...position});
@@ -71,7 +71,7 @@ function findRoute(layout:Layout,random:()=>number,budget?:SearchBudget):Validat
 function populate(seed:number,index:number,origin:Vec2,layout:Layout,route:ValidatedSolution,fallback:boolean):Sector {
  const launch={...origin},bounds={x:origin.x-100,y:origin.y-450,width:WORLD_WIDTH,height:WORLD_SIZE};
  const translated:Layout={family:layout.family,bodies:layout.bodies.map(body=>({...body,position:{x:origin.x+body.position.x,y:origin.y+body.position.y}})),checkpoint:{radius:45,position:{x:origin.x+layout.checkpoint.position.x,y:origin.y+layout.checkpoint.position.y}}};
- const solution=captureRoute(translated,route.angle,route.power,launch,bounds);if(!solution)throw new Error('Validated route lost during translation');
+ const solution=captureRoute(translated,route.angle,route.power,launch,bounds,undefined,true);if(!solution)throw new Error('Validated route lost during translation');
  return {index,seed,width:WORLD_WIDTH,height:WORLD_SIZE,bounds,launch,bodies:translated.bodies,checkpoint:translated.checkpoint,solution,generation:{family:layout.family,fallback,validation:validationFor(layout)}};
 }
 function normalized(seed:number,index:number):[number,number] {return [Number.isFinite(seed)?seed>>>0:1,Math.max(0,Math.floor(Number.isFinite(index)?index:0))];}

@@ -42,6 +42,7 @@ function pointer(
   y: number,
   id = 1,
   primary = true,
+  pointerType = "mouse",
 ) {
   const event = new MouseEvent(type, {
     bubbles: true,
@@ -52,7 +53,7 @@ function pointer(
   Object.defineProperties(event, {
     pointerId: { value: id },
     isPrimary: { value: primary },
-    pointerType: { value: "mouse" },
+    pointerType: { value: pointerType },
   });
   fireEvent(canvas, event);
 }
@@ -71,6 +72,18 @@ function field() {
   return canvas;
 }
 describe("minimal scene lifecycle", () => {
+  it("sets actual full power and launches from a 72px touch pull", () => {
+    const launch = vi.spyOn(OrbitEngine.prototype, "launch");
+    render(<App />);
+    const canvas = field();
+    pointer(canvas, "pointerdown", 90, 300, 1, true, "touch");
+    pointer(canvas, "pointermove", 18, 300, 1, true, "touch");
+    pointer(canvas, "pointerup", 18, 300, 1, true, "touch");
+    expect(launch).toHaveBeenCalledTimes(1);
+    expect(
+      (launch.mock.instances[0] as OrbitEngine).getSnapshot().aim.power,
+    ).toBe(1);
+  });
   it("does not reset docked feedback or duplicate its checkpoint advance", () => {
     let nextFrame: FrameRequestCallback;
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {

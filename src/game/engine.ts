@@ -1,7 +1,7 @@
 import { generateSector } from './generator';
 import { describeComposition,RECENT_LAYOUT_LIMIT } from './composition';
 import type { CompositionDescriptor } from './composition';
-import { distance,FIXED_STEP,launchSpeed,MAX_FLIGHT_SECONDS,OFFSCREEN_TIMEOUT_SECONDS,segmentCircleIntersection,SHIP_RADIUS,stepParticle } from './physics';
+import { distance,ZEN_FIXED_STEP as FIXED_STEP,zenLaunchSpeed as launchSpeed,MAX_FLIGHT_SECONDS,OFFSCREEN_TIMEOUT_SECONDS,segmentCircleIntersection,SHIP_RADIUS,stepZenParticle as stepParticle } from './physics';
 import type { DeepReadonly,EngineEventKind,GameSnapshot,Particle,Sector,ShotCount,StaticSector,Vec2,WorldBounds } from './types';
 
 type EngineState=Omit<GameSnapshot,'sector'|'canBranch'>&{sector:Sector};

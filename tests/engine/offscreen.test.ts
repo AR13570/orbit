@@ -1,11 +1,11 @@
 import { describe,expect,it } from 'vitest';
 import { OrbitEngine } from '../../src/game/engine';
-import { FIXED_STEP,OFFSCREEN_TIMEOUT_SECONDS } from '../../src/game/physics';
+import { ZEN_FIXED_STEP as FIXED_STEP,OFFSCREEN_TIMEOUT_SECONDS } from '../../src/game/physics';
 import type { Particle,Sector } from '../../src/game/types';
 const state=(engine:OrbitEngine)=>(engine as unknown as {state:{sector:Sector;particles:Particle[]}}).state;
 const remaining=(engine:OrbitEngine,index=0)=>(engine.getSnapshot().particles[index] as Particle&{offscreenRemaining?:number}).offscreenRemaining;
 function field():OrbitEngine {
- const engine=new OrbitEngine(7);Object.assign(state(engine).sector,{launch:{x:100,y:500},bounds:{x:0,y:0,width:200,height:1000},checkpoint:{position:{x:10000,y:500},radius:45},bodies:[]});engine.setAim(0,250/420);return engine;
+ const engine=new OrbitEngine(7);Object.assign(state(engine).sector,{launch:{x:100,y:500},bounds:{x:0,y:0,width:200,height:1000},checkpoint:{position:{x:10000,y:500},radius:45},bodies:[]});engine.setAim(0,250/756);return engine;
 }
 function tick(engine:OrbitEngine,seconds:number):void {for(let step=0;step<Math.round(seconds/FIXED_STEP);step++)engine.update(FIXED_STEP);}
 
@@ -38,9 +38,9 @@ describe('off-screen flight and return',()=>{
  });
  it('preserves elapsed time through identical per-frame bounds and changes that leave the ship outside',()=>{
   const engine=field();engine.launch();tick(engine,1);
-  for(let step=0;step<600;step++){engine.setFlightBounds({x:step%2?-10:0,y:0,width:200,height:1000});engine.update(FIXED_STEP);}
+  for(let step=0;step<Math.round(5/FIXED_STEP);step++){engine.setFlightBounds({x:step%2?-10:0,y:0,width:200,height:1000});engine.update(FIXED_STEP);}
   expect(engine.getSnapshot().status).toBe('flying');expect(remaining(engine)).toBeCloseTo(.42,8);
-  for(let step=0;step<60;step++){engine.setFlightBounds({x:0,y:0,width:200,height:1000});engine.update(FIXED_STEP);}
+  for(let step=0;step<Math.round(.5/FIXED_STEP);step++){engine.setFlightBounds({x:0,y:0,width:200,height:1000});engine.update(FIXED_STEP);}
   expect(engine.getSnapshot().status).toBe('failed');
  });
  it('resets only on visibility re-entry and grants a fresh continuous interval after another exit',()=>{
@@ -65,8 +65,8 @@ describe('off-screen flight and return',()=>{
   const dock=field();state(dock).sector.checkpoint.position={x:400,y:500};const terminal=dock.predict(2)[0].at(-1);dock.launch();tick(dock,2);expect(dock.getSnapshot().status).toBe('docked');expect(dock.getSnapshot().checkpointCount).toBe(1);expect(dock.getSnapshot().particles[0].position).toEqual(terminal);expect(remaining(dock)).toBeGreaterThan(0);
  });
  it('recognizes a complete visibility pass between fixed-step endpoints and resets its timer',()=>{
-  const engine=field();state(engine).sector.checkpoint.position.x=100000;engine.setAim(0,1);engine.setFlightBounds({x:990,y:0,width:12,height:1000});engine.launch();state(engine).particles[0].velocity.x=4200;expect(remaining(engine)).toBe(6);
-  for(let step=0;step<26;step++)engine.update(FIXED_STEP);expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(1010);expect(remaining(engine)).toBeCloseTo(5.999285714285714,8);
+  const engine=field();state(engine).sector.checkpoint.position.x=100000;engine.setAim(0,1);engine.setFlightBounds({x:990,y:0,width:12,height:1000});engine.launch();state(engine).particles[0].velocity.x=7560;expect(remaining(engine)).toBe(6);
+  for(let step=0;step<26;step++)engine.update(FIXED_STEP);expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(1010);expect(remaining(engine)).toBeCloseTo(5.999603174603175,8);
   tick(engine,4.8);expect(engine.getSnapshot().status).toBe('flying');tick(engine,1.3);expect(engine.getSnapshot().status).toBe('failed');
  });
 });

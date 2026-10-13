@@ -1,4 +1,5 @@
 import type { Vec2 } from "../game/types";
+import { MOBILE_PULL_DISTANCE, usesTouchLayout } from "../controls";
 
 export interface FieldBounds {
   x: number;
@@ -11,6 +12,72 @@ export interface Camera {
   scale: number;
 }
 export type DisplayRect = Pick<DOMRect, "left" | "top" | "width" | "height">;
+
+/** Fit physical content while reserving real screen space around the launch control. */
+export function fitPlayableCamera(
+  bounds: FieldBounds,
+  launch: Vec2,
+  width: number,
+  height: number,
+  controlInset = MOBILE_PULL_DISTANCE + 18,
+  padding = 18,
+): Camera {
+  const w = Math.max(1, width),
+    h = Math.max(1, height);
+  const inset = Math.min(controlInset, Math.min(w, h) / 2 - 1);
+  let scale = Math.min(
+    (w - 2 * padding) / Math.max(1, bounds.width),
+    (h - 2 * padding) / Math.max(1, bounds.height),
+  );
+  for (const [span, start, size, anchor] of [
+    [w, bounds.x, bounds.width, launch.x],
+    [h, bounds.y, bounds.height, launch.y],
+  ]) {
+    scale = Math.min(
+      scale,
+      (span - padding - inset) / Math.max(1, anchor - start),
+      (span - padding - inset) / Math.max(1, start + size - anchor),
+    );
+  }
+  scale = Math.max(0.001, scale);
+  function center(start: number, size: number, anchor: number, span: number) {
+    const low = Math.max(
+      start + size - (span / 2 - padding) / scale,
+      anchor - (span / 2 - inset) / scale,
+    );
+    const high = Math.min(
+      start + (span / 2 - padding) / scale,
+      anchor + (span / 2 - inset) / scale,
+    );
+    return Math.min(high, Math.max(low, start + size / 2));
+  }
+  return {
+    scale,
+    center: {
+      x: center(bounds.x, bounds.width, launch.x, w),
+      y: center(bounds.y, bounds.height, launch.y, h),
+    },
+  };
+}
+
+export function contentBounds(
+  circles: readonly { position: Vec2; radius: number }[],
+): FieldBounds {
+  const left = Math.min(...circles.map((c) => c.position.x - c.radius));
+  const top = Math.min(...circles.map((c) => c.position.y - c.radius));
+  return {
+    x: left,
+    y: top,
+    width: Math.max(
+      1,
+      Math.max(...circles.map((c) => c.position.x + c.radius)) - left,
+    ),
+    height: Math.max(
+      1,
+      Math.max(...circles.map((c) => c.position.y + c.radius)) - top,
+    ),
+  };
+}
 
 export function fitCamera(
   bounds: FieldBounds,
@@ -37,7 +104,19 @@ export function fitFieldCamera(
   height: number,
   leadX?: number,
   checkpoint?: { position: Vec2; radius: number },
+  touchLayout = usesTouchLayout(width, height),
 ): Camera {
+  if (checkpoint && touchLayout) {
+    const camera = fitPlayableCamera(bounds, launch, width, height);
+    if (leadX !== undefined && width < height) {
+      const screenX = (leadX - camera.center.x) * camera.scale + width / 2;
+      if (screenX > width * 0.65)
+        camera.center.x = leadX - (width * 0.15) / camera.scale;
+      else if (screenX < width * 0.2)
+        camera.center.x = leadX + (width * 0.3) / camera.scale;
+    }
+    return camera;
+  }
   if (width >= height) return fitCamera(bounds, width, height);
   let scale = Math.min(
     Math.max(1, width) / Math.min(900, bounds.width),

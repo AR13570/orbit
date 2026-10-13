@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PullGesture, runSeed } from "../controls";
+import { PullGesture, runSeed, pullDistance } from "../controls";
 import Icon from "../components/Icon";
 import { OrbitSound } from "../sound";
 import { GravityEngine } from "./engine";
@@ -191,7 +191,7 @@ export default function GravityGame({
           if (e.button !== 0 || pause.current || engine.getSnapshot().complete)
             return;
           gesture.current = new PullGesture(
-            e.pointerType === "touch" || window.innerWidth <= 760 ? 120 : 160,
+            pullDistance(e.pointerType, window.innerWidth, window.innerHeight),
           );
           gesture.current.begin(e.pointerId, { x: e.clientX, y: e.clientY });
           const rect = e.currentTarget.getBoundingClientRect();

@@ -1,5 +1,10 @@
 import type { Body, Checkpoint, Vec2 } from './types';
 export const FIXED_STEP = 1 / 120;
+// Keep the baseline helpers stable for generation and Gravity. Zen runs the same
+// spatial integration steps in less real time, with velocity and force scaled together.
+export const ZEN_SPEED_SCALE = 1.8;
+export const ZEN_FORCE_SCALE = ZEN_SPEED_SCALE ** 2;
+export const ZEN_FIXED_STEP = FIXED_STEP / ZEN_SPEED_SCALE;
 export const OFFSCREEN_TIMEOUT_SECONDS = 6;
 export const MAX_FLIGHT_SECONDS = 22;
 export const WORLD_SIZE = 900;
@@ -50,6 +55,11 @@ export function stepParticle(position: Vec2, velocity: Vec2, bodies: readonly Bo
   const nextVelocity = { x: velocity.x + force.x * dt, y: velocity.y + force.y * dt };
   return { position: { x: position.x + nextVelocity.x * dt, y: position.y + nextVelocity.y * dt }, velocity: nextVelocity };
 }
+export function stepZenParticle(position:Vec2,velocity:Vec2,bodies:readonly Body[],dt=ZEN_FIXED_STEP,checkpoint?:Checkpoint|null):{position:Vec2;velocity:Vec2} {
+  const force=forceAt(position,bodies,checkpoint);
+  const nextVelocity={x:velocity.x+force.x*ZEN_FORCE_SCALE*dt,y:velocity.y+force.y*ZEN_FORCE_SCALE*dt};
+  return {position:{x:position.x+nextVelocity.x*dt,y:position.y+nextVelocity.y*dt},velocity:nextVelocity};
+}
 export function segmentCircleIntersection(from: Vec2, to: Vec2, center: Vec2, radius: number): number | null {
   // A segment outside one side of the circle's bounding box cannot contact it.
   // Keep the exact quadratic unchanged for every possible swept contact.
@@ -72,3 +82,4 @@ export function segmentCircleIntersection(from: Vec2, to: Vec2, center: Vec2, ra
 export function launchSpeed(power: number): number {
   return Math.max(0, Math.min(1, power)) * 420;
 }
+export function zenLaunchSpeed(power:number):number {return launchSpeed(power)*ZEN_SPEED_SCALE;}

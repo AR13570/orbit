@@ -1,8 +1,10 @@
 import type { Body, GameSnapshot, Vec2 } from "../game/types";
+import { usesTouchLayout } from "../controls";
 import { sampleGravityWave, type WaveSample } from "./gravity-surface";
 import {
   clientToWorld,
   fitCamera,
+  contentBounds,
   fitFieldCamera,
   interpolateCamera,
   worldToClient,
@@ -88,7 +90,23 @@ function line(
   ctx.lineTo(x2, y2);
   ctx.stroke();
 }
-function fieldBounds(sector: Sector): FieldBounds {
+function fieldBounds(
+  sector: Sector,
+  width: number,
+  height: number,
+): FieldBounds {
+  if (usesTouchLayout(width, height))
+    return contentBounds([
+      ...sector.bodies.map((body) => ({
+        position: body.position,
+        radius: body.radius + 24,
+      })),
+      { position: sector.launch, radius: 0 },
+      {
+        position: sector.checkpoint.position,
+        radius: sector.checkpoint.radius + 12,
+      },
+    ]);
   return sector.bounds;
 }
 
@@ -630,7 +648,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
         ? lastSnapshot.particles.find((p) => p.alive)
         : undefined;
     camera = fitFieldCamera(
-      fieldBounds(currentSector),
+      fieldBounds(currentSector, width, height),
       currentSector.launch,
       width,
       height,
@@ -674,7 +692,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       currentSector = snapshot.sector;
       sectorKey = key;
       targetCamera = fitFieldCamera(
-        fieldBounds(snapshot.sector),
+        fieldBounds(snapshot.sector, width, height),
         snapshot.sector.launch,
         width,
         height,
@@ -697,7 +715,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       ) {
         fromCamera = camera;
         targetCamera = fitFieldCamera(
-          fieldBounds(snapshot.sector),
+          fieldBounds(snapshot.sector, width, height),
           snapshot.sector.launch,
           width,
           height,
@@ -734,7 +752,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       const lead = snapshot.particles.find((p) => p.alive);
       if (lead) {
         const desired = fitFieldCamera(
-          fieldBounds(snapshot.sector),
+          fieldBounds(snapshot.sector, width, height),
           snapshot.sector.launch,
           width,
           height,

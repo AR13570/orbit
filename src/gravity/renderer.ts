@@ -1,13 +1,71 @@
 import { drawBody, drawGravitySurface } from "../render/renderer";
 import { TRAIL_SECONDS, orbitFraction } from "./simulation";
-import type { GravitySnapshot, TrailPoint } from "./types";
+import type { GravitySnapshot, TrailPoint, GravityLevel } from "./types";
+import {
+  contentBounds,
+  fitPlayableCamera,
+  type Camera,
+} from "../render/coordinates";
 import type { Vec2 } from "../game/types";
+import { usesTouchLayout } from "../controls";
 interface DrawOptions {
   paused: boolean;
   reducedMotion: boolean;
   pull?: Vec2 | null;
 }
 const TAU = Math.PI * 2;
+export function fitGravityFrame(
+  level: GravityLevel,
+  width: number,
+  height: number,
+  touchLayout = usesTouchLayout(width, height),
+) {
+  if (!touchLayout)
+    return {
+      camera: {
+        center: { x: 450, y: 450 },
+        scale: Math.max(
+          0.01,
+          Math.min((width - 24) / 900, (height - 240) / 900),
+        ),
+      },
+      area: { x: 0, y: 15, width, height },
+    };
+  const landscape = width >= height && height <= 500;
+  const left = landscape ? Math.min(190, width * 0.25) : 16;
+  const top = landscape ? 18 : 128;
+  const bottom = landscape ? 18 : 104;
+  const area = {
+    x: left,
+    y: top,
+    width: Math.max(1, width - left - 16),
+    height: Math.max(1, height - top - bottom),
+  };
+  const bounds = contentBounds([
+    { position: level.launch, radius: 0 },
+    ...level.bodies.map((body) => ({
+      position: body.position,
+      // Preserve space for practical orbits, not just the solid surfaces.
+      radius:
+        body.kind === "attractor"
+          ? Math.max(
+              body.radius + 60,
+              Math.min(
+                240,
+                Math.hypot(
+                  level.launch.x - body.position.x,
+                  level.launch.y - body.position.y,
+                ),
+              ),
+            ) + 24
+          : body.radius + 24,
+    })),
+  ]);
+  return {
+    camera: fitPlayableCamera(bounds, level.launch, area.width, area.height),
+    area,
+  };
+}
 function trailOpacity(point: TrailPoint, elapsed: number): number {
   return (
     0.55 *
@@ -110,6 +168,15 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
     motion = 0,
     lastTime: number | null = null,
     destroyed = false;
+  let camera: Camera = { center: { x: 450, y: 450 }, scale: 1 };
+  let area = { x: 0, y: 0, width: 1, height: 1 };
+  let lastLevel: GravityLevel | null = null;
+  let levelKey = "";
+  function frame(level: GravityLevel) {
+    ({ camera, area } = fitGravityFrame(level, width, height));
+    scale = camera.scale;
+    lastLevel = level;
+  }
   const scratch = {
     points: new Float32Array(73 * 73 * 4),
     wave: { crest: 0, slope: 0 },
@@ -140,14 +207,7 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       dpr = Math.min(2, Math.max(1, pixelRatio));
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      const reserved = height < 480 ? 155 : 240;
-      scale = Math.max(
-        0.01,
-        Math.min(
-          Math.max(1, width - 24) / 900,
-          Math.max(1, height - reserved) / 900,
-        ),
-      );
+      if (lastLevel) frame(lastLevel);
     },
     getScale() {
       return scale;
@@ -159,6 +219,11 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       options: DrawOptions,
     ) {
       if (destroyed) return;
+      const key = `${snapshot.level.seed}:${snapshot.level.index}`;
+      if (!lastLevel || key !== levelKey) {
+        frame(snapshot.level);
+        levelKey = key;
+      }
       if (lastTime !== null && !options.paused && !options.reducedMotion)
         motion += Math.min(0.05, Math.max(0, time - lastTime));
       lastTime = time;
@@ -166,11 +231,12 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#e9ecef";
       ctx.fillRect(0, 0, width, height);
-      const centerY = height < 480 ? height / 2 + 15 : height / 2 + 15;
+      const centerX = area.x + area.width / 2;
+      const centerY = area.y + area.height / 2;
       ctx.save();
-      ctx.translate(width / 2, centerY);
+      ctx.translate(centerX, centerY);
       ctx.scale(scale, scale);
-      ctx.translate(-450, -450);
+      ctx.translate(-camera.center.x, -camera.center.y);
       for (const body of snapshot.level.bodies)
         drawGravitySurface(
           ctx,
@@ -302,8 +368,8 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
           const dx = options.pull.x / scale,
             dy = options.pull.y / scale;
           // Clamp the visual handle to the usable screen while preserving shot power.
-          const px = width / 2 + (anchor.x - 450) * scale,
-            py = centerY + (anchor.y - 450) * scale;
+          const px = centerX + (anchor.x - camera.center.x) * scale,
+            py = centerY + (anchor.y - camera.center.y) * scale;
           let fraction = 1;
           for (const [delta, start, limit] of [
             [dx * scale, px, width],

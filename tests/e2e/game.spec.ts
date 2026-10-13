@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { OrbitEngine } from "../../src/game/engine";
+import { MOBILE_PULL_DISTANCE, pullDistance } from "../../src/controls";
 import {
   fitFieldCamera,
   visibleWorldBounds,
@@ -89,17 +90,18 @@ async function pull(
   page: Page,
   angle: number,
   power: number,
-  fullDistance = 160,
+  fullDistance?: number,
   capture?: string,
 ) {
   const v = page.viewportSize()!;
+  const distance = fullDistance ?? pullDistance("mouse", v.width, v.height);
   const x = v.width * 0.55,
     y = v.height * 0.55;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(
-    x - Math.cos(angle) * power * fullDistance,
-    y - Math.sin(angle) * power * fullDistance,
+    x - Math.cos(angle) * power * distance,
+    y - Math.sin(angle) * power * distance,
     { steps: 8 },
   );
   if (capture) {
@@ -190,7 +192,7 @@ for (const viewport of [
       page,
       solution.angle,
       solution.power,
-      viewport.width <= 760 ? 120 : 160,
+      pullDistance("mouse", viewport.width, viewport.height),
     );
     await expect(page.getByRole("status")).toHaveText("In flight");
     await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -230,7 +232,7 @@ for (const journeyViewport of [
         page,
         angle,
         power,
-        journeyViewport.width <= 760 ? 120 : 160,
+        pullDistance("mouse", journeyViewport.width, journeyViewport.height),
         index === 0
           ? `test-results/redesign-pull-${journeyViewport.width}.png`
           : undefined,
@@ -302,7 +304,12 @@ for (const viewport of [
       await page.mouse.dblclick(x, y, { delay: 0 });
       await expect(page.getByText("Split mode", { exact: true })).toBeVisible();
       // Frozen time keeps this check independent of generated route geometry.
-      await pull(page, Math.PI, 1, viewport.width <= 760 ? 120 : 160);
+      await pull(
+        page,
+        Math.PI,
+        1,
+        pullDistance("mouse", viewport.width, viewport.height),
+      );
       await expect(page.getByRole("status")).toHaveText("In flight");
       if (viewport.width <= 760) await reset.tap();
       else await reset.click();
@@ -316,7 +323,12 @@ for (const viewport of [
       await page.keyboard.press("r");
       await page.mouse.up();
       await ready(page);
-      await pull(page, Math.PI, 1, viewport.width <= 760 ? 120 : 160);
+      await pull(
+        page,
+        Math.PI,
+        1,
+        pullDistance("mouse", viewport.width, viewport.height),
+      );
       await page.keyboard.press("r");
       await ready(page);
       // One more aiming double tap switches back only if reset retained split mode.
@@ -526,8 +538,8 @@ test("real touch drag releases to fire and ignores additional touch", async ({
     await ready(page);
     const solution = new OrbitEngine(42).getSnapshot().sector.solution;
     const pullPoint = {
-      x: 240 - Math.cos(solution.angle) * solution.power * 120,
-      y: 480 - Math.sin(solution.angle) * solution.power * 120,
+      x: 240 - Math.cos(solution.angle) * solution.power * MOBILE_PULL_DISTANCE,
+      y: 480 - Math.sin(solution.angle) * solution.power * MOBILE_PULL_DISTANCE,
     };
     const cdp = await context.newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", {
@@ -802,7 +814,7 @@ test("portrait checkpoint advance keeps the complete blue goal inside the viewpo
   await page.clock.runFor(100);
   await ready(page);
   const solution = new OrbitEngine(4).getSnapshot().sector.solution;
-  await pull(page, solution.angle, solution.power, 120);
+  await pull(page, solution.angle, solution.power, MOBILE_PULL_DISTANCE);
   await runUntilStatus(page, "Ready to pull");
   await expect(page.getByLabel("Checkpoint 1", { exact: true })).toBeVisible();
   // Finish the known checkpoint-camera easing with controlled active time.
@@ -878,7 +890,7 @@ test("actual touch portrait flight docks and automatically prepares the next lau
       solution = reference.getSnapshot().sector.solution;
     const cdp = await context.newCDPSession(page);
     const origin = { x: 240, y: 480 },
-      distance = solution.power * 120;
+      distance = solution.power * MOBILE_PULL_DISTANCE;
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchStart",
       touchPoints: [{ ...origin, id: 1 }],
@@ -1008,8 +1020,20 @@ test("actual touch selects split mode and branches only on a valid in-flight tap
     for (let n = 1; n <= 8; n++)
       await touch("touchMove", [
         {
-          x: 240 - (Math.cos(solution.angle) * solution.power * 120 * n) / 8,
-          y: 480 - (Math.sin(solution.angle) * solution.power * 120 * n) / 8,
+          x:
+            240 -
+            (Math.cos(solution.angle) *
+              solution.power *
+              MOBILE_PULL_DISTANCE *
+              n) /
+              8,
+          y:
+            480 -
+            (Math.sin(solution.angle) *
+              solution.power *
+              MOBILE_PULL_DISTANCE *
+              n) /
+              8,
           id: 3,
         },
       ]);

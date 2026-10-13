@@ -81,6 +81,18 @@ function pull(c: HTMLCanvasElement) {
   pointer(c, "pointerup", 220, 330);
 }
 describe("Gravity interface", () => {
+  it("sets full launch power with the same 72px touch gesture", () => {
+    const launch = vi.spyOn(GravityEngine.prototype, "launch");
+    render(<GravityGame onExit={() => {}} />);
+    const canvas = field();
+    pointer(canvas, "pointerdown", 90, 300);
+    pointer(canvas, "pointermove", 18, 300);
+    pointer(canvas, "pointerup", 18, 300);
+    expect(launch).toHaveBeenCalledTimes(1);
+    expect(
+      (launch.mock.instances[0] as GravityEngine).getSnapshot().aim.power,
+    ).toBe(1);
+  });
   it("opens the creator from the chooser and returns to modes", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /Gravity creator/ }));

@@ -1,4 +1,24 @@
 import type { Vec2 } from "./game/types";
+export const MOBILE_PULL_DISTANCE = 72;
+export function usesTouchLayout(
+  width: number,
+  height: number,
+  touchCapable = (typeof navigator !== "undefined" &&
+    navigator.maxTouchPoints > 0) ||
+    (typeof window !== "undefined" &&
+      !!window.matchMedia?.("(any-pointer: coarse)").matches),
+) {
+  return touchCapable || Math.min(width, height) <= 500;
+}
+export function pullDistance(
+  pointerType: string,
+  width: number,
+  height: number,
+) {
+  return pointerType === "touch" || usesTouchLayout(width, height)
+    ? MOBILE_PULL_DISTANCE
+    : 160;
+}
 export function runSeed(search: string) {
   const raw = new URLSearchParams(search).get("seed");
   if (raw === null || raw.trim() === "") return undefined;

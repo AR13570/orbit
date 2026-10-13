@@ -12,6 +12,50 @@ import {
 const bounds = { x: 3400, y: -240, width: 1800, height: 1000 };
 describe("global field camera", () => {
   it.each([
+    [501, 900],
+    [600, 960],
+    [768, 1024],
+    [1024, 768],
+  ])("reserves full touch-pull room on a tablet at %ix%i", (width, height) => {
+    const launch = { x: 120, y: 500 };
+    const camera = fitFieldCamera(
+      { x: 70, y: 200, width: 900, height: 600 },
+      launch,
+      width,
+      height,
+      undefined,
+      { position: { x: 940, y: 500 }, radius: 45 },
+      true,
+    );
+    const screen = worldToClient(
+      launch,
+      { left: 0, top: 0, width, height },
+      camera,
+    );
+    expect(screen.x).toBeGreaterThanOrEqual(90 - 1e-8);
+    expect(screen.y).toBeGreaterThanOrEqual(90 - 1e-8);
+    expect(screen.x - 72).toBeGreaterThanOrEqual(18 - 1e-8);
+  });
+  it("leaves room for a full mobile pull at the actual launcher", () => {
+    const launch = { x: 120, y: 500 };
+    const camera = fitFieldCamera(
+      { x: 70, y: 300, width: 900, height: 400 },
+      launch,
+      390,
+      844,
+      undefined,
+      { position: { x: 900, y: 500 }, radius: 45 },
+    );
+    const screen = worldToClient(
+      launch,
+      { left: 0, top: 0, width: 390, height: 844 },
+      camera,
+    );
+    expect(screen.x).toBeGreaterThanOrEqual(90 - 1e-8);
+    expect(screen.y).toBeGreaterThanOrEqual(90);
+    expect(screen.y).toBeLessThanOrEqual(844 - 90);
+  });
+  it.each([
     [320, 568],
     [390, 844],
     [1440, 900],
@@ -38,7 +82,7 @@ describe("global field camera", () => {
       expect(goal.x + radius).toBeLessThanOrEqual(rect.left + width - 18);
       expect(goal.y + radius).toBeLessThan(rect.top + height);
       expect(goal.y - radius).toBeGreaterThan(rect.top);
-      if (width >= height)
+      if (width >= height && height > 500)
         expect(camera).toEqual(fitCamera(compact, width, height));
       const mapped = clientToWorld(goal.x, goal.y, rect, camera);
       expect(mapped.x).toBeCloseTo(checkpoint.position.x, 9);

@@ -1,6 +1,25 @@
 import { describe, it, expect, vi } from "vitest";
-import { PullGesture, TapSequence, runSeed } from "../../src/controls";
+import {
+  PullGesture,
+  TapSequence,
+  runSeed,
+  pullDistance,
+} from "../../src/controls";
 describe("pullback gestures", () => {
+  it("reaches actual full power with a comfortable 72px mobile pull in either orientation", () => {
+    for (const [width, height] of [
+      [390, 844],
+      [844, 390],
+      [320, 568],
+    ]) {
+      const distance = pullDistance("touch", width, height);
+      expect(distance).toBe(72);
+      const gesture = new PullGesture(distance);
+      gesture.begin(1, { x: 90, y: 200 });
+      expect(gesture.end(1, { x: 18, y: 200 })?.power).toBe(1);
+    }
+    expect(pullDistance("mouse", 1440, 900)).toBe(160);
+  });
   it("does not jump on down and fires opposite the drag on release", () => {
     const g = new PullGesture(160);
     g.begin(1, { x: 200, y: 200 });

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGravityRenderer } from "../../src/gravity/renderer";
+import {
+  createGravityRenderer,
+  fitGravityFrame,
+} from "../../src/gravity/renderer";
+import { worldToClient } from "../../src/render/coordinates";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
 function fixture() {
@@ -46,6 +50,45 @@ function fixture() {
   };
 }
 describe("Gravity rendering", () => {
+  it.each([
+    [390, 844],
+    [844, 390],
+    [600, 960],
+    [1024, 768],
+  ])(
+    "keeps tablet and phone launch controls and orbit space inside %ix%i",
+    (width, height) => {
+      const level = new GravityEngine(42).getSnapshot().level;
+      const { camera, area } = fitGravityFrame(level, width, height, true);
+      const rect = {
+        left: area.x,
+        top: area.y,
+        width: area.width,
+        height: area.height,
+      };
+      const launcher = worldToClient(level.launch, rect, camera);
+      expect(launcher.x - 72).toBeGreaterThanOrEqual(area.x + 18 - 1e-8);
+      expect(launcher.y - 72).toBeGreaterThanOrEqual(area.y + 18 - 1e-8);
+      expect(launcher.y + 72).toBeLessThanOrEqual(
+        area.y + area.height - 18 + 1e-8,
+      );
+      for (const body of level.bodies) {
+        const center = worldToClient(body.position, rect, camera);
+        const radius = (body.radius + 40) * camera.scale;
+        expect(center.x - radius).toBeGreaterThan(area.x);
+        expect(center.x + radius).toBeLessThan(area.x + area.width);
+        expect(center.y - radius).toBeGreaterThan(area.y);
+        expect(center.y + radius).toBeLessThan(area.y + area.height);
+      }
+    },
+  );
+  it("uses meaningful orbit extents and landscape space rather than the 900-unit square", () => {
+    const { renderer } = fixture();
+    const snapshot = new GravityEngine(42).getSnapshot();
+    renderer.resize(844, 390, 1);
+    renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
+    expect(renderer.getScale()).toBeGreaterThan(0.5);
+  });
   it("centres the visible letter glyphs vertically with the body chevrons", () => {
     const { renderer, context } = fixture();
     context.measureText = vi.fn((letter: string) => ({

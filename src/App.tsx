@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { OrbitEngine } from "./game/engine";
 import { createRenderer } from "./render/renderer";
 import type { SlingshotVisual } from "./render/renderer";
-import { PullGesture, TapSequence, runSeed } from "./controls";
+import { PullGesture, TapSequence, runSeed, pullDistance } from "./controls";
 import { FeedbackClock } from "./transitions";
 import { OrbitSound } from "./sound";
 import Help from "./components/Help";
@@ -333,7 +333,7 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
           )
             return;
           gesture.current = new PullGesture(
-            e.pointerType === "touch" || window.innerWidth <= 760 ? 120 : 160,
+            pullDistance(e.pointerType, window.innerWidth, window.innerHeight),
           );
           if (
             !gesture.current.begin(e.pointerId, { x: e.clientX, y: e.clientY })

@@ -732,14 +732,14 @@ describe("displayed camera contract", () => {
     ).toBeGreaterThanOrEqual(14);
   });
   it.each([
-    [4249.628125, false, "fully visible at screen x302.09"],
-    [4314.0625, false, "partly visible beyond the right edge"],
-    [3385.9375, false, "partly visible beyond the left edge"],
-    [4356.25, true, "fully outside the right edge"],
-    [3343.75, true, "fully outside the left edge"],
+    ["inside", false, "fully visible"],
+    ["partial-right", false, "partly visible beyond the right edge"],
+    ["partial-left", false, "partly visible beyond the left edge"],
+    ["outside-right", true, "fully outside the right edge"],
+    ["outside-left", true, "fully outside the left edge"],
   ] as const)(
     "does not cover a rendered phone goal during flight: %s, cue=%s (%s)",
-    (x, expectedCue, _description) => {
+    (placement, expectedCue, _description) => {
       const { renderer, context } = fixture();
       const board = snapshot();
       renderer.resize(320, 568);
@@ -760,8 +760,31 @@ describe("displayed camera contract", () => {
       board.status = "flying";
       board.sector = {
         ...board.sector,
-        checkpoint: { radius: 45, position: { x, y: 409.4375 } },
+        checkpoint: { radius: 45, position: { x: 0, y: 409.4375 } },
       };
+      const camera = renderer.getViewport();
+      const radius = 45 * camera.scale + 1.4;
+      const screenX =
+        placement === "inside"
+          ? 280
+          : placement === "partial-right"
+            ? 320 + radius / 2
+            : placement === "partial-left"
+              ? -radius / 2
+              : placement === "outside-right"
+                ? 320 + radius + 8
+                : -radius - 8;
+      board.sector = {
+        ...board.sector,
+        checkpoint: {
+          radius: 45,
+          position: {
+            x: camera.center.x + (screenX - 160) / camera.scale,
+            y: camera.center.y,
+          },
+        },
+      };
+      (context.arc as ReturnType<typeof vi.fn>).mockClear();
       renderer.render(board, [], 1);
       const arcs = context.arc as ReturnType<typeof vi.fn>;
       const hasCueBacking = arcs.mock.calls.some(

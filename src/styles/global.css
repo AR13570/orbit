@@ -1379,3 +1379,27 @@ p {
     padding: 8px 14px;
   }
 }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .gravity-scene .gravity-objective,
+  .gravity-scene .gravity-footer {
+    left: max(12px, env(safe-area-inset-left));
+    width: min(160px, calc(25vw - 24px));
+    transform: none;
+    text-align: left;
+  }
+  .gravity-scene .gravity-objective {
+    top: 64px;
+  }
+  .gravity-scene .gravity-footer {
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .gravity-scene .gravity-instruction {
+    display: none;
+  }
+  .gravity-scene .gravity-skip {
+    max-width: 100%;
+    padding-inline: 0;
+    text-align: left;
+  }
+}

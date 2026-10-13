@@ -1,7 +1,7 @@
 import { describe,expect,it } from 'vitest';
 import { OrbitEngine } from '../../src/game/engine';
 import { generateFallbackSector,generateGuaranteedFallbackSector,generateSector } from '../../src/game/generator';
-import { segmentCircleIntersection, stepParticle } from '../../src/game/physics';
+import { segmentCircleIntersection, stepParticle, stepZenParticle, ZEN_FIXED_STEP } from '../../src/game/physics';
 import type { GameSnapshot,Sector,Vec2 } from '../../src/game/types';
 import { compositionDistance,describeComposition,geometryDistance,MIN_COMPOSITION_DISTANCE,MIN_GEOMETRY_DISTANCE,RECENT_LAYOUT_LIMIT } from '../../src/game/composition';
 import type { CompositionDescriptor } from '../../src/game/composition';
@@ -13,7 +13,7 @@ function fixture(solid=false):OrbitEngine {
  Object.assign(internal(engine).sector,{bounds:{x:0,y:0,width:1800,height:1000},launch:{x:100,y:500},checkpoint:{position:{x:400,y:500},radius:30},bodies:solid?[{id:'solid',kind:'attractor',position:{x:260,y:500},radius:35,strength:1102500}]:[]});
  engine.setAim(0,250/420);return engine;
 }
-function tick(engine:OrbitEngine,seconds=3):void {for(let n=0;n<seconds*60;n++)engine.update(1/60);}
+function tick(engine:OrbitEngine,seconds=3):void {const frames=Math.floor(seconds*60);for(let n=0;n<frames;n++)engine.update(1/60);const remainder=seconds-frames/60;if(remainder>1e-12)engine.update(remainder);}
 
 describe('single-projectile journey',()=>{
  it('draws a previously uncaptured 140-unit miss into the goal with exact preview parity',()=>{
@@ -79,8 +79,8 @@ describe('single-projectile journey',()=>{
  });
  it('preserves exact preview/live parity in offset global fields',()=>{
   const engine=new OrbitEngine(31);internal(engine).sector=generateSector(31,12,{x:7200,y:-450});engine.setAim(engine.getSnapshot().sector.solution.angle,engine.getSnapshot().sector.solution.power);
-  const before=engine.getSnapshot();const paths=engine.predict(1.7);expect(engine.getSnapshot()).toEqual(before);expect(paths).toHaveLength(1);engine.launch();
-  for(let n=1;n<paths[0].length;n++){engine.update(1/30);expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(paths[0][n].x,9);expect(engine.getSnapshot().particles[0].position.y).toBeCloseTo(paths[0][n].y,9);}
+  const before=engine.getSnapshot();const paths=engine.predict(Math.floor(1.7/(4*ZEN_FIXED_STEP))*4*ZEN_FIXED_STEP);expect(engine.getSnapshot()).toEqual(before);expect(paths).toHaveLength(1);engine.launch();
+  for(let n=1;n<paths[0].length;n++){engine.update(4*ZEN_FIXED_STEP);expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(paths[0][n].x,9);expect(engine.getSnapshot().particles[0].position.y).toBeCloseTo(paths[0][n].y,9);}
  });
  it('shares frozen static sectors while independently copying aim and live trails',()=>{
   const engine=fixture();const first=engine.getSnapshot(),second=engine.getSnapshot();expect(first.sector).toBe(second.sector);expect(Object.isFrozen(first.sector.solution.path[0])).toBe(true);
@@ -115,10 +115,10 @@ describe('single-projectile journey',()=>{
   for(let seed=1;seed<=8;seed++)for(const index of [0,16])sectors.push(generateSector(seed,index,{x:8000,y:-1200}));
   for(const sector of sectors){
    const engine=new OrbitEngine(sector.seed);internal(engine).sector=sector;
-   engine.setAim(sector.solution.angle,sector.solution.power);const path=engine.predict(sector.solution.flightSeconds+1/120)[0];
+   engine.setAim(sector.solution.angle,sector.solution.power);const path=engine.predict(sector.solution.flightSeconds+ZEN_FIXED_STEP)[0];
    expect(path).toEqual(sector.solution.path);const contact=path.at(-1)!;
    expect(Math.hypot(contact.x-sector.checkpoint.position.x,contact.y-sector.checkpoint.position.y)).toBeCloseTo(50,8);
-   engine.launch();for(let step=0;step<Math.round(sector.solution.flightSeconds*120);step++)engine.update(1/120);
+   engine.launch();for(let step=0;step<Math.round(sector.solution.flightSeconds/ZEN_FIXED_STEP);step++)engine.update(ZEN_FIXED_STEP);
    expect(engine.getSnapshot().status).toBe('docked');expect(engine.getSnapshot().elapsed).toBe(sector.solution.flightSeconds);
   }
  });
@@ -127,29 +127,29 @@ describe('single-projectile journey',()=>{
 describe('visible flight bounds',()=>{
  function openField():OrbitEngine {const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:500};engine.setAim(0,1);return engine;}
  it('preserves visible flight beyond canonical bounds and permits free retries after the outside timeout',()=>{
-  const canonical=openField();canonical.launch();tick(canonical,4.5);expect(canonical.getSnapshot().status).toBe('flying');expect(canonical.getSnapshot().particles[0].offscreenRemaining).toBeLessThan(6);tick(canonical,6);expect(canonical.getSnapshot().status).toBe('failed');expect(canonical.getSnapshot().particles[0].position.x).toBeCloseTo(4325);
-  const engine=openField();engine.setFlightBounds({x:0,y:0,width:3000,height:1000});engine.launch();tick(engine,4.5);expect(engine.getSnapshot().particles[0].position.x).toBeGreaterThan(1800);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeUndefined();
-  tick(engine,9);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(5525);engine.retry();expect(engine.getSnapshot().status).toBe('aiming');expect(engine.getSnapshot().checkpointCount).toBe(0);
+  const canonical=openField();canonical.launch();tick(canonical,4.5);expect(canonical.getSnapshot().status).toBe('flying');expect(canonical.getSnapshot().particles[0].offscreenRemaining).toBeLessThan(6);tick(canonical,6);expect(canonical.getSnapshot().status).toBe('failed');expect(canonical.getSnapshot().particles[0].position.x).toBeCloseTo(6341);
+  const engine=openField();engine.setFlightBounds({x:0,y:0,width:3000,height:1000});engine.launch();tick(engine,2.5);expect(engine.getSnapshot().particles[0].position.x).toBeGreaterThan(1800);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeUndefined();
+  tick(engine,9);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(7541);engine.retry();expect(engine.getSnapshot().status).toBe('aiming');expect(engine.getSnapshot().checkpointCount).toBe(0);
  });
  it('uses identical outside timeout positions in prediction and live flight',()=>{
-  const engine=openField();engine.setFlightBounds({x:0,y:0,width:2600,height:1000});const before=engine.getSnapshot();const path=engine.predict(14)[0];expect(path.at(-1)!.x).toBeCloseTo(5125);expect(engine.getSnapshot()).toEqual(before);engine.launch();tick(engine,14);expect(engine.getSnapshot().particles[0].position).toEqual(path.at(-1));
+  const engine=openField();engine.setFlightBounds({x:0,y:0,width:2600,height:1000});const before=engine.getSnapshot();const path=engine.predict(14)[0];expect(path.at(-1)!.x).toBeCloseTo(7141);expect(engine.getSnapshot()).toEqual(before);engine.launch();tick(engine,14);expect(engine.getSnapshot().particles[0].position).toEqual(path.at(-1));
  });
  it('resets the outside interval on real re-entry following resize',()=>{
-  const engine=openField();engine.setFlightBounds({x:0,y:0,width:3000,height:1000});engine.launch();tick(engine,1);engine.setFlightBounds({x:800,y:0,width:1500,height:1000});tick(engine,0.25);expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeCloseTo(5.75);
-  tick(engine,1);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeUndefined();tick(engine,9.5);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(4825);
+  const engine=openField();engine.setFlightBounds({x:0,y:0,width:3000,height:1000});engine.launch();tick(engine,.5);engine.setFlightBounds({x:800,y:0,width:1500,height:1000});tick(engine,0.25);expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeCloseTo(5.75);
+  tick(engine,1);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeUndefined();tick(engine,9.5);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(6841);
  });
  it('defensively copies visible bounds, ignores invalid rectangles and restores canonical bounds',()=>{
-  const engine=openField(),bounds={x:0,y:0,width:3000,height:1000};engine.setFlightBounds(bounds);bounds.width=100;engine.setFlightBounds({x:0,y:0,width:Number.NaN,height:100});expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(5525);engine.setFlightBounds(null);expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(4325);
+  const engine=openField(),bounds={x:0,y:0,width:3000,height:1000};engine.setFlightBounds(bounds);bounds.width=100;engine.setFlightBounds({x:0,y:0,width:Number.NaN,height:100});expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(7541);engine.setFlightBounds(null);expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(6341);
  });
 });
 
 
 describe('tap-to-branch shooter', () => {
  it('applies the same current goal attraction independently to every branched piece',()=>{
-  const engine=fixture();internal(engine).sector.checkpoint={position:{x:450,y:580},radius:45};engine.setShotCount(3);engine.launch();tick(engine,0.4);engine.branch();
-  const before=engine.getSnapshot(),expected=before.particles.map(piece=>stepParticle(piece.position,piece.velocity,before.sector.bodies,1/120,before.sector.checkpoint));
+  const engine=fixture();internal(engine).sector.checkpoint={position:{x:450,y:580},radius:45};engine.setShotCount(3);engine.launch();tick(engine,0.4/1.8);engine.branch();
+  const before=engine.getSnapshot(),expected=before.particles.map(piece=>stepZenParticle(piece.position,piece.velocity,before.sector.bodies,ZEN_FIXED_STEP,before.sector.checkpoint));
   expected.forEach((piece,index)=>expect(piece.velocity.y).toBeGreaterThan(before.particles[index].velocity.y));
-  engine.update(1/120);engine.getSnapshot().particles.forEach((piece,index)=>{expect(piece.position).toEqual(expected[index].position);expect(piece.velocity).toEqual(expected[index].velocity);});
+  engine.update(ZEN_FIXED_STEP);engine.getSnapshot().particles.forEach((piece,index)=>{expect(piece.position).toEqual(expected[index].position);expect(piece.velocity).toEqual(expected[index].velocity);});
  });
  it('defaults to single and changes selected mode only while aiming', () => {
   const engine=fixture();expect(engine.getSnapshot().shotCount).toBe(1);expect(engine.getSnapshot().canBranch).toBe(false);
@@ -185,27 +185,27 @@ describe('tap-to-branch shooter', () => {
   const engine=new OrbitEngine(31);internal(engine).sector=generateSector(31,12,{x:7200,y:-450});engine.setShotCount(3);
   engine.setAim(engine.getSnapshot().sector.solution.angle,engine.getSnapshot().sector.solution.power);const before=engine.getSnapshot(),paths=engine.predict(0.5);
   expect(paths).toHaveLength(1);expect(engine.getSnapshot()).toEqual(before);engine.launch();
-  for(let step=1;step<paths[0].length;step++){engine.update(1/30);const particle=engine.getSnapshot().particles[0];expect(particle.position.x).toBeCloseTo(paths[0][step].x,9);expect(particle.position.y).toBeCloseTo(paths[0][step].y,9);}
+  for(let step=1;step<paths[0].length;step++){engine.update(4*ZEN_FIXED_STEP);const particle=engine.getSnapshot().particles[0];expect(particle.position.x).toBeCloseTo(paths[0][step].x,9);expect(particle.position.y).toBeCloseTo(paths[0][step].y,9);}
   engine.branch();expect(engine.getSnapshot().particles).toHaveLength(3);expect(engine.predict(1)).toEqual([]);
  });
  it('integrates gravity independently for every newly branched piece', () => {
   const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:10000};
   internal(engine).sector.bodies=[{id:'well',kind:'attractor',position:{x:450,y:240},radius:90,strength:7290000}];
-  engine.setShotCount(3);engine.launch();tick(engine,0.4);engine.branch();
+  engine.setShotCount(3);engine.launch();tick(engine,0.4/1.8);engine.branch();
   for(let step=0;step<2;step++){
-   const before=engine.getSnapshot(),expected=before.particles.map(p=>stepParticle(p.position,p.velocity,before.sector.bodies));engine.update(1/120);
+   const before=engine.getSnapshot(),expected=before.particles.map(p=>stepZenParticle(p.position,p.velocity,before.sector.bodies));engine.update(ZEN_FIXED_STEP);
    engine.getSnapshot().particles.forEach((particle,index)=>{expect(particle.position).toEqual(expected[index].position);expect(particle.velocity).toEqual(expected[index].velocity);});
   }
  });
  it('loses one branched piece without stopping the remaining pieces', () => {
   const engine=fixture();internal(engine).sector.checkpoint.position={x:1000,y:500};
   internal(engine).sector.bodies=[{id:'small',kind:'attractor',position:{x:450,y:486.9},radius:2,strength:3600}];
-  engine.setShotCount(3);engine.launch();tick(engine,0.4);engine.branch();tick(engine,1.2);
+  engine.setShotCount(3);engine.launch();tick(engine,0.4/1.8);engine.branch();tick(engine,1.2/1.8);
   expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([true,false,true]);expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().canBranch).toBe(false);
  });
  it('resolves the earliest side-piece docking once and dissolves the remaining volley', () => {
   const engine=fixture();internal(engine).sector.checkpoint={position:{x:400,y:479},radius:45};
-  engine.setShotCount(3);engine.launch();tick(engine,0.4);engine.branch();tick(engine,3);
+  engine.setShotCount(3);engine.launch();tick(engine,0.4/1.8);engine.branch();tick(engine,3);
   const snapshot=engine.getSnapshot(),goal=snapshot.sector.checkpoint.position,side=snapshot.particles[1].position,center=snapshot.particles[0].position;
   expect(snapshot.status).toBe('docked');expect(snapshot.checkpointCount).toBe(1);expect(snapshot.particles.every(p=>!p.alive)).toBe(true);expect(snapshot.canBranch).toBe(false);
   expect(Math.hypot(side.x-goal.x,side.y-goal.y)).toBeCloseTo(50);expect(Math.hypot(center.x-goal.x,center.y-goal.y)).toBeGreaterThan(50);
@@ -222,15 +222,15 @@ describe('tap-to-branch shooter', () => {
   engine.retry();engine.setShotCount(1);engine.restart(42);expect(engine.getSnapshot().shotCount).toBe(1);
  });
  it('maintains independent outside timers after resize and branch', () => {
-  const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:500};engine.setShotCount(3);engine.launch();tick(engine,0.4);engine.branch();tick(engine,0.8);
+  const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:500};engine.setShotCount(3);engine.launch();tick(engine,0.4/1.8);engine.branch();tick(engine,0.8/1.8);
   engine.setFlightBounds({x:0,y:503,width:1800,height:1000});internal(engine).particles[0].velocity={x:0,y:-30};internal(engine).particles[1].velocity={x:0,y:30};internal(engine).particles[2].velocity={x:0,y:0};
   engine.update(0.25);expect(engine.getSnapshot().particles.every(p=>p.alive)).toBe(true);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeLessThan(6);
   engine.update(0.25);expect(engine.getSnapshot().particles[1].offscreenRemaining).toBeUndefined();internal(engine).particles[1].velocity={x:0,y:-30};tick(engine,0.5);
   internal(engine).particles.forEach(piece=>{piece.velocity={x:0,y:0};});tick(engine,5.1);expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,true,true]);tick(engine,1);expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,false,true]);expect(engine.getSnapshot().status).toBe('flying');
  });
  it('bounds all branched trails during a long on-screen flight', () => {
-  const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:10000};engine.setFlightBounds({x:-10000,y:-10000,width:20000,height:20000});engine.setShotCount(3);engine.launch();tick(engine,0.4);engine.branch();tick(engine,24);
-  expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles.every(p=>p.trail.length>=90&&p.trail.length<=91)).toBe(true);expect(engine.getSnapshot().particles).toHaveLength(3);
+  const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:10000};engine.setFlightBounds({x:-10000,y:-10000,width:20000,height:20000});engine.setShotCount(3);engine.launch();tick(engine,0.4/1.8);engine.branch();tick(engine,24);
+  expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles.every(p=>p.trail.length>=162&&p.trail.length<=163)).toBe(true);expect(engine.getSnapshot().particles).toHaveLength(3);
  });
  it('copies outside elapsed independently when branching before the center re-enters view', () => {
   const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:500};engine.setShotCount(3);engine.launch();tick(engine,0.4);

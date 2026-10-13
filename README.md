@@ -1,62 +1,61 @@
-# Orbit
+<p align="center">
+  <img src="public/orbit.svg" width="72" height="72" alt="Orbit black-hole logo" />
+</p>
 
-A full-screen, minimalist gravity slingshot game built with React, TypeScript, Vite and Canvas2D. Flat weighted objects and ripple bands sit on one solid ground. Twenty structural families vary gates, clusters, shelves, anchors and other arrangements, with verified curved routes to a nearby checkpoint. Seeded randomness varies the arrangement as you progress, while shared seeds reproduce the same journey.
+<h1 align="center">Orbit</h1>
 
-## Run
+<p align="center">A little space to play.</p>
+
+Pull back, release, and let gravity take over. Orbit is a quiet game about finding a path, building living orbits, and making little worlds of your own.
+
+No lives. No rush. Just one more launch.
+
+## Three ways to play
+
+**Zen** · Follow the pull. Curve past attractors and repellers to reach the next checkpoint. Each checkpoint opens a new field, and a missed shot gives you another try.
+
+**Gravity** · Build living orbits. Launch several colourful projectiles into motion and solve an endless sequence of procedural puzzles. Circle a body, orbit in opposite directions, or find a path around two bodies together.
+
+**Creator** · Make a world of your own. Arrange bodies on the canvas, shape their gravity, and jump into your design to try it out. Choose a challenge, or leave it on **No challenge** for free play.
+
+## One gesture to get moving
+
+1. Click or touch the field and pull back to aim.
+2. Pull farther for more speed.
+3. Release to launch in the opposite direction.
+
+Attractors pull you in. Repellers push you away. Give solid bodies a little space as you pass, and watch your fading trail trace the journey.
+
+In Gravity, you can launch again while earlier projectiles are still flying. In Zen, try split mode: double-click or double-tap to switch modes, then tap during flight to split your shot into three.
+
+Pause whenever you like, reset a shot, or return to the mode picker to try something else. Sound is optional.
+
+## Build your own sky
+
+The creator puts everything on the canvas:
+
+- Choose **Attractor** or **Repeller**, then tap an empty spot to add one.
+- Drag bodies and the launcher into place. Nearby objects snap into alignment.
+- Select a body and drag **Size** or **Gravity** to adjust them independently.
+- Tap its type in the selection bar to switch between attraction and repulsion. Duplicate or delete it from the same bar.
+- Pick a challenge, or keep **No challenge** for open-ended play.
+- Hit **Play** to experiment, then return to the editor to keep shaping your level.
+
+Your draft saves automatically. Use **Save** to keep a level in your browser library, and **Levels** to return to it later. These saves belong to this browser, so they do not sync between devices and can be lost if you clear site data.
+
+## Play your way
+
+Made for mouse and touch, on desktop and mobile. Play in portrait or landscape, take your time, and keep experimenting.
+
+## Run your own copy
+
+With Node.js installed:
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173. Phones on the same network can use the Network URL printed by Vite. No backend, keys, remote fonts or images are needed. Add `?seed=42` to share the initial field of a deterministic run.
+Open [localhost:5173](http://localhost:5173) in your browser. No account or API keys needed.
 
-## Deploy with Docker on Vercel
-
-Import this repository into Vercel and set the project root to the directory containing `Dockerfile.vercel`. Vercel automatically detects that filename, builds the container and routes requests to its HTTP server on port 80. See [Vercel's Docker deployment guide](https://vercel.com/kb/guide/does-vercel-support-docker-deployments) and [Docker documentation](https://vercel.com/kb/guide/docker).
-
-The multi-stage build installs locked dependencies with `npm ci --include=dev`, runs TypeScript and Vite through `npm run build`, then copies only `dist` into the nginx runtime. No custom server configuration or environment variables are required for Orbit.
-
-Deploy through the connected Git repository, or, with the Vercel CLI already installed, run this from the project root:
-
-```sh
-vercel deploy
-```
-
-To build and run the same container locally with Docker installed and running:
-
-```sh
-docker build -f Dockerfile.vercel -t orbit .
-docker run --rm --name orbit -p 8080:80 orbit
-```
-
-Open http://localhost:8080 or http://localhost:8080/?seed=42. Stop the foreground container with Ctrl+C.
-
-## Play
-
-Click or touch anywhere in the field, pull backward, and release. Your ship flies opposite the drag. Pull farther for more power. Small taps cancel. Double-tap or double-click the field to switch between single and split modes. Both launch one ship; in split mode, tap during flight to split it into three pieces around its current direction. Each shot can split once. The selected mode persists across checkpoints and New seed. There are no sliders or separate launch action. A short dotted prediction appears during the pull. You cannot steer in flight.
-
-Aim to curve through the obstacle arrangement. Larger bodies exert stronger forces. Blue-marked bodies attract, rust-marked bodies repel, and all solid surfaces can crash your ship. The small blue checkpoint well, marked with a flag, pulls approaching ships strongly inward. Reach its capture ring to advance automatically to the next field, where it becomes your new launch point.
-
-Each drag release launches one ship. A missed shot automatically resets at the current checkpoint after brief feedback, with unlimited retries and checkpoint progress retained. Every solid object attracts or repels according to its size.
-
-Use the top reset icon or R to reset the current shot while keeping the seed, layout, checkpoint progress and shoot mode. Reset also cancels a held pull. It is briefly disabled while a completed checkpoint advances. R ignores key repeats, typing fields and browser modifier shortcuts. Use the pause icon, Escape or P to pause and cancel a held pull. The pause menu contains help, optional sound, New seed and a free Reset shot action during flight. New seed creates a fresh procedural field and resets checkpoint progress. Switching apps pauses until you manually resume. Resize or orientation change cancels a pull safely. Shots keep moving under gravity outside the visible field. Each piece has six active seconds to return; re-entry resets its timer, and pause freezes it. When every surviving piece is outside, a quiet countdown shows the longest remaining chance. The shot retries only after every piece is lost.
-
-## Checks
-
-```sh
-npm test
-npm run build
-npm run test:e2e
-```
-
-Browser tests expect the local server on port 5173 and Chromium (`npx playwright install chromium`). Tests use seeded engine metadata only in the harness, then operate real mouse/touch gestures. They cover automatic consecutive checkpoints, unlimited retries with retained progress, pause/help, gesture cancellation, multi-touch, full viewport layouts and console errors.
-
-## Architecture
-
-- `src/game`: pure fixed-step physics, size-based forces, global offset landscape sectors and deterministic verified generation.
-- `src/render`: flat Canvas2D geometry, camera interpolation and uniform coordinate transforms.
-- `src/styles`: full-screen responsive scene and modal controls.
-- `src/App.tsx`: gestures, semantic overlay, active-time lifecycle, sound.
-
-The current contracts are `docs/engine-api.md` and `docs/visual-api.md`. The replacement brief and verification history are in `docs/redesign-plan.md` and `docs/redesign-progress.md`; earlier implementation docs are historical.
+For testing, hosting and project internals, see the [development guide](docs/development.md).
