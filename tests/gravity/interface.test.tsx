@@ -172,7 +172,7 @@ describe("Gravity interface", () => {
     expect(field()).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
-    fireEvent.click(screen.getByRole("button", { name: /Zen/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Zen/ }));
     expect(screen.getByLabelText("Slingshot flight field")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));

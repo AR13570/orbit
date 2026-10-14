@@ -6,7 +6,7 @@ import {
   screen,
   act,
 } from "@testing-library/react";
-import { ZenGame } from "../../src/App";
+import App, { ZenGame } from "../../src/App";
 import GravityGame from "../../src/gravity/GravityGame";
 import { tutorialKeys } from "../../src/tutorial/state";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
@@ -221,4 +221,67 @@ describe("walkthrough input and flight preservation", () => {
     expect(localStorage.getItem(tutorialKeys.zen)).toBe("skipped");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+});
+
+describe("mode chooser tutorial entry", () => {
+  it.each([
+    ["zen", "Zen", "complete"],
+    ["zen", "Zen", "skipped"],
+    ["gravity", "Gravity", "complete"],
+    ["gravity", "Gravity", "skipped"],
+  ] as const)(
+    "replays %s (%s, %s) from the start and clears the request on exit",
+    (mode, label, result) => {
+      window.history.replaceState({}, "", "/");
+      localStorage.setItem(tutorialKeys[mode], result);
+      render(<App />);
+      const help = screen.getByRole("button", { name: `How to play ${label}` });
+      expect(help.closest(".mode-choice")).toBeNull();
+      fireEvent.click(help);
+      expect(
+        screen.getByRole("dialog", { name: `How to play ${label}` }),
+      ).toBeTruthy();
+      expect(
+        document.querySelector(".walkthrough")?.getAttribute("data-step"),
+      ).toBe("intro");
+      expect(screen.getByText("Your ship")).toBeTruthy();
+      // Opening help must not remove or rewrite the player's saved visit.
+      expect(localStorage.getItem(tutorialKeys[mode])).toBe(result);
+      fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+      fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: new RegExp(`^${label}(?:Follow|Build)`),
+        }),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+      fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: `How to play ${label}` }),
+      );
+      expect(
+        document.querySelector(".walkthrough")?.getAttribute("data-step"),
+      ).toBe("intro");
+      window.history.replaceState({}, "", "/");
+    },
+  );
+  it.each(["Zen", "Gravity"])(
+    "keeps the first visit tutorial on normal %s entry",
+    (label) => {
+      window.history.replaceState({}, "", "/");
+      render(<App />);
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: new RegExp(`^${label}(?:Follow|Build)`),
+        }),
+      );
+      expect(
+        screen.getByRole("dialog", { name: `How to play ${label}` }),
+      ).toBeTruthy();
+      window.history.replaceState({}, "", "/");
+    },
+  );
 });

@@ -22,13 +22,16 @@ import type { FocusArea } from "./render/coordinates";
 import PauseMenu from "./components/PauseMenu";
 import Icon from "./components/Icon";
 import type { Vec2 } from "./game/types";
-export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
+export function ZenGame({
+  onExit,
+  startTutorial = false,
+}: { onExit?: () => void; startTutorial?: boolean } = {}) {
   const [engine] = useState(
     () => new OrbitEngine(runSeed(window.location.search)),
   );
   const [snapshot, setSnapshot] = useState(() => engine.getSnapshot());
   const [paused, setPaused] = useState(false),
-    [help, setHelp] = useState(() => !tutorialSeen("zen")),
+    [help, setHelp] = useState(() => startTutorial || !tutorialSeen("zen")),
     [muted, setMuted] = useState(true),
     [hint, setHint] = useState(true);
   const [modeFeedback, setModeFeedback] = useState("");
@@ -668,15 +671,32 @@ export default function App() {
       ? value
       : null;
   });
+  const [startTutorial, setStartTutorial] = useState(false);
+  const exitMode = () => {
+    setStartTutorial(false);
+    setMode(null);
+  };
   useEffect(() => {
     const url = new URL(window.location.href);
     if (mode) url.searchParams.set("mode", mode);
     else url.searchParams.delete("mode");
     window.history.replaceState(window.history.state, "", url);
   }, [mode]);
-  if (mode === "zen") return <ZenGame onExit={() => setMode(null)} />;
-  if (mode === "gravity") return <GravityGame onExit={() => setMode(null)} />;
-  if (mode === "creator")
-    return <GravityCreator onExit={() => setMode(null)} />;
-  return <ModeChooser onSelect={setMode} />;
+  if (mode === "zen")
+    return <ZenGame onExit={exitMode} startTutorial={startTutorial} />;
+  if (mode === "gravity")
+    return <GravityGame onExit={exitMode} startTutorial={startTutorial} />;
+  if (mode === "creator") return <GravityCreator onExit={exitMode} />;
+  return (
+    <ModeChooser
+      onSelect={(selected) => {
+        setStartTutorial(false);
+        setMode(selected);
+      }}
+      onHelp={(selected) => {
+        setStartTutorial(true);
+        setMode(selected);
+      }}
+    />
+  );
 }

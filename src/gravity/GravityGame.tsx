@@ -23,17 +23,21 @@ export default function GravityGame({
   onExit,
   customLevel,
   customName,
+  startTutorial = false,
 }: {
   onExit: () => void;
   customLevel?: GravityLevel;
   customName?: string;
+  startTutorial?: boolean;
 }) {
   const [engine] = useState(
     () => new GravityEngine(runSeed(window.location.search), customLevel),
   );
   const [snapshot, setSnapshot] = useState(() => engine.getSnapshot()),
     [paused, setPaused] = useState(false),
-    [help, setHelp] = useState(() => !customLevel && !tutorialSeen("gravity")),
+    [help, setHelp] = useState(
+      () => !customLevel && (startTutorial || !tutorialSeen("gravity")),
+    ),
     [muted, setMuted] = useState(true),
     [feedback, setFeedback] = useState("");
   const canvas = useRef<HTMLCanvasElement>(null),

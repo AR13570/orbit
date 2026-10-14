@@ -578,13 +578,45 @@ p {
   color: var(--muted);
   margin-top: 12px;
 }
+.mode-selection {
+  width: min(100%, 480px);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 .mode-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 230px));
-  width: min(100%, 480px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
   gap: 16px;
 }
+.mode-option {
+  min-width: 0;
+}
+.mode-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.mode-help svg {
+  width: 16px;
+  height: 16px;
+}
+.mode-help:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
 .mode-choice {
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -692,6 +724,10 @@ p {
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .mode-help:hover {
+    color: var(--blue);
+    background: rgb(82 124 154 / 6%);
+  }
   .mode-choice:hover {
     background: #f5f6f7;
     border-color: rgb(82 124 154 / 35%);
@@ -737,8 +773,9 @@ p {
   .mode-intro {
     width: 180px;
   }
-  .mode-options {
+  .mode-selection {
     width: min(55%, 440px);
+    gap: 12px;
   }
   .mode-art {
     height: 65px;
@@ -781,13 +818,14 @@ p {
 }
 
 .mode-creator {
+  min-height: 44px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 12px;
-  width: min(100%, 560px);
+  width: 100%;
   padding: 16px 20px;
-  margin-top: -12px;
+  margin-top: 0;
   border: 1px solid #cbd3d9;
   border-radius: 14px;
   background: transparent;
@@ -1374,7 +1412,7 @@ p {
     max-height: calc(100% - 78px);
   }
   .mode-creator {
-    width: min(90%, 480px);
+    width: 100%;
     margin-top: 0;
     padding: 8px 14px;
   }
