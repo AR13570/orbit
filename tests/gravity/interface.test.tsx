@@ -16,6 +16,8 @@ vi.mock("../../src/gravity/renderer", () => ({
     render: () => {},
     destroy: () => {},
     getScale: () => 1,
+    setWalkthroughFocus() {},
+    worldToScreen: (point: unknown) => point,
   }),
 }));
 vi.mock("../../src/render/renderer", () => ({
@@ -26,12 +28,16 @@ vi.mock("../../src/render/renderer", () => ({
     render: () => {},
     destroy: () => {},
     getViewport: () => ({ scale: 1, transitioning: false }),
+    setWalkthroughFocus() {},
+    worldToScreen: (point: unknown) => point,
   }),
 }));
 let frame: FrameRequestCallback;
 beforeEach(() => {
   window.history.replaceState({}, "", "/");
   localStorage.clear();
+  localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
   vi.stubGlobal(
     "ResizeObserver",
     class {

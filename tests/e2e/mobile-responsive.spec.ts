@@ -1,3 +1,4 @@
+import { markTutorialSeen } from "./tutorial-fixture";
 import { test, expect } from "@playwright/test";
 import { OrbitEngine } from "../../src/game/engine";
 import { GravityEngine } from "../../src/gravity/engine";
@@ -24,6 +25,7 @@ for (const viewport of [
         hasTouch: true,
         deviceScaleFactor: 2,
       });
+      await context.addInitScript(markTutorialSeen);
       const page = await context.newPage();
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));

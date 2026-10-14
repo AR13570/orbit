@@ -1,11 +1,11 @@
 import { describe,expect,it } from 'vitest';
 import { OrbitEngine } from '../../src/game/engine';
-import { ZEN_FIXED_STEP as FIXED_STEP,OFFSCREEN_TIMEOUT_SECONDS } from '../../src/game/physics';
+import { ZEN_FIXED_STEP as FIXED_STEP,OFFSCREEN_TIMEOUT_SECONDS,zenLaunchSpeed } from '../../src/game/physics';
 import type { Particle,Sector } from '../../src/game/types';
 const state=(engine:OrbitEngine)=>(engine as unknown as {state:{sector:Sector;particles:Particle[]}}).state;
 const remaining=(engine:OrbitEngine,index=0)=>(engine.getSnapshot().particles[index] as Particle&{offscreenRemaining?:number}).offscreenRemaining;
 function field():OrbitEngine {
- const engine=new OrbitEngine(7);Object.assign(state(engine).sector,{launch:{x:100,y:500},bounds:{x:0,y:0,width:200,height:1000},checkpoint:{position:{x:10000,y:500},radius:45},bodies:[]});engine.setAim(0,250/756);return engine;
+ const engine=new OrbitEngine(7);Object.assign(state(engine).sector,{launch:{x:100,y:500},bounds:{x:0,y:0,width:200,height:1000},checkpoint:{position:{x:10000,y:500},radius:45},bodies:[]});engine.setAim(0,250/zenLaunchSpeed(1));return engine;
 }
 function tick(engine:OrbitEngine,seconds:number):void {for(let step=0;step<Math.round(seconds/FIXED_STEP);step++)engine.update(FIXED_STEP);}
 
@@ -20,7 +20,7 @@ describe('off-screen flight and return',()=>{
   const engine=field();engine.launch();expect(remaining(engine)).toBeUndefined();tick(engine,1);
   expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(350);expect(remaining(engine)).toBeCloseTo(5.42,8);
   const paused=engine.getSnapshot();engine.update(0);engine.update(-1);engine.update(Number.NaN);expect(engine.getSnapshot()).toEqual(paused);
-  tick(engine,5.416666666666667);expect(engine.getSnapshot().status).toBe('flying');engine.update(FIXED_STEP);
+  tick(engine,(Math.ceil(6.42/FIXED_STEP)-1)*FIXED_STEP-1);expect(engine.getSnapshot().status).toBe('flying');engine.update(FIXED_STEP);
   const expired=engine.getSnapshot();expect(expired.status).toBe('failed');expect(expired.particles[0].position.x).toBeCloseTo(1705,7);expect(remaining(engine)).toBe(0);expect(expired.checkpointCount).toBe(0);
   tick(engine,10);const faded=engine.getSnapshot();expect({...faded,trailElapsed:expired.trailElapsed,particles:faded.particles.map((p,i)=>({...p,trail:expired.particles[i].trail}))}).toEqual(expired);expect(faded.particles[0].trail).toEqual([]);engine.retry();expect(engine.getSnapshot().status).toBe('aiming');expect(engine.getSnapshot().sector).toBe(expired.sector);engine.launch();tick(engine,.5);expect(remaining(engine)).toBeCloseTo(5.92,8);
  });
@@ -49,7 +49,7 @@ describe('off-screen flight and return',()=>{
  });
  it('inherits the existing outside deadline when branching and cannot buy extra time by tapping',()=>{
   const engine=field();engine.setShotCount(3);engine.launch();tick(engine,5);const before=remaining(engine);engine.branch();expect(engine.getSnapshot().particles.map((_,i)=>remaining(engine,i))).toEqual([before,before,before]);
-  tick(engine,1.416666666666667);expect(engine.getSnapshot().particles.every(p=>p.alive)).toBe(true);engine.update(FIXED_STEP);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,false,false]);
+  tick(engine,(Math.ceil(6.42/FIXED_STEP)-1)*FIXED_STEP-5);expect(engine.getSnapshot().particles.every(p=>p.alive)).toBe(true);engine.update(FIXED_STEP);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,false,false]);
   engine.retry();expect(engine.getSnapshot().shotCount).toBe(3);expect(engine.getSnapshot().status).toBe('aiming');
  });
  it('resets one returned split piece independently while the other two expire',()=>{
@@ -65,8 +65,8 @@ describe('off-screen flight and return',()=>{
   const dock=field();state(dock).sector.checkpoint.position={x:400,y:500};const terminal=dock.predict(2)[0].at(-1);dock.launch();tick(dock,2);expect(dock.getSnapshot().status).toBe('docked');expect(dock.getSnapshot().checkpointCount).toBe(1);expect(dock.getSnapshot().particles[0].position).toEqual(terminal);expect(remaining(dock)).toBeGreaterThan(0);
  });
  it('recognizes a complete visibility pass between fixed-step endpoints and resets its timer',()=>{
-  const engine=field();state(engine).sector.checkpoint.position.x=100000;engine.setAim(0,1);engine.setFlightBounds({x:990,y:0,width:12,height:1000});engine.launch();state(engine).particles[0].velocity.x=7560;expect(remaining(engine)).toBe(6);
-  for(let step=0;step<26;step++)engine.update(FIXED_STEP);expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(1010);expect(remaining(engine)).toBeCloseTo(5.999603174603175,8);
+  const engine=field();state(engine).sector.checkpoint.position.x=100000;engine.setAim(0,1);engine.setFlightBounds({x:990,y:0,width:12,height:1000});engine.launch();state(engine).particles[0].velocity.x=35/FIXED_STEP;expect(remaining(engine)).toBe(6);
+  for(let step=0;step<26;step++)engine.update(FIXED_STEP);expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(1010);expect(remaining(engine)).toBeCloseTo(6-3/(35/FIXED_STEP),8);
   tick(engine,4.8);expect(engine.getSnapshot().status).toBe('flying');tick(engine,1.3);expect(engine.getSnapshot().status).toBe('failed');
  });
 });

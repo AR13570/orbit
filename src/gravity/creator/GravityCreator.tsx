@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Icon from "../../components/Icon";
 import { bodyStrength } from "../../game/physics";
 import type { Body, Vec2 } from "../../game/types";
+import { FORCE_PALETTE } from "../../render/force-palette";
 import type { GravityLevel } from "../types";
 import GravityGame from "../GravityGame";
 import CreatorField, { type CreatorTool } from "./CreatorField";
@@ -307,6 +308,7 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
                 >
                   <span
                     className={`creator-tool-dot ${body.kind === "repellent" ? "creator-tool-repeller" : ""}`}
+                    style={{ background: FORCE_PALETTE[body.kind].body }}
                   />
                   {body.kind === "attractor" ? "Attractor" : "Repeller"}
                   <Icon name="swap" />
@@ -370,7 +372,10 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
               setNotice("");
             }}
           >
-            <span className="creator-tool-dot" />
+            <span
+              className="creator-tool-dot"
+              style={{ background: FORCE_PALETTE.attractor.body }}
+            />
             Attractor
           </button>
           <button
@@ -384,7 +389,10 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
               setNotice("");
             }}
           >
-            <span className="creator-tool-dot creator-tool-repeller" />
+            <span
+              className="creator-tool-dot creator-tool-repeller"
+              style={{ background: FORCE_PALETTE.repellent.body }}
+            />
             Repeller
           </button>
           <button

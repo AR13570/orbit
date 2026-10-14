@@ -2,7 +2,7 @@ import { launchSpeed } from "../game/physics";
 import type { Body, Vec2 } from "../game/types";
 
 // Scale velocity and acceleration together to preserve the familiar orbit shapes.
-export const GRAVITY_SPEED_SCALE = 1.8;
+export const GRAVITY_SPEED_SCALE = 1.65;
 export const GRAVITY_FORCE_SCALE = GRAVITY_SPEED_SCALE ** 2;
 
 export function gravityLaunchSpeed(power: number): number {

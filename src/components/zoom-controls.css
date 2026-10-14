@@ -1,0 +1,33 @@
+.gameplay-zoom-controls {
+  position: absolute;
+  right: max(16px, calc(env(safe-area-inset-right) + 10px));
+  bottom: max(88px, calc(env(safe-area-inset-bottom) + 76px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gameplay-zoom-controls svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.gameplay-zoom-controls .zoom-reset {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: #626d78;
+}
+.gameplay-zoom-controls button:focus-visible {
+  outline: 2px solid #527c9a;
+  outline-offset: 2px;
+}
+.gameplay-zoom-controls button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .gameplay-zoom-controls {
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}

@@ -1,21 +1,34 @@
-const TAU = Math.PI * 2;
+import { createWaveRenderer, type WaveRenderer } from "gravity-wave";
+import type { Vec2 } from "../game/types";
 
-export interface WaveSample {
-  crest: number;
-  slope: number;
-}
+export { sampleGravityWave } from "gravity-wave";
+export type { WaveSample } from "gravity-wave";
+export const createGravitySurface = createWaveRenderer;
 
-/** Write into a reused sample so a dense surface needs no point allocations. */
-export function sampleGravityWave(
-  fromEdge: number,
+/** Adapts Orbit's physical body radius and active clock to the reusable effect. */
+export function drawGravitySurface(
+  _ctx: CanvasRenderingContext2D,
+  position: Vec2,
   radius: number,
-  activeTime: number,
   repels: boolean,
-  sample: WaveSample,
+  scale: number,
+  motionTime: number,
+  reducedMotion: boolean,
+  color: string,
+  surface: WaveRenderer,
 ): void {
-  const wavelength = 32 + radius * 0.34;
-  const phase =
-    TAU * (fromEdge / wavelength + ((repels ? -1 : 1) * activeTime) / 2.7);
-  sample.crest = (1 + Math.cos(phase)) * 0.5;
-  sample.slope = -Math.sin(phase) * sample.crest;
+  surface.draw(
+    [
+      {
+        center: position,
+        innerRadius: radius,
+        radius: radius + 140,
+        direction: repels ? "outward" : "inward",
+        color,
+        shadowColor: color,
+      },
+    ],
+    motionTime,
+    { scale, reducedMotion },
+  );
 }

@@ -194,3 +194,11 @@ Portrait framing now uses the actual checkpoint position and radius when choosin
 A regression first reproduced clipping for an 820-unit checkpoint span at 320 × 568 and 390 × 844. Coordinate tests now cover those sizes plus desktop and landscape; renderer tests cover settled checkpoint transitions, full launcher/goal visibility and stable flight scale. All 60 isolated render tests and the strict renderer TypeScript check pass.
 
 Temporary browser fixtures rendered the actual separated-clusters seed 0 sector at 320 × 568, 390 × 844 and 1440 × 900. Both phone canvases show the complete goal with 30.6px beyond the blue rim and 10px before the launcher's 44px affordance. Browser console warnings/errors were empty. Capture: `/private/tmp/orbit-camera-fit-review.png`. This is real renderer evidence on fixed-size canvases, not an end-to-end gesture playthrough. The temporary fixture and separate preview server were removed after inspection. Integration owns final full-app and generator verification.
+
+## Reusable gravity-wave package
+
+The main game, gravity mode, and tutorial practice now render their circular fields through the published `gravity-wave@0.1.0` package. `src/render/gravity-surface.ts` is a thin adapter: physical body radius becomes the package's `innerRadius`, the outer extent remains body radius plus 140, and direction, color, camera scale, reduced motion, and elapsed active time are passed through. Each owning renderer reuses one package renderer and destroys it during cleanup. The local sampler is a package re-export, so wave sampling and drawing share one implementation.
+
+Orbit's dependency and lockfile point to the public npm registry release, without a local folder or tarball dependency. Existing game clocks retain responsibility for motion suspension and pause/resume. The default circular effect retains the accepted 0.7 shading factor; morphing remains available to package consumers.
+
+Validation after installing the public npm version: all 345 unit checks passed with two workers, including the adapter parity checks, followed by a successful production build. The package separately passed 46 checks and fresh published-package installs, server imports, and TypeScript checks in vanilla and React consumers.

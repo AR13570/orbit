@@ -319,6 +319,50 @@ describe("checkpoint sampled surface", () => {
   });
 });
 describe("displayed camera contract", () => {
+  it("highlights only the idle launcher with a defined yellow ring and keeps reduced motion static", () => {
+    const { renderer, context } = fixture();
+    const board = snapshot();
+    const rings: { color: unknown; alpha: number; width: number }[] = [];
+    let atLauncher = false;
+    (context.arc as ReturnType<typeof vi.fn>).mockImplementation(
+      (x, y, radius) => {
+        atLauncher =
+          x === board.sector.launch.x &&
+          y === board.sector.launch.y &&
+          Math.abs(radius * renderer.getViewport().scale - 22) < 0.001;
+      },
+    );
+    (context.stroke as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      if (atLauncher)
+        rings.push({
+          color: context.strokeStyle,
+          alpha: Number(context.globalAlpha),
+          width: Number(context.lineWidth) * renderer.getViewport().scale,
+        });
+    });
+    renderer.render(board, [], 1, { reducedMotion: true });
+    const idle = rings[0];
+    expect(idle.color).toBe("#c3a446");
+    expect(idle.alpha).toBeGreaterThanOrEqual(0.6);
+    expect(idle.alpha).toBeLessThan(0.8);
+    expect(idle.width).toBeCloseTo(1.2);
+    rings.length = 0;
+    renderer.render(board, [], 5, { reducedMotion: true });
+    expect(rings[0]).toEqual(idle);
+    rings.length = 0;
+    renderer.render(board, [], 5.05, {
+      slingshot: {
+        anchor: board.sector.launch,
+        pull: { x: board.sector.launch.x - 80, y: 500 },
+        power: 0.5,
+      },
+    });
+    expect(rings[0].color).not.toBe(idle.color);
+    expect(rings[0].width).toBeLessThan(idle.width);
+    rings.length = 0;
+    renderer.render({ ...board, status: "flying" }, [], 5.1);
+    expect(rings[0].color).not.toBe(idle.color);
+  });
   it.each([
     [320, 568],
     [390, 844],
@@ -616,7 +660,7 @@ describe("displayed camera contract", () => {
       ),
     ).toBe(true);
   });
-  it("draws an electric capture ring with two inner rings, a flag and no goal chevrons", () => {
+  it("draws one refined capture outline with a flag and no decorative inner rings", () => {
     const { renderer, context } = fixture();
     const board = snapshot();
     const center = board.sector.checkpoint.position;
@@ -662,7 +706,7 @@ describe("displayed camera contract", () => {
     renderer.render(board, [], 1, { reducedMotion: true });
     const contact = rings.find((ring) => ring.radius === 45)!;
     expect(contact.color).toBe("#168dff");
-    expect(contact.width * renderer.getViewport().scale).toBeCloseTo(2.8);
+    expect(contact.width * renderer.getViewport().scale).toBeCloseTo(1.6);
     expect(rings.filter((ring) => ring.radius > 45)).toHaveLength(0);
     expect(
       rings.every((ring) => ring.start === 0 && ring.end === Math.PI * 2),
@@ -672,7 +716,7 @@ describe("displayed camera contract", () => {
       ...new Set(
         rings.filter((ring) => ring.radius < 45).map((ring) => ring.radius),
       ),
-    ]).toEqual([32.4, 19.35]);
+    ]).toEqual([]);
     expect(
       surfaces.some(
         (surface) => surface.radius < 45 && Number(surface.alpha) < 0.2,
@@ -1042,4 +1086,35 @@ it("gives branched ships matching, distinct and visible tails", () => {
   );
   expect(ships).toEqual(colors);
   expect(coloredStrokes).toHaveLength(0);
+});
+
+it("applies bounded gameplay zoom consistently to transforms and visible flight bounds", () => {
+  const { renderer } = fixture(),
+    state = snapshot();
+  renderer.prepareFrame(state, 0, { reducedMotion: true });
+  const base = renderer.getViewport();
+  expect(renderer.setZoom(3)).toBe(1.6);
+  const zoomed = renderer.getViewport();
+  expect(zoomed.center).toEqual(base.center);
+  expect(zoomed.scale).toBeCloseTo(base.scale * 1.6);
+  expect(zoomed.bounds.width).toBeCloseTo(base.bounds.width / 1.6);
+  expect(zoomed.bounds.height).toBeCloseTo(base.bounds.height / 1.6);
+  const point = state.sector.launch,
+    screen = renderer.worldToScreen(point),
+    roundTrip = renderer.screenToWorld(screen.x, screen.y);
+  expect(roundTrip.x).toBeCloseTo(point.x, 8);
+  expect(roundTrip.y).toBeCloseTo(point.y, 8);
+  renderer.resize(390, 844);
+  expect(renderer.getZoom()).toBe(1.6);
+  renderer.prepareFrame(snapshot(1), 1, { reducedMotion: true });
+  expect(renderer.getZoom()).toBe(1.6);
+  renderer.setWalkthroughFocus({
+    position: point,
+    radius: 20,
+    area: { left: 0, top: 0, width: 390, height: 500 },
+  });
+  const lens = renderer.getViewport().scale;
+  renderer.setZoom(0.8);
+  expect(renderer.getViewport().scale).toBe(lens);
+  renderer.destroy();
 });

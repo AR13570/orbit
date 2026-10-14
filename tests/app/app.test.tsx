@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   render,
   screen,
@@ -11,6 +11,7 @@ import { OrbitEngine } from "../../src/game/engine";
 import { FeedbackClock } from "../../src/transitions";
 vi.mock("../../src/render/renderer", () => ({
   createRenderer: () => ({
+    setWalkthroughFocus: vi.fn(),
     resize: vi.fn(),
     prepareFrame: vi.fn(),
     getVisibleBounds: () => ({ x: -100, y: -100, width: 2000, height: 1200 }),
@@ -31,9 +32,15 @@ class Observer {
 }
 vi.stubGlobal("ResizeObserver", Observer);
 vi.stubGlobal("matchMedia", () => ({ matches: false }));
+const originalURL = window.location.href;
+beforeEach(() => {
+  localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
+});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  window.history.replaceState({}, "", originalURL);
 });
 function pointer(
   canvas: HTMLCanvasElement,
@@ -197,7 +204,7 @@ describe("minimal scene lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "How to play" }));
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "r" });
     expect(retry).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Close help" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     fireEvent.keyDown(window, { key: "r" });
     expect(retry).toHaveBeenCalledTimes(1);
@@ -300,7 +307,9 @@ describe("minimal scene lifecycle", () => {
       screen.getByRole("button", { name: "Resume" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "How to play" }));
-    expect(screen.getByRole("dialog", { name: "How to play" })).toBeTruthy();
+    expect(
+      screen.getByRole("dialog", { name: "How to play Zen" }),
+    ).toBeTruthy();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(screen.getByRole("dialog", { name: "Paused" })).toBeTruthy();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "p" });
@@ -327,6 +336,8 @@ describe("minimal scene lifecycle", () => {
     expect(screen.getByRole("status").textContent).toBe("Ready to pull");
   });
   it("double tap selects split mode and a short in-flight tap branches once", () => {
+    window.history.replaceState({}, "", "/?seed=4");
+    vi.spyOn(performance, "now").mockReturnValue(0);
     const toggle = vi.spyOn(OrbitEngine.prototype, "toggleShotCount");
     const predict = vi.spyOn(OrbitEngine.prototype, "predict");
     const launch = vi.spyOn(OrbitEngine.prototype, "launch");
@@ -338,15 +349,25 @@ describe("minimal scene lifecycle", () => {
     expect(launch).not.toHaveBeenCalled();
     expect(screen.getByText("Split mode")).toBeTruthy();
     pointer(canvas, "pointerdown", 200, 200);
-    pointer(canvas, "pointermove", 120, 200);
+    const engine = predict.mock.instances.at(-1) as OrbitEngine;
+    const solution = engine.getSnapshot().sector.solution;
+    // Seed 4's straight half-power shot crashes before 0.2s. Exercise the
+    // controls on its verified route so this stays a live-flight branch test.
+    const release = {
+      x: 200 - Math.cos(solution.angle) * solution.power * 160,
+      y: 200 - Math.sin(solution.angle) * solution.power * 160,
+    };
+    pointer(canvas, "pointermove", release.x, release.y);
     expect(predict.mock.results.at(-1)?.value).toHaveLength(1);
-    pointer(canvas, "pointerup", 120, 200);
+    pointer(canvas, "pointerup", release.x, release.y);
     expect(launch).toHaveBeenCalledTimes(1);
-    const engine = launch.mock.instances[0] as OrbitEngine;
+    expect(launch.mock.instances[0]).toBe(engine);
     expect(engine.getSnapshot().particles).toHaveLength(1);
     expect(engine.getSnapshot().shotCount).toBe(3);
     expect(engine.getSnapshot().canBranch).toBe(true);
     engine.update(0.2);
+    expect(engine.getSnapshot().status).toBe("flying");
+    expect(engine.getSnapshot().canBranch).toBe(true);
     const before = engine.getSnapshot().particles[0];
     const branch = vi.spyOn(engine, "branch");
     const aim = vi.spyOn(engine, "setAim");

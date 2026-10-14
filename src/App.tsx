@@ -1,3 +1,5 @@
+import { useGameplayZoom } from "./useGameplayZoom";
+import ZoomControls from "./components/ZoomControls";
 import ModeChooser, { type OrbitMode } from "./ModeChooser";
 import GravityGame from "./gravity/GravityGame";
 import GravityCreator from "./gravity/creator/GravityCreator";
@@ -8,7 +10,15 @@ import type { SlingshotVisual } from "./render/renderer";
 import { PullGesture, TapSequence, runSeed, pullDistance } from "./controls";
 import { FeedbackClock } from "./transitions";
 import { OrbitSound } from "./sound";
-import Help from "./components/Help";
+import Walkthrough from "./tutorial/Walkthrough";
+import {
+  tutorialSeen,
+  finishTutorial,
+  type TutorialResult,
+} from "./tutorial/state";
+import { tutorialSteps } from "./tutorial/steps";
+import { worldHighlight, elementHighlight } from "./tutorial/targets";
+import type { FocusArea } from "./render/coordinates";
 import PauseMenu from "./components/PauseMenu";
 import Icon from "./components/Icon";
 import type { Vec2 } from "./game/types";
@@ -18,13 +28,15 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
   );
   const [snapshot, setSnapshot] = useState(() => engine.getSnapshot());
   const [paused, setPaused] = useState(false),
-    [help, setHelp] = useState(false),
+    [help, setHelp] = useState(() => !tutorialSeen("zen")),
     [muted, setMuted] = useState(true),
     [hint, setHint] = useState(true);
   const [modeFeedback, setModeFeedback] = useState("");
   const canvas = useRef<HTMLCanvasElement>(null),
     scene = useRef<HTMLElement>(null),
     renderer = useRef<ReturnType<typeof createRenderer> | null>(null);
+  const returnToPause = useRef(false),
+    tutorialInterrupted = useRef(false);
   const taps = useRef(new TapSequence());
   const tapInterrupted = useRef(false);
   const flightTap = useRef(new PullGesture(160));
@@ -53,7 +65,7 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
         reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)")
           .matches,
       });
-      engine.setFlightBounds(r.getVisibleBounds());
+      if (!helpRef.current) engine.setFlightBounds(r.getVisibleBounds());
     }
     setSnapshot(s);
   }, [engine]);
@@ -68,6 +80,16 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
   }, []);
+  const zoom = useGameplayZoom({
+    canvas,
+    blocked: () => helpRef.current || pauseRef.current || document.hidden,
+    cancel,
+    apply: (value) => {
+      renderer.current?.setZoom?.(value);
+      if (renderer.current && !helpRef.current)
+        engine.setFlightBounds(renderer.current.getVisibleBounds());
+    },
+  });
   const openPause = useCallback(() => {
     cancel();
     pauseRef.current = true;
@@ -89,7 +111,7 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
   };
   const resetLevel = useCallback(() => {
     // A completed checkpoint must finish its existing once-only advance.
-    if (engine.getSnapshot().status === "docked") return;
+    if (helpRef.current || engine.getSnapshot().status === "docked") return;
     cancel();
     engine.retry();
     clock.current.reset();
@@ -134,7 +156,7 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
         paused: true,
         cameraLocked: true,
       });
-      engine.setFlightBounds(r.getVisibleBounds());
+      if (!helpRef.current) engine.setFlightBounds(r.getVisibleBounds());
     };
     const observer = new ResizeObserver(resize);
     observer.observe(scene.current);
@@ -161,7 +183,7 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
         slingshot: sling.current,
       };
       r.prepareFrame(s, time / 1000, renderOptions);
-      engine.setFlightBounds(r.getVisibleBounds());
+      if (!helpRef.current) engine.setFlightBounds(r.getVisibleBounds());
       if (active) {
         engine.update(dt);
         s = engine.getSnapshot();
@@ -182,13 +204,14 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
         lastEvent.current = s.event.id;
         if (!muteRef.current) sound.current.play(s.event.kind);
       }
-      r.render(
-        s,
-        gesture.current.active ? preview.current : [],
-        time / 1000,
-        renderOptions,
-      );
-      engine.setFlightBounds(r.getVisibleBounds());
+      if (!helpRef.current)
+        r.render(
+          s,
+          gesture.current.active ? preview.current : [],
+          time / 1000,
+          renderOptions,
+        );
+      if (!helpRef.current) engine.setFlightBounds(r.getVisibleBounds());
       if (time - lastHud > 80) {
         setSnapshot(s);
         lastHud = time;
@@ -198,7 +221,10 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
     frame = requestAnimationFrame(tick);
     const hidden = () => {
       last = 0;
-      if (document.hidden) openPause();
+      if (document.hidden) {
+        if (helpRef.current) tutorialInterrupted.current = true;
+        openPause();
+      }
     };
     document.addEventListener("visibilitychange", hidden);
     return () => {
@@ -259,6 +285,65 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
       engine.setFlightBounds(renderer.current.getVisibleBounds());
     preview.current = engine.predict(1.6);
   };
+  const restoreTutorialFocus = useRef(false);
+  useEffect(() => {
+    if (!help && restoreTutorialFocus.current) {
+      restoreTutorialFocus.current = false;
+      const target = paused
+        ? scene.current?.querySelector<HTMLButtonElement>(".pause-resume")
+        : canvas.current;
+      target?.focus();
+    }
+  }, [help, paused]);
+  const clearTutorialFocus = useCallback(
+    () => renderer.current?.setWalkthroughFocus?.(null),
+    [],
+  );
+  const readTutorialTarget = useCallback(
+    (id: string, area: FocusArea) => {
+      const r = renderer.current;
+      if (!r) return null;
+      if (id === "controls") {
+        r.setWalkthroughFocus?.(null);
+        return elementHighlight(scene.current?.querySelector(".scene-actions"));
+      }
+      const sector = engine.getSnapshot().sector;
+      const body = sector.bodies.find((item) => item.kind === id);
+      const target =
+        id === "launcher"
+          ? { position: sector.launch, radius: 0 }
+          : id === "goal"
+            ? sector.checkpoint
+            : body;
+      return target
+        ? worldHighlight(
+            r,
+            target.position,
+            target.radius,
+            area,
+            () => r.getViewport().scale,
+            id === "launcher" ? 26 : undefined,
+          )
+        : null;
+    },
+    [engine],
+  );
+  const closeTutorial = (result: TutorialResult) => {
+    restoreTutorialFocus.current = true;
+    finishTutorial("zen", result);
+    clearTutorialFocus();
+    helpRef.current = false;
+    setHelp(false);
+    if (
+      (result === "skipped" && returnToPause.current) ||
+      tutorialInterrupted.current ||
+      document.hidden
+    )
+      openPause();
+    else resume();
+    returnToPause.current = false;
+    tutorialInterrupted.current = false;
+  };
   const livePieces = snapshot.particles.filter((particle) => particle.alive);
   const offscreenRemaining =
     snapshot.status === "flying" &&
@@ -279,38 +364,81 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
           : "Preparing another shot.";
   return (
     <main ref={scene} className="orbit-scene">
-      <canvas
-        ref={canvas}
-        className="scene-canvas"
-        aria-label="Slingshot flight field"
-        tabIndex={0}
-        onPointerDown={(e) => {
-          if (
-            !e.isPrimary ||
-            gesture.current.active ||
-            flightTap.current.active
-          ) {
-            taps.current.reset();
-            tapInterrupted.current = true;
-          }
-          const current = engine.getSnapshot();
-          if (current.status === "flying") {
+      <div
+        className="game-surface"
+        inert={help}
+        aria-hidden={help || undefined}
+      >
+        <canvas
+          ref={canvas}
+          className="scene-canvas"
+          aria-label="Slingshot flight field"
+          tabIndex={0}
+          onPointerDown={(e) => {
+            if (zoom.down(e)) return;
+            if (
+              !e.isPrimary ||
+              gesture.current.active ||
+              flightTap.current.active
+            ) {
+              taps.current.reset();
+              tapInterrupted.current = true;
+            }
+            const current = engine.getSnapshot();
+            if (current.status === "flying") {
+              if (
+                !e.isPrimary ||
+                e.button !== 0 ||
+                pauseRef.current ||
+                helpRef.current ||
+                !current.canBranch ||
+                flightTap.current.active
+              )
+                return;
+              taps.current.reset();
+              tapInterrupted.current = false;
+              flightTap.current.begin(e.pointerId, {
+                x: e.clientX,
+                y: e.clientY,
+              });
+              tappedFlight.current = current.event?.id ?? null;
+              const frame = e.currentTarget.getBoundingClientRect();
+              gestureFrame.current = {
+                width: frame.width,
+                height: frame.height,
+                dpr: window.devicePixelRatio,
+              };
+              e.currentTarget.setPointerCapture(e.pointerId);
+              e.preventDefault();
+              return;
+            }
             if (
               !e.isPrimary ||
               e.button !== 0 ||
               pauseRef.current ||
               helpRef.current ||
-              !current.canBranch ||
+              engine.getSnapshot().status !== "aiming" ||
+              renderer.current?.getViewport().transitioning ||
+              gesture.current.active ||
               flightTap.current.active
             )
               return;
-            taps.current.reset();
+            gesture.current = new PullGesture(
+              pullDistance(
+                e.pointerType,
+                window.innerWidth,
+                window.innerHeight,
+              ),
+            );
+            if (
+              !gesture.current.begin(e.pointerId, {
+                x: e.clientX,
+                y: e.clientY,
+              })
+            )
+              return;
             tapInterrupted.current = false;
-            flightTap.current.begin(e.pointerId, {
-              x: e.clientX,
-              y: e.clientY,
-            });
-            tappedFlight.current = current.event?.id ?? null;
+            gestureScale.current = renderer.current?.getViewport().scale ?? 1;
             const frame = e.currentTarget.getBoundingClientRect();
             gestureFrame.current = {
               width: frame.width,
@@ -318,208 +446,203 @@ export function ZenGame({ onExit }: { onExit?: () => void } = {}) {
               dpr: window.devicePixelRatio,
             };
             e.currentTarget.setPointerCapture(e.pointerId);
-            e.preventDefault();
-            return;
-          }
-          if (
-            !e.isPrimary ||
-            e.button !== 0 ||
-            pauseRef.current ||
-            helpRef.current ||
-            engine.getSnapshot().status !== "aiming" ||
-            renderer.current?.getViewport().transitioning ||
-            gesture.current.active ||
-            flightTap.current.active
-          )
-            return;
-          gesture.current = new PullGesture(
-            pullDistance(e.pointerType, window.innerWidth, window.innerHeight),
-          );
-          if (
-            !gesture.current.begin(e.pointerId, { x: e.clientX, y: e.clientY })
-          )
-            return;
-          tapInterrupted.current = false;
-          gestureScale.current = renderer.current?.getViewport().scale ?? 1;
-          const frame = e.currentTarget.getBoundingClientRect();
-          gestureFrame.current = {
-            width: frame.width,
-            height: frame.height,
-            dpr: window.devicePixelRatio,
-          };
-          e.currentTarget.setPointerCapture(e.pointerId);
-          const s = engine.getSnapshot();
-          engine.setAim(s.aim.angle, 0);
-          sling.current = {
-            anchor: s.sector.launch,
-            pull: s.sector.launch,
-            power: 0,
-          };
-          if (renderer.current)
-            engine.setFlightBounds(renderer.current.getVisibleBounds());
-          preview.current = engine.predict(1.6);
-          e.preventDefault();
-        }}
-        onPointerMove={(e) => {
-          if (e.pointerId === flightTap.current.pointerId) {
-            flightTap.current.move(e.pointerId, { x: e.clientX, y: e.clientY });
-            return;
-          }
-          updatePull(e.pointerId, e.clientX, e.clientY);
-        }}
-        onPointerUp={(e) => {
-          if (e.pointerId === flightTap.current.pointerId) {
-            flightTap.current.move(e.pointerId, { x: e.clientX, y: e.clientY });
-            const frame = e.currentTarget.getBoundingClientRect();
-            const tinyTap =
-              flightTap.current.tapEligible &&
-              !tapInterrupted.current &&
-              Math.abs(frame.width - gestureFrame.current.width) <= 0.5 &&
-              Math.abs(frame.height - gestureFrame.current.height) <= 0.5 &&
-              window.devicePixelRatio === gestureFrame.current.dpr;
-            const flight = tappedFlight.current;
-            flightTap.current.cancel();
-            tappedFlight.current = null;
-            if (e.currentTarget.hasPointerCapture(e.pointerId))
-              e.currentTarget.releasePointerCapture(e.pointerId);
-            const current = engine.getSnapshot();
-            if (
-              tinyTap &&
-              !pauseRef.current &&
-              !helpRef.current &&
-              current.status === "flying" &&
-              current.canBranch &&
-              current.event?.id === flight
-            ) {
-              engine.branch();
-              setModeFeedback("Shot split");
-              refresh();
-            }
-            return;
-          }
-          if (e.pointerId !== gesture.current.pointerId) return;
-          const frame = e.currentTarget.getBoundingClientRect();
-          if (
-            Math.abs(frame.width - gestureFrame.current.width) > 0.5 ||
-            Math.abs(frame.height - gestureFrame.current.height) > 0.5 ||
-            window.devicePixelRatio !== gestureFrame.current.dpr
-          ) {
-            cancel();
-            return;
-          }
-          gesture.current.move(e.pointerId, { x: e.clientX, y: e.clientY });
-          const tinyTap =
-            gesture.current.tapEligible && !tapInterrupted.current;
-          const shot = gesture.current.end(e.pointerId, {
-            x: e.clientX,
-            y: e.clientY,
-          });
-          sling.current = null;
-          preview.current = [];
-          if (e.currentTarget.hasPointerCapture(e.pointerId))
-            e.currentTarget.releasePointerCapture(e.pointerId);
-          const canAct =
-            !pauseRef.current &&
-            !helpRef.current &&
-            engine.getSnapshot().status === "aiming" &&
-            !renderer.current?.getViewport().transitioning;
-          if (tinyTap && canAct) {
-            if (
-              taps.current.tap(
-                { x: e.clientX, y: e.clientY },
-                performance.now(),
-              )
-            ) {
-              engine.toggleShotCount();
-              setModeFeedback(
-                engine.getSnapshot().shotCount === 3
-                  ? "Split mode"
-                  : "Single shooter",
-              );
-              refresh();
-            }
-          } else taps.current.reset();
-          if (
-            shot &&
-            !pauseRef.current &&
-            !helpRef.current &&
-            engine.getSnapshot().status === "aiming"
-          ) {
-            engine.setAim(shot.angle, shot.power);
+            const s = engine.getSnapshot();
+            engine.setAim(s.aim.angle, 0);
+            sling.current = {
+              anchor: s.sector.launch,
+              pull: s.sector.launch,
+              power: 0,
+            };
             if (renderer.current)
               engine.setFlightBounds(renderer.current.getVisibleBounds());
-            engine.launch();
-            setHint(false);
-            refresh();
-          }
-        }}
-        onPointerCancel={(e) => {
-          taps.current.reset();
-          tapInterrupted.current = true;
-          if (
-            e.pointerId === gesture.current.pointerId ||
-            e.pointerId === flightTap.current.pointerId
-          )
-            cancel();
-        }}
-        onLostPointerCapture={(e) => {
-          if (
-            e.pointerId === gesture.current.pointerId ||
-            e.pointerId === flightTap.current.pointerId
-          )
-            cancel();
-        }}
-      />
-      <div className="scene-hud" aria-label="Journey status">
-        <span
-          className="journey-progress"
-          aria-label={`Checkpoint ${snapshot.checkpointCount}`}
-        >
-          {snapshot.checkpointCount}
-        </span>
-      </div>
-      <div className="scene-actions">
-        <button
-          className="pause-button"
-          aria-label="Reset level (R)"
-          title="Reset level (R)"
-          disabled={snapshot.status === "docked"}
-          onClick={resetLevel}
-        >
-          <Icon name="reset" />
-        </button>
-        <button className="pause-button" aria-label="Pause" onClick={openPause}>
-          <Icon name="pause" />
-        </button>
-      </div>
-      {hint && !paused && snapshot.status === "aiming" && (
-        <p className="gesture-hint">
-          Pull back. Release to fly. Double tap to change shoot modes.
-        </p>
-      )}
-      {offscreenRemaining !== null && !paused && !help && (
-        <p className="gesture-hint offscreen-countdown" aria-hidden="true">
-          Offscreen · {Math.ceil(offscreenRemaining)}s
-        </p>
-      )}
-      <p className="visually-hidden" aria-live="polite" aria-atomic="true">
-        {modeFeedback}
-      </p>
-      <p className="scene-announcement visually-hidden" role="status">
-        {announcement}
-      </p>
-      {help ? (
-        <Help
-          onClose={() => {
-            setHelp(false);
-            helpRef.current = false;
+            preview.current = engine.predict(1.6);
+            e.preventDefault();
           }}
+          onPointerMove={(e) => {
+            if (zoom.move(e)) return;
+            if (e.pointerId === flightTap.current.pointerId) {
+              flightTap.current.move(e.pointerId, {
+                x: e.clientX,
+                y: e.clientY,
+              });
+              return;
+            }
+            updatePull(e.pointerId, e.clientX, e.clientY);
+          }}
+          onPointerUp={(e) => {
+            if (zoom.end(e)) return;
+            if (e.pointerId === flightTap.current.pointerId) {
+              flightTap.current.move(e.pointerId, {
+                x: e.clientX,
+                y: e.clientY,
+              });
+              const frame = e.currentTarget.getBoundingClientRect();
+              const tinyTap =
+                flightTap.current.tapEligible &&
+                !tapInterrupted.current &&
+                Math.abs(frame.width - gestureFrame.current.width) <= 0.5 &&
+                Math.abs(frame.height - gestureFrame.current.height) <= 0.5 &&
+                window.devicePixelRatio === gestureFrame.current.dpr;
+              const flight = tappedFlight.current;
+              flightTap.current.cancel();
+              tappedFlight.current = null;
+              if (e.currentTarget.hasPointerCapture(e.pointerId))
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              const current = engine.getSnapshot();
+              if (
+                tinyTap &&
+                !pauseRef.current &&
+                !helpRef.current &&
+                current.status === "flying" &&
+                current.canBranch &&
+                current.event?.id === flight
+              ) {
+                engine.branch();
+                setModeFeedback("Shot split");
+                refresh();
+              }
+              return;
+            }
+            if (e.pointerId !== gesture.current.pointerId) return;
+            const frame = e.currentTarget.getBoundingClientRect();
+            if (
+              Math.abs(frame.width - gestureFrame.current.width) > 0.5 ||
+              Math.abs(frame.height - gestureFrame.current.height) > 0.5 ||
+              window.devicePixelRatio !== gestureFrame.current.dpr
+            ) {
+              cancel();
+              return;
+            }
+            gesture.current.move(e.pointerId, { x: e.clientX, y: e.clientY });
+            const tinyTap =
+              gesture.current.tapEligible && !tapInterrupted.current;
+            const shot = gesture.current.end(e.pointerId, {
+              x: e.clientX,
+              y: e.clientY,
+            });
+            sling.current = null;
+            preview.current = [];
+            if (e.currentTarget.hasPointerCapture(e.pointerId))
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            const canAct =
+              !pauseRef.current &&
+              !helpRef.current &&
+              engine.getSnapshot().status === "aiming" &&
+              !renderer.current?.getViewport().transitioning;
+            if (tinyTap && canAct) {
+              if (
+                taps.current.tap(
+                  { x: e.clientX, y: e.clientY },
+                  performance.now(),
+                )
+              ) {
+                engine.toggleShotCount();
+                setModeFeedback(
+                  engine.getSnapshot().shotCount === 3
+                    ? "Split mode"
+                    : "Single shooter",
+                );
+                refresh();
+              }
+            } else taps.current.reset();
+            if (
+              shot &&
+              !pauseRef.current &&
+              !helpRef.current &&
+              engine.getSnapshot().status === "aiming"
+            ) {
+              engine.setAim(shot.angle, shot.power);
+              if (renderer.current)
+                engine.setFlightBounds(renderer.current.getVisibleBounds());
+              engine.launch();
+              setHint(false);
+              refresh();
+            }
+          }}
+          onPointerCancel={(e) => {
+            if (zoom.end(e)) return;
+            taps.current.reset();
+            tapInterrupted.current = true;
+            if (
+              e.pointerId === gesture.current.pointerId ||
+              e.pointerId === flightTap.current.pointerId
+            )
+              cancel();
+          }}
+          onLostPointerCapture={(e) => {
+            if (
+              e.pointerId === gesture.current.pointerId ||
+              e.pointerId === flightTap.current.pointerId
+            )
+              cancel();
+          }}
+        />
+        <div className="scene-hud" aria-label="Journey status">
+          <span
+            className="journey-progress"
+            aria-label={`Checkpoint ${snapshot.checkpointCount}`}
+          >
+            {snapshot.checkpointCount}
+          </span>
+        </div>
+        <ZoomControls
+          zoom={zoom.zoom}
+          onIn={zoom.zoomIn}
+          onOut={zoom.zoomOut}
+          onReset={zoom.reset}
+        />
+        <div className="scene-actions">
+          <button
+            className="pause-button"
+            aria-label="Reset level (R)"
+            title="Reset level (R)"
+            disabled={snapshot.status === "docked"}
+            onClick={resetLevel}
+          >
+            <Icon name="reset" />
+          </button>
+          <button
+            className="pause-button"
+            aria-label="Pause"
+            onClick={openPause}
+          >
+            <Icon name="pause" />
+          </button>
+        </div>
+        {hint && !paused && snapshot.status === "aiming" && (
+          <p className="gesture-hint">
+            Pull back. Release to fly. Double tap to change shoot modes.
+          </p>
+        )}
+        {offscreenRemaining !== null && !paused && !help && (
+          <p className="gesture-hint offscreen-countdown" aria-hidden="true">
+            Offscreen · {Math.ceil(offscreenRemaining)}s
+          </p>
+        )}
+        <p className="visually-hidden" aria-live="polite" aria-atomic="true">
+          {modeFeedback}
+        </p>
+        <p className="scene-announcement visually-hidden" role="status">
+          {announcement}
+        </p>
+      </div>
+      {help ? (
+        <Walkthrough
+          mode="zen"
+          steps={tutorialSteps(
+            "zen",
+            snapshot.sector.bodies.map((body) => body.kind),
+          )}
+          readTarget={readTutorialTarget}
+          clearFocus={clearTutorialFocus}
+          onFinish={closeTutorial}
         />
       ) : paused ? (
         <PauseMenu
           onModes={onExit}
           onResume={resume}
           onHelp={() => {
+            returnToPause.current = true;
             cancel();
             helpRef.current = true;
             setHelp(true);

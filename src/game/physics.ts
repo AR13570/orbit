@@ -2,7 +2,7 @@ import type { Body, Checkpoint, Vec2 } from './types';
 export const FIXED_STEP = 1 / 120;
 // Keep the baseline helpers stable for generation and Gravity. Zen runs the same
 // spatial integration steps in less real time, with velocity and force scaled together.
-export const ZEN_SPEED_SCALE = 1.8;
+export const ZEN_SPEED_SCALE = 1.65;
 export const ZEN_FORCE_SCALE = ZEN_SPEED_SCALE ** 2;
 export const ZEN_FIXED_STEP = FIXED_STEP / ZEN_SPEED_SCALE;
 export const OFFSCREEN_TIMEOUT_SECONDS = 6;

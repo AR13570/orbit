@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { bodyStrength, distance } from "../../game/physics";
 import type { Body, Vec2 } from "../../game/types";
+import { FORCE_PALETTE } from "../../render/force-palette";
 import {
   clampPosition,
   gravityRing,
@@ -411,7 +412,7 @@ export default function CreatorField({
             cy={body.position.y}
             r={gravityRing(body.strength)}
             fill="none"
-            stroke={body.kind === "attractor" ? "#527c9a" : "#a45c52"}
+            stroke={FORCE_PALETTE[body.kind].wave}
             strokeWidth={selected === body.id ? 1.5 / scale : 1 / scale}
             opacity={selected === body.id ? 0.6 : 0.14}
             pointerEvents="none"
@@ -426,7 +427,7 @@ export default function CreatorField({
             cx={body.position.x}
             cy={body.position.y}
             r={body.radius}
-            fill={body.kind === "attractor" ? "#303943" : "#a45c52"}
+            fill={FORCE_PALETTE[body.kind].body}
           />
           {selected === body.id && (
             <circle
@@ -443,7 +444,7 @@ export default function CreatorField({
           {body.kind === "repellent" && (
             <path
               d={`M${body.position.x - 8} ${body.position.y}h16`}
-              stroke="white"
+              stroke={FORCE_PALETTE[body.kind].glyph}
               strokeWidth="2"
               pointerEvents="none"
             />

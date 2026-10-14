@@ -1,6 +1,10 @@
+import { clampGameplayZoom, zoomCamera } from "../zoom";
 import type { Body, GameSnapshot, Vec2 } from "../game/types";
 import { usesTouchLayout } from "../controls";
-import { sampleGravityWave, type WaveSample } from "./gravity-surface";
+import { createGravitySurface, drawGravitySurface } from "./gravity-surface";
+import { FORCE_PALETTE } from "./force-palette";
+import type { WaveRenderer } from "gravity-wave";
+export { drawGravitySurface } from "./gravity-surface";
 import {
   clientToWorld,
   fitCamera,
@@ -12,6 +16,8 @@ import {
   visiblePullPoint,
   type Camera,
   type FieldBounds,
+  walkthroughCamera,
+  type WalkthroughFocus,
 } from "./coordinates";
 
 const TAU = Math.PI * 2;
@@ -40,6 +46,9 @@ export interface RenderOptions {
   slingshot?: SlingshotVisual | null;
 }
 export interface OrbitRenderer {
+  setZoom(value: number): number;
+  getZoom(): number;
+  setWalkthroughFocus(focus: WalkthroughFocus | null): void;
   resize(width: number, height: number, dpr?: number): void;
   prepareFrame(
     snapshot: GameSnapshot,
@@ -110,80 +119,6 @@ function fieldBounds(
   return sector.bounds;
 }
 
-// A regular XY lattice samples a local height field. Symmetric radial relief
-// keeps every circular crest concentric with its unchanged physical object.
-interface SurfaceScratch {
-  points: Float32Array;
-  wave: WaveSample;
-}
-export function drawGravitySurface(
-  ctx: CanvasRenderingContext2D,
-  position: Vec2,
-  radius: number,
-  repels: boolean,
-  scale: number,
-  motionTime: number,
-  reducedMotion: boolean,
-  color: string,
-  scratch: SurfaceScratch,
-) {
-  const opacity = ctx.globalAlpha;
-  const points = scratch.points;
-  const outer = radius + 140;
-  // At most 73 x 73 candidates per desktop patch, 49 x 49 on phones.
-  // Reuse one fixed scratch buffer for every patch and frame.
-  const halfCells = scale < 0.55 ? 24 : 36;
-  const step = Math.max(4, 3 / scale, outer / halfCells);
-  const cells = Math.min(halfCells, Math.floor(outer / step));
-  const clock = reducedMotion ? 0 : motionTime;
-  let count = 0;
-  for (let row = -cells; row <= cells; row++) {
-    for (let column = -cells; column <= cells; column++) {
-      const dx = column * step;
-      const dy = row * step;
-      const x = position.x + dx;
-      const y = position.y + dy;
-      const distance = Math.hypot(dx, dy);
-      const fromEdge = distance - radius;
-      if (fromEdge <= 3 || distance >= outer) continue;
-      const innerFade = Math.min(1, (fromEdge - 3) / 18);
-      const edgeFade = Math.min(1, (outer - distance) / 35);
-      const fade = Math.exp(-fromEdge / 82) * innerFade * edgeFade * edgeFade;
-      sampleGravityWave(fromEdge, radius, clock, repels, scratch.wave);
-      const { crest, slope } = scratch.wave;
-      const height = 28 * fade * crest * crest;
-      const lit = Math.max(0, (slope * (-dx - dy)) / (distance * Math.SQRT2));
-      const size = Math.min(
-        step * 0.65,
-        (1.3 + crest * 1.2 + lit * 0.3) / scale,
-      );
-      const alpha = fade * (0.28 + 0.3 * crest + 0.22 * lit);
-      const shade =
-        Math.min(7, Math.floor(alpha / 0.09)) + (lit > 0.08 ? 8 : 0);
-      const slot = count++ * 4;
-      points[slot] = x + (dx / distance) * height * 0.45 - size * 0.5;
-      points[slot + 1] = y + (dy / distance) * height * 0.45 - size * 0.36;
-      points[slot + 2] = size;
-      points[slot + 3] = shade;
-    }
-  }
-  // Sixteen flat shade paths replace thousands of individual fill calls.
-  // The lowest shade is barely visible, preserving rows between raised crests.
-  for (let shade = 0; shade < 16; shade++) {
-    ctx.beginPath();
-    ctx.globalAlpha = opacity * 0.7 * (0.02 + (shade % 8) * 0.09);
-    ctx.fillStyle = shade >= 8 ? color : COLOR.charcoal;
-    for (let i = 0; i < count; i++) {
-      const slot = i * 4;
-      if (points[slot + 3] !== shade) continue;
-      const size = points[slot + 2];
-      ctx.rect(points[slot], points[slot + 1], size, size * 0.72);
-    }
-    ctx.fill();
-  }
-  ctx.globalAlpha = opacity;
-}
-
 function drawGravityFields(
   ctx: CanvasRenderingContext2D,
   sector: Sector,
@@ -192,7 +127,7 @@ function drawGravityFields(
   motionTime: number,
   reducedMotion: boolean,
   includeGoal: boolean,
-  scratch: SurfaceScratch,
+  scratch: WaveRenderer,
 ) {
   ctx.save();
   ctx.globalAlpha = opacity;
@@ -205,7 +140,7 @@ function drawGravityFields(
       scale,
       motionTime,
       reducedMotion,
-      body.kind === "repellent" ? COLOR.rust : COLOR.blue,
+      FORCE_PALETTE[body.kind].wave,
       scratch,
     );
   if (includeGoal)
@@ -232,6 +167,7 @@ export function drawBody(
   const { x, y } = body.position,
     r = body.radius;
   const repels = body.kind === "repellent";
+  const palette = FORCE_PALETTE[body.kind];
   const opacity = ctx.globalAlpha;
   ctx.save();
   ctx.globalAlpha = opacity * 0.065;
@@ -244,16 +180,16 @@ export function drawBody(
   );
   ctx.fill();
   ctx.globalAlpha = opacity;
-  ctx.fillStyle = repels ? "#535960" : COLOR.charcoal;
+  ctx.fillStyle = palette.body;
   circle(ctx, x, y, r);
   ctx.fill();
-  ctx.strokeStyle = repels ? "#c49080" : "#91a9bb";
+  ctx.strokeStyle = palette.rim;
   ctx.lineWidth = Math.max(1.2, 0.8 / scale);
   circle(ctx, x, y, r);
   ctx.stroke();
   // Directional chevrons add a second force cue beyond color.
   const mark = Math.min(r * 0.34, Math.max(7, 4 / scale));
-  ctx.strokeStyle = repels ? "#e9cbc1" : "#b5c8d7";
+  ctx.strokeStyle = palette.glyph;
   ctx.lineWidth = 1.8 / scale;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -292,26 +228,16 @@ function drawDock(
     radius,
   } = snapshot.sector.checkpoint;
   ctx.save();
-  // Discrete blue bands give the well depth while leaving the capture aperture open.
-  ctx.globalAlpha = 0.075;
-  ctx.fillStyle = COLOR.blue;
-  circle(ctx, x, y, radius + 8);
-  ctx.fill();
   ctx.globalAlpha = 1;
   ctx.fillStyle = COLOR.ground;
   circle(ctx, x, y, radius);
   ctx.fill();
   ctx.strokeStyle = COLOR.checkpoint;
-  ctx.lineWidth = 1 / scale;
-  for (const fraction of [0.72, 0.43]) {
-    ctx.globalAlpha = fraction === 0.72 ? 0.35 : 0.55;
-    circle(ctx, x, y, radius * fraction);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  ctx.lineWidth = 2.8 / scale;
+  ctx.globalAlpha = 0.78;
+  ctx.lineWidth = 1.6 / scale;
   circle(ctx, x, y, radius);
   ctx.stroke();
+  ctx.globalAlpha = 0.9;
   // A small flag identifies a checkpoint without suggesting another force-bearing solid.
   const flagHeight = Math.min(10 / scale, radius * 0.52);
   const poleX = x - flagHeight * 0.22;
@@ -326,12 +252,6 @@ function drawDock(
   ctx.lineTo(poleX, top + flagHeight * 0.48);
   ctx.lineTo(poleX, top);
   ctx.fill();
-  if (snapshot.status === "docked") {
-    ctx.globalAlpha = 0.6;
-    ctx.lineWidth = 2 / scale;
-    circle(ctx, x, y, radius + 5 / scale);
-    ctx.stroke();
-  }
   ctx.restore();
 }
 
@@ -389,16 +309,24 @@ function drawLauncher(
   width: number,
   height: number,
   sling?: SlingshotVisual | null,
+  motionTime = 0,
+  reducedMotion = false,
 ) {
   const scale = camera.scale;
   const p = snapshot.sector.launch;
+  const idle = snapshot.status === "aiming" && !sling;
   ctx.save();
-  ctx.strokeStyle = "rgba(48,57,67,.24)";
-  ctx.lineWidth = 1 / scale;
-  ctx.setLineDash([1 / scale, 4 / scale]);
+  ctx.strokeStyle = idle ? "#c3a446" : "rgba(48,57,67,.24)";
+  if (idle)
+    ctx.globalAlpha *= reducedMotion
+      ? 0.72
+      : 0.72 + 0.04 * Math.sin((motionTime * TAU) / 2.8);
+  ctx.lineWidth = (idle ? 1.2 : 1) / scale;
+  ctx.setLineDash(idle ? [] : [1 / scale, 4 / scale]);
   circle(ctx, p.x, p.y, 22 / scale);
   ctx.stroke();
   ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
   if (snapshot.status === "aiming") {
     if (sling) {
       const ghost = visiblePullPoint(p, sling.pull, camera, width, height);
@@ -585,13 +513,10 @@ function drawCheckpointEdge(
 }
 
 export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
-  const surfaceScratch: SurfaceScratch = {
-    points: new Float32Array(73 * 73 * 4),
-    wave: { crest: 0, slope: 0 },
-  };
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Canvas2D is unavailable.");
   const ctx = context;
+  const surfaceScratch = createGravitySurface(ctx);
   let width = 1,
     height = 1,
     dpr = 1,
@@ -609,6 +534,12 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     fromCamera = camera,
     targetCamera = camera,
     progress = 1;
+  let gameplayZoom = 1;
+  let walkthroughFocus: WalkthroughFocus | null = null;
+  const displayCamera = () =>
+    walkthroughFocus
+      ? walkthroughCamera(camera, walkthroughFocus, width, height)
+      : zoomCamera(camera, gameplayZoom);
   let currentSector: Sector | null = null,
     previousSector: Sector | null = null;
   let lastSnapshot: GameSnapshot | null = null;
@@ -773,12 +704,19 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
   function visibleBounds() {
     const rect = canvas.getBoundingClientRect();
     return visibleWorldBounds(
-      camera,
+      displayCamera(),
       rect.width || width,
       rect.height || height,
     );
   }
   return {
+    setZoom(value) {
+      gameplayZoom = clampGameplayZoom(value);
+      return gameplayZoom;
+    },
+    getZoom() {
+      return gameplayZoom;
+    },
     prepareFrame,
     getVisibleBounds: visibleBounds,
     resize(nextWidth, nextHeight, nextDpr = window.devicePixelRatio || 1) {
@@ -793,6 +731,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     render(snapshot, preview, timeSeconds, options = {}) {
       if (destroyed) return;
       prepareFrame(snapshot, timeSeconds, options);
+      const renderCamera = displayCamera();
       const time = Number.isFinite(timeSeconds) ? timeSeconds : lastTime;
       const renderGap = time - lastRenderedTime;
       const dt = time !== lastRenderedTime ? frameDt : 0;
@@ -827,13 +766,13 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.translate(width / 2, height / 2);
-      ctx.scale(camera.scale, camera.scale);
-      ctx.translate(-camera.center.x, -camera.center.y);
+      ctx.scale(renderCamera.scale, renderCamera.scale);
+      ctx.translate(-renderCamera.center.x, -renderCamera.center.y);
       if (previousSector)
         drawGravityFields(
           ctx,
           previousSector,
-          camera.scale,
+          renderCamera.scale,
           1 - progress,
           motionTime,
           reduced,
@@ -843,7 +782,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       drawGravityFields(
         ctx,
         snapshot.sector,
-        camera.scale,
+        renderCamera.scale,
         1,
         motionTime,
         reduced,
@@ -851,13 +790,22 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
         surfaceScratch,
       );
       if (snapshot.status === "aiming" && options.slingshot)
-        drawPreview(ctx, preview, camera.scale);
+        drawPreview(ctx, preview, renderCamera.scale);
       if (previousSector)
-        drawGeometry(ctx, previousSector, camera.scale, 1 - progress);
-      drawGeometry(ctx, snapshot.sector, camera.scale);
-      drawDock(ctx, snapshot, camera.scale);
-      drawLauncher(ctx, snapshot, camera, width, height, options.slingshot);
-      drawParticles(ctx, snapshot, camera.scale);
+        drawGeometry(ctx, previousSector, renderCamera.scale, 1 - progress);
+      drawGeometry(ctx, snapshot.sector, renderCamera.scale);
+      drawDock(ctx, snapshot, renderCamera.scale);
+      drawLauncher(
+        ctx,
+        snapshot,
+        renderCamera,
+        width,
+        height,
+        options.slingshot,
+        motionTime,
+        reduced,
+      );
+      drawParticles(ctx, snapshot, renderCamera.scale);
       for (const effect of effects) {
         if (!effect.active) continue;
         if (reduced) {
@@ -876,35 +824,44 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
           ctx,
           effect.x + effect.vx * effect.age,
           effect.y + effect.vy * effect.age,
-          Math.max(0.8, 1.1 * fade) / camera.scale,
+          Math.max(0.8, 1.1 * fade) / renderCamera.scale,
         );
         ctx.fill();
       }
       ctx.restore();
       ctx.globalAlpha = 1;
       if (width < height)
-        drawCheckpointEdge(ctx, snapshot, camera, width, height);
+        drawCheckpointEdge(ctx, snapshot, renderCamera, width, height);
     },
     screenToWorld(clientX, clientY) {
       return clientToWorld(
         clientX,
         clientY,
         canvas.getBoundingClientRect(),
-        camera,
+        displayCamera(),
       );
     },
+    setWalkthroughFocus(focus) {
+      walkthroughFocus = focus;
+    },
     worldToScreen(point) {
-      return worldToClient(point, canvas.getBoundingClientRect(), camera);
+      return worldToClient(
+        point,
+        canvas.getBoundingClientRect(),
+        displayCamera(),
+      );
     },
     getViewport() {
+      const displayed = displayCamera();
       return {
-        center: { ...camera.center },
-        scale: camera.scale,
+        center: { ...displayed.center },
+        scale: displayed.scale,
         transitioning: progress < 1,
         bounds: visibleBounds(),
       };
     },
     destroy() {
+      surfaceScratch.destroy();
       destroyed = true;
       currentSector = null;
       previousSector = null;

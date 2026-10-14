@@ -1,3 +1,6 @@
+import { clampGameplayZoom, zoomCamera } from "../zoom";
+import { createGravitySurface } from "../render/gravity-surface";
+import { FORCE_PALETTE } from "../render/force-palette";
 import { drawBody, drawGravitySurface } from "../render/renderer";
 import { TRAIL_SECONDS, orbitFraction } from "./simulation";
 import type { GravitySnapshot, TrailPoint, GravityLevel } from "./types";
@@ -5,6 +8,10 @@ import {
   contentBounds,
   fitPlayableCamera,
   type Camera,
+  walkthroughCamera,
+  type WalkthroughFocus,
+  worldToClient,
+  clientToWorld,
 } from "../render/coordinates";
 import type { Vec2 } from "../game/types";
 import { usesTouchLayout } from "../controls";
@@ -172,15 +179,18 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
   let area = { x: 0, y: 0, width: 1, height: 1 };
   let lastLevel: GravityLevel | null = null;
   let levelKey = "";
+  let gameplayZoom = 1;
+  let walkthroughFocus: WalkthroughFocus | null = null;
+  const displayCamera = () =>
+    walkthroughFocus
+      ? walkthroughCamera(camera, walkthroughFocus, width, height)
+      : zoomCamera(camera, gameplayZoom);
   function frame(level: GravityLevel) {
     ({ camera, area } = fitGravityFrame(level, width, height));
     scale = camera.scale;
     lastLevel = level;
   }
-  const scratch = {
-    points: new Float32Array(73 * 73 * 4),
-    wave: { crest: 0, slope: 0 },
-  };
+  const scratch = createGravitySurface(ctx);
   function circle(p: Vec2, r: number) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, Math.max(0, r), 0, TAU);
@@ -201,6 +211,39 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
     ctx.restore();
   }
   return {
+    setZoom(value: number) {
+      gameplayZoom = clampGameplayZoom(value);
+      return gameplayZoom;
+    },
+    getZoom() {
+      return gameplayZoom;
+    },
+    screenToWorld(x: number, y: number) {
+      const rect = canvas.getBoundingClientRect();
+      const viewport = walkthroughFocus ? { x: 0, y: 0, width, height } : area;
+      return clientToWorld(
+        x,
+        y,
+        {
+          left: rect.left + viewport.x,
+          top: rect.top + viewport.y,
+          width: viewport.width,
+          height: viewport.height,
+        },
+        displayCamera(),
+      );
+    },
+    getVisibleBounds() {
+      const displayed = displayCamera(),
+        centerX = walkthroughFocus ? width / 2 : area.x + area.width / 2,
+        centerY = walkthroughFocus ? height / 2 : area.y + area.height / 2;
+      return {
+        x: displayed.center.x - centerX / displayed.scale,
+        y: displayed.center.y - centerY / displayed.scale,
+        width: width / displayed.scale,
+        height: height / displayed.scale,
+      };
+    },
     resize(w: number, h: number, pixelRatio = 1) {
       width = Math.max(1, w);
       height = Math.max(1, h);
@@ -210,7 +253,24 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       if (lastLevel) frame(lastLevel);
     },
     getScale() {
-      return scale;
+      return displayCamera().scale;
+    },
+    setWalkthroughFocus(focus: WalkthroughFocus | null) {
+      walkthroughFocus = focus;
+    },
+    worldToScreen(point: Vec2) {
+      const rect = canvas.getBoundingClientRect();
+      const frame = walkthroughFocus ? { x: 0, y: 0, width, height } : area;
+      return worldToClient(
+        point,
+        {
+          left: rect.left + frame.x,
+          top: rect.top + frame.y,
+          width: frame.width,
+          height: frame.height,
+        },
+        displayCamera(),
+      );
     },
     render(
       snapshot: GravitySnapshot,
@@ -231,22 +291,24 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#e9ecef";
       ctx.fillRect(0, 0, width, height);
-      const centerX = area.x + area.width / 2;
-      const centerY = area.y + area.height / 2;
+      const renderCamera = displayCamera();
+      const renderScale = renderCamera.scale;
+      const centerX = walkthroughFocus ? width / 2 : area.x + area.width / 2;
+      const centerY = walkthroughFocus ? height / 2 : area.y + area.height / 2;
       ctx.save();
       ctx.translate(centerX, centerY);
-      ctx.scale(scale, scale);
-      ctx.translate(-camera.center.x, -camera.center.y);
+      ctx.scale(renderScale, renderScale);
+      ctx.translate(-renderCamera.center.x, -renderCamera.center.y);
       for (const body of snapshot.level.bodies)
         drawGravitySurface(
           ctx,
           body.position,
           body.radius,
           body.kind === "repellent",
-          scale,
+          renderScale,
           motion,
           options.reducedMotion,
-          body.kind === "repellent" ? "#b76550" : "#527c9a",
+          FORCE_PALETTE[body.kind].wave,
           scratch,
         );
       for (const particle of snapshot.particles) {
@@ -254,7 +316,7 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
           ctx,
           particle.trail,
           snapshot.elapsed,
-          1.5 / scale,
+          1.5 / renderScale,
           particle.color,
         );
         ctx.globalAlpha = 1;
@@ -268,7 +330,7 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       const showBodyLabels =
         snapshot.level.bodies.filter((b) => b.kind === "attractor").length > 1;
       snapshot.level.bodies.forEach((body, index) => {
-        drawBody(ctx, body, scale, showBodyLabels ? 7 / scale : 0);
+        drawBody(ctx, body, renderScale, showBodyLabels ? 7 / renderScale : 0);
         if (body.kind === "repellent") return;
         const best = Math.max(
           0,
@@ -278,17 +340,17 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
         );
         ctx.strokeStyle = "#527c9a";
         ctx.globalAlpha = 0.22;
-        ctx.lineWidth = 1 / scale;
-        circle(body.position, body.radius + 8 / scale);
+        ctx.lineWidth = 1 / renderScale;
+        circle(body.position, body.radius + 8 / renderScale);
         ctx.stroke();
         if (best > 0) {
           ctx.globalAlpha = 0.8;
-          ctx.lineWidth = 2 / scale;
+          ctx.lineWidth = 2 / renderScale;
           ctx.beginPath();
           ctx.arc(
             body.position.x,
             body.position.y,
-            body.radius + 8 / scale,
+            body.radius + 8 / renderScale,
             -Math.PI / 2,
             -Math.PI / 2 + best * TAU,
           );
@@ -297,12 +359,12 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
         ctx.globalAlpha = 1;
         if (showBodyLabels) {
           ctx.fillStyle = "#e9ecef";
-          ctx.font = `700 ${11 / scale}px "Avenir Next",sans-serif`;
+          ctx.font = `700 ${11 / renderScale}px "Avenir Next",sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "alphabetic";
           const label = String.fromCharCode(65 + index);
           const metrics = ctx.measureText(label);
-          const ascent = metrics?.actualBoundingBoxAscent ?? 8 / scale;
+          const ascent = metrics?.actualBoundingBoxAscent ?? 8 / renderScale;
           const descent = metrics?.actualBoundingBoxDescent ?? 0;
           ctx.fillText(
             label,
@@ -327,8 +389,8 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
         );
         ctx.globalAlpha = 0.45;
         ctx.strokeStyle = "#527c9a";
-        ctx.lineWidth = 1.5 / scale;
-        ctx.setLineDash([2 / scale, 5 / scale]);
+        ctx.lineWidth = 1.5 / renderScale;
+        ctx.setLineDash([2 / renderScale, 5 / renderScale]);
         circle(
           center,
           Math.hypot(
@@ -336,7 +398,7 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
             bodies[0].position.y - center.y,
           ) +
             bodies[0].radius +
-            20 / scale,
+            20 / renderScale,
         );
         ctx.stroke();
         ctx.setLineDash([]);
@@ -354,26 +416,31 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
         ctx.globalAlpha = 1;
       }
       const anchor = snapshot.level.launch;
-      ctx.strokeStyle = "#626d78";
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth = 1 / scale;
-      ctx.setLineDash([1 / scale, 4 / scale]);
-      circle(anchor, 20 / scale);
+      const idle = !snapshot.complete && !options.pull;
+      ctx.strokeStyle = idle ? "#c3a446" : "#626d78";
+      ctx.globalAlpha = idle
+        ? options.reducedMotion
+          ? 0.72
+          : 0.72 + 0.04 * Math.sin((motion * TAU) / 2.8)
+        : 0.35;
+      ctx.lineWidth = (idle ? 1.2 : 1) / renderScale;
+      ctx.setLineDash(idle ? [] : [1 / renderScale, 4 / renderScale]);
+      circle(anchor, 20 / renderScale);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
       if (!snapshot.complete) {
         ship(anchor, snapshot.aim.angle, "#303943");
         if (options.pull) {
-          const dx = options.pull.x / scale,
-            dy = options.pull.y / scale;
+          const dx = options.pull.x / renderScale,
+            dy = options.pull.y / renderScale;
           // Clamp the visual handle to the usable screen while preserving shot power.
-          const px = centerX + (anchor.x - camera.center.x) * scale,
-            py = centerY + (anchor.y - camera.center.y) * scale;
+          const px = centerX + (anchor.x - renderCamera.center.x) * renderScale,
+            py = centerY + (anchor.y - renderCamera.center.y) * renderScale;
           let fraction = 1;
           for (const [delta, start, limit] of [
-            [dx * scale, px, width],
-            [dy * scale, py, height],
+            [dx * renderScale, px, width],
+            [dy * renderScale, py, height],
           ])
             if (delta)
               fraction = Math.min(
@@ -393,12 +460,12 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
           ctx.globalAlpha = 1;
           ship(ghost, snapshot.aim.angle, "#303943");
           ctx.strokeStyle = "#527c9a";
-          ctx.lineWidth = 2 / scale;
+          ctx.lineWidth = 2 / renderScale;
           ctx.beginPath();
           ctx.arc(
             anchor.x,
             anchor.y,
-            20 / scale,
+            20 / renderScale,
             -Math.PI / 2,
             -Math.PI / 2 + snapshot.aim.power * TAU,
           );
@@ -408,13 +475,14 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       ctx.fillStyle = "#8a0f4b";
       for (let n = 3; n < preview.length; n += 3) {
         ctx.globalAlpha = Math.pow(1 - n / preview.length, 2) * 0.9;
-        circle(preview[n], 2 / scale);
+        circle(preview[n], 2 / renderScale);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
       ctx.restore();
     },
     destroy() {
+      scratch.destroy();
       destroyed = true;
     },
   };

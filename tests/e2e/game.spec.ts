@@ -1,3 +1,4 @@
+import { markTutorialSeen } from "./tutorial-fixture";
 import { test, expect, type Page } from "@playwright/test";
 import { OrbitEngine } from "../../src/game/engine";
 import { MOBILE_PULL_DISTANCE, pullDistance } from "../../src/controls";
@@ -13,6 +14,10 @@ import {
   stepParticle,
 } from "../../src/game/physics";
 import type { SectorSnapshot, WorldBounds } from "../../src/game/types";
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(markTutorialSeen);
+});
 
 // Deliberately omit the optional checkpoint force for this counterfactual only.
 function unassistedGoalPass(
@@ -199,9 +204,9 @@ for (const viewport of [
     await expect(page.getByRole("dialog", { name: "Paused" })).toBeVisible();
     await page.getByRole("button", { name: "How to play" }).click();
     await expect(
-      page.getByRole("dialog", { name: "How to play" }),
+      page.getByRole("dialog", { name: "How to play Zen" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Close help" }).click();
+    await page.getByRole("button", { name: "Skip" }).click();
     await page.getByRole("button", { name: "Reset shot" }).click();
     await ready(page);
     await pauseNewSeed(page);
@@ -271,6 +276,7 @@ for (const viewport of [
       hasTouch: viewport.width <= 760,
       isMobile: viewport.width <= 760,
     });
+    await context.addInitScript(markTutorialSeen);
     const page = await context.newPage();
     try {
       await page.clock.install();
@@ -532,6 +538,7 @@ test("real touch drag releases to fire and ignores additional touch", async ({
     isMobile: true,
     hasTouch: true,
   });
+  await context.addInitScript(markTutorialSeen);
   const page = await context.newPage();
   try {
     await page.goto("/?mode=zen&seed=42");
@@ -689,11 +696,11 @@ test("offscreen flight survives exit, freezes while paused and retries once afte
   await page.clock.runFor(8000);
   await expect(countdown).toHaveCount(0);
   await page.getByRole("button", { name: "How to play" }).click();
-  await expect(page.getByRole("dialog", { name: "How to play" })).toContainText(
-    "six seconds",
-  );
+  await expect(
+    page.getByRole("dialog", { name: "How to play Zen" }),
+  ).toContainText("six seconds");
   await page.clock.runFor(3000);
-  await page.getByRole("button", { name: "Close help" }).click();
+  await page.getByRole("button", { name: "Skip" }).click();
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(countdown).toHaveText("Offscreen · 5s");
   await page.evaluate(() => {
@@ -880,6 +887,7 @@ test("actual touch portrait flight docks and automatically prepares the next lau
     isMobile: true,
     hasTouch: true,
   });
+  await context.addInitScript(markTutorialSeen);
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -994,6 +1002,7 @@ test("actual touch selects split mode and branches only on a valid in-flight tap
     isMobile: true,
     hasTouch: true,
   });
+  await context.addInitScript(markTutorialSeen);
   const page = await context.newPage();
   try {
     await page.goto("/?mode=zen&seed=42");

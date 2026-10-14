@@ -7,10 +7,32 @@ import {
   worldToClient,
   visibleWorldBounds,
   visiblePullPoint,
+  walkthroughCamera,
 } from "../../src/render/coordinates";
 
 const bounds = { x: 3400, y: -240, width: 1800, height: 1000 };
 describe("global field camera", () => {
+  it("frames an offscreen walkthrough target without mutating the play camera", () => {
+    const original = Object.freeze({
+      center: Object.freeze({ x: 500, y: 450 }),
+      scale: 0.6,
+    });
+    const target = {
+      position: { x: -3000, y: 1000 },
+      radius: 70,
+      area: { left: 20, top: 60, width: 350, height: 280 },
+    };
+    const display = walkthroughCamera(original, target, 844, 390);
+    const point = worldToClient(
+      target.position,
+      { left: 0, top: 0, width: 844, height: 390 },
+      display,
+    );
+    expect(point.x).toBeCloseTo(195);
+    expect(point.y).toBeCloseTo(200);
+    expect(original.center).toEqual({ x: 500, y: 450 });
+    expect(walkthroughCamera(original, null, 844, 390)).toBe(original);
+  });
   it.each([
     [501, 900],
     [600, 960],

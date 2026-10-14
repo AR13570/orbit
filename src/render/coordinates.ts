@@ -11,6 +11,42 @@ export interface Camera {
   center: Vec2;
   scale: number;
 }
+export interface FocusArea {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+export interface WalkthroughFocus {
+  position: Vec2;
+  radius: number;
+  area: FocusArea;
+}
+/** A view-only lens. Never used to change simulation bounds or the saved camera. */
+export function walkthroughCamera(
+  camera: Camera,
+  focus: WalkthroughFocus | null,
+  width: number,
+  height: number,
+): Camera {
+  if (!focus) return camera;
+  const { area } = focus;
+  const scale = Math.max(
+    0.001,
+    Math.min(
+      camera.scale,
+      Math.max(1, area.width - 40) / Math.max(1, focus.radius * 2),
+      Math.max(1, area.height - 40) / Math.max(1, focus.radius * 2),
+    ),
+  );
+  return {
+    scale,
+    center: {
+      x: focus.position.x - (area.left + area.width / 2 - width / 2) / scale,
+      y: focus.position.y - (area.top + area.height / 2 - height / 2) / scale,
+    },
+  };
+}
 export type DisplayRect = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
 /** Fit physical content while reserving real screen space around the launch control. */

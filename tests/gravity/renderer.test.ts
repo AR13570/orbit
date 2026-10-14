@@ -8,7 +8,7 @@ import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
 function fixture() {
   const canvas = document.createElement("canvas"),
-    segments: { alpha: number; color: string }[] = [],
+    segments: { alpha: number; color: string; width: number }[] = [],
     gradients: { stops: { offset: number; color: string }[] }[] = [],
     fills: unknown[] = [];
   const context = new Proxy(
@@ -32,6 +32,7 @@ function fixture() {
             segments.push({
               alpha: target.globalAlpha as number,
               color: target.strokeStyle as string,
+              width: target.lineWidth as number,
             });
         return target[key] ?? (target[key] = vi.fn());
       },
@@ -50,6 +51,28 @@ function fixture() {
   };
 }
 describe("Gravity rendering", () => {
+  it("makes the idle launcher yellow and defined, softens it during pull, and freezes reduced motion", () => {
+    const { renderer, segments } = fixture();
+    const snapshot = new GravityEngine(42).getSnapshot();
+    renderer.resize(390, 844);
+    renderer.render(snapshot, [], 1, { paused: false, reducedMotion: true });
+    const idle = segments.find((segment) => segment.color === "#c3a446");
+    expect(idle).toBeDefined();
+    expect(idle!.alpha).toBeGreaterThanOrEqual(0.65);
+    expect(idle!.width * renderer.getScale()).toBeCloseTo(1.2);
+    segments.length = 0;
+    renderer.render(snapshot, [], 5, { paused: false, reducedMotion: true });
+    expect(segments.find((segment) => segment.color === "#c3a446")).toEqual(
+      idle,
+    );
+    segments.length = 0;
+    renderer.render(snapshot, [], 5.05, {
+      paused: false,
+      reducedMotion: false,
+      pull: { x: -80, y: 0 },
+    });
+    expect(segments.some((segment) => segment.color === "#c3a446")).toBe(false);
+  });
   it.each([
     [390, 844],
     [844, 390],
@@ -170,4 +193,43 @@ describe("Gravity rendering", () => {
     renderer.render(s, [], 0, { paused: false, reducedMotion: true });
     expect(gradients).toHaveLength(trailGradients);
   });
+});
+
+it("keeps Gravity zoom, projection and visible bounds aligned across resize", () => {
+  const { renderer, canvas } = fixture();
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+    left: 17,
+    top: 29,
+    width: 800,
+    height: 600,
+    right: 817,
+    bottom: 629,
+    x: 17,
+    y: 29,
+    toJSON: () => ({}),
+  });
+  const state = new GravityEngine(42).getSnapshot();
+  renderer.resize(800, 600);
+  renderer.render(state, [], 0, { paused: false, reducedMotion: true });
+  const baseScale = renderer.getScale(),
+    baseBounds = renderer.getVisibleBounds();
+  expect(renderer.setZoom(1.5)).toBe(1.5);
+  expect(renderer.getScale()).toBeCloseTo(baseScale * 1.5);
+  expect(renderer.getVisibleBounds().width).toBeCloseTo(baseBounds.width / 1.5);
+  const point = state.level.launch,
+    screen = renderer.worldToScreen(point),
+    roundTrip = renderer.screenToWorld(screen.x, screen.y);
+  expect(roundTrip.x).toBeCloseTo(point.x, 8);
+  expect(roundTrip.y).toBeCloseTo(point.y, 8);
+  renderer.resize(390, 844);
+  expect(renderer.getZoom()).toBe(1.5);
+  renderer.setWalkthroughFocus({
+    position: point,
+    radius: 20,
+    area: { left: 0, top: 0, width: 390, height: 500 },
+  });
+  const lens = renderer.getScale();
+  renderer.setZoom(0.8);
+  expect(renderer.getScale()).toBe(lens);
+  renderer.destroy();
 });

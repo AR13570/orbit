@@ -33,7 +33,11 @@ vi.mock("../../src/gravity/GravityGame", () => ({
     </div>
   ),
 }));
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
+});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
