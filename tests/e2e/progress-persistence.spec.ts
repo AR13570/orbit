@@ -224,7 +224,7 @@ for (const mobile of [false, true]) {
         position.x,
         position.y,
         shot.angle,
-        Math.sqrt(shot.power) * (mobile ? 96 : 180),
+        Math.sqrt(shot.power) * (mobile ? 48 : 90),
       );
       for (let t = 0; t < 60000; t += 500) {
         await page.clock.runFor(500);
@@ -249,7 +249,7 @@ for (const mobile of [false, true]) {
         position.x,
         position.y,
         shot.angle,
-        Math.sqrt(shot.power) * (mobile ? 96 : 180),
+        Math.sqrt(shot.power) * (mobile ? 48 : 90),
       );
       for (let t = 0; t < 60000; t += 500) {
         await page.clock.runFor(500);

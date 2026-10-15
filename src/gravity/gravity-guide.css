@@ -13,10 +13,18 @@
   min-width: 88px;
   padding: 10px 20px;
 }
-.gravity-guide-actions button:first-child {
-  min-width: 72px;
+.gravity-guide-actions .gravity-guide-skip {
+  min-width: 56px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
   background: transparent;
   color: #697783;
+  font-size: 12px;
+}
+.gravity-guide-actions .gravity-guide-skip:focus-visible {
+  outline: 1px solid #89949d;
+  outline-offset: 2px;
 }
 .gravity-guide-actions .pause-resume {
   width: auto;

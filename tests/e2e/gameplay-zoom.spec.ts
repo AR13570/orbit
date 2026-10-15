@@ -16,8 +16,8 @@ const fieldName = (mode: Mode) =>
 async function boot(page: Page, mode: Mode, seen = true) {
   if (seen) await page.addInitScript(markTutorialSeen);
   await installZoomProbe(page);
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await page.clock.install({ time: new Date("2026-10-15T00:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-10-15T00:00:01Z"));
   await page.goto(`/?mode=${mode}&seed=42`);
   await page.clock.runFor(200);
 }
@@ -31,6 +31,21 @@ async function idle(page: Page, mode: Mode) {
 }
 
 for (const mode of ["zen", "gravity"] as const) {
+  test(`${mode} horizontal trackpad scrolling preserves a held launch`, async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await boot(page, mode);
+    await page.mouse.move(350, 500);
+    await page.mouse.down();
+    await page.mouse.move(410, 500);
+    await page.mouse.wheel(80, 0);
+    await page.clock.runFor(32);
+    await page.mouse.up();
+    await page.clock.runFor(32);
+    await expect(page.locator(".game-surface [role=status]")).toHaveText(
+      mode === "zen" ? /In flight|Offscreen/ : "1 planet in motion",
+    );
+  });
+
   test(`${mode} desktop zoom supports wheel, keys and resize without firing or visible controls`, async ({
     page,
   }) => {

@@ -1,15 +1,18 @@
 import { dialogControls } from "../components/dialogFocus";
 import { useEffect, useRef, type ReactNode } from "react";
+import Attribution from "../components/Attribution";
 export default function GravityMenu({
   title,
   onClose,
   dismissOnBackdrop = false,
   children,
+  showAttribution = false,
 }: {
   title: string;
   onClose: () => void;
   dismissOnBackdrop?: boolean;
   children: ReactNode;
+  showAttribution?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -17,7 +20,7 @@ export default function GravityMenu({
   }, [title]);
   return (
     <div
-      className="dialog-backdrop pause-backdrop"
+      className={`dialog-backdrop pause-backdrop${showAttribution ? " pause-backdrop-attributed" : ""}`}
       onClick={(event) => {
         if (dismissOnBackdrop && event.target === event.currentTarget)
           onClose();
@@ -54,6 +57,7 @@ export default function GravityMenu({
         </div>
         <div className="pause-actions">{children}</div>
       </section>
+      {showAttribution && <Attribution />}
     </div>
   );
 }

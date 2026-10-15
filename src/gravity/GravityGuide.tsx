@@ -113,8 +113,25 @@ export default function GravityGuide({
       canvas.current.releasePointerCapture(id);
   };
   useEffect(() => {
-    root.current?.querySelector<HTMLButtonElement>("button")?.focus();
-  }, []);
+    const enterGuide = (event: KeyboardEvent) => {
+      if (root.current?.contains(event.target as Node)) return;
+      if (event.key === "Tab") {
+        const targets = root.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),canvas[tabindex="0"],input:not(:disabled)',
+        );
+        if (!targets?.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        targets[event.shiftKey ? targets.length - 1 : 0].focus();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onFinish("skipped");
+      }
+    };
+    document.addEventListener("keydown", enterGuide, true);
+    return () => document.removeEventListener("keydown", enterGuide, true);
+  }, [onFinish]);
   useEffect(() => {
     const r = createGravityRenderer(canvas.current!, { compact: true });
     renderer.current = r;
@@ -236,7 +253,12 @@ export default function GravityGuide({
           <p>{lessons[stage][1]}</p>
         </div>
         <div className="gravity-guide-actions">
-          <button onClick={() => onFinish("skipped")}>Skip</button>
+          <button
+            className="gravity-guide-skip"
+            onClick={() => onFinish("skipped")}
+          >
+            Skip
+          </button>
           {stage >= 2 && (
             <button
               className="pause-resume"

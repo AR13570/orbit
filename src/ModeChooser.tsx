@@ -1,4 +1,5 @@
 import Icon from "./components/Icon";
+import Attribution from "./components/Attribution";
 
 export type OrbitMode = "zen" | "gravity" | "creator";
 export default function ModeChooser({
@@ -133,7 +134,10 @@ export default function ModeChooser({
           </span>
         </button>
       </div>
-      <p className="mode-footer">No lives. No rush. Just one more launch.</p>
+      <footer className="mode-footer">
+        <p>No lives. No rush. Just one more launch.</p>
+        <Attribution />
+      </footer>
     </main>
   );
 }

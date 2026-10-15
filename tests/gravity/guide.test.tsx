@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GravityGuide from "../../src/gravity/GravityGuide";
 import { GravityEngine } from "../../src/gravity/engine";
+import { gravityPullDistance } from "../../src/gravity/input";
 
 vi.mock("../../src/gravity/renderer", () => ({
   createGravityRenderer: () => ({
@@ -60,6 +61,36 @@ function pointer(
 }
 
 describe("Gravity guide", () => {
+  it("leaves focus alone on opening and enters the practice loop on first Tab", () => {
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    try {
+      render(<GravityGuide onFinish={() => {}} />);
+      const skip = screen.getByRole("button", { name: "Skip", exact: true });
+      const field = screen.getByLabelText("Gravity practice field");
+      expect(document.activeElement).toBe(outside);
+      fireEvent.keyDown(outside, { key: "Tab" });
+      expect(document.activeElement).toBe(skip);
+      fireEvent.keyDown(skip, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(field);
+      fireEvent.keyDown(field, { key: "Tab" });
+      expect(document.activeElement).toBe(skip);
+      outside.focus();
+      fireEvent.keyDown(outside, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(field);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("permits Escape before keyboard focus enters the guide", () => {
+    const finished = vi.fn();
+    render(<GravityGuide onFinish={finished} />);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(finished).toHaveBeenCalledWith("skipped");
+  });
+
   it.each([
     [1, 2],
     [2, 1],
@@ -163,11 +194,12 @@ describe("Gravity guide", () => {
     const launch = vi.spyOn(GravityEngine.prototype, "launch");
     const aim = vi.spyOn(GravityEngine.prototype, "setLaunch");
     render(<GravityGuide onFinish={() => {}} />);
+    const halfPull = gravityPullDistance("mouse", 1280, 800) / 2;
     pointer("pointerdown", 300, 300);
-    pointer("pointermove", 210, 300);
+    pointer("pointermove", 300 - halfPull, 300);
     const previewAim = aim.mock.calls.at(-1)![1];
     expect(previewAim.power).toBeCloseTo(0.25);
-    pointer("pointerup", 210, 300);
+    pointer("pointerup", 300 - halfPull, 300);
     expect(aim.mock.calls.at(-1)![1]).toEqual(previewAim);
     const state = (launch.mock.instances[0] as GravityEngine).getSnapshot();
     expect(state.particles[0].velocity.x).toBeCloseTo(105);

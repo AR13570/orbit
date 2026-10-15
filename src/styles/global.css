@@ -715,6 +715,29 @@ p {
   font-size: 11px;
   text-align: center;
 }
+.attribution {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+.mode-footer > .attribution {
+  margin-top: 12px;
+}
+.pause-backdrop-attributed {
+  padding-bottom: max(44px, calc(env(safe-area-inset-bottom) + 40px));
+}
+.pause-backdrop-attributed > .attribution {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 6px max(20px, env(safe-area-inset-right))
+    max(12px, calc(env(safe-area-inset-bottom) + 12px))
+    max(20px, env(safe-area-inset-left));
+  background: var(--ground);
+  pointer-events: none;
+}
 .gravity-level {
   color: var(--muted);
 }

@@ -7,7 +7,7 @@ import type {
 } from "./types";
 
 /** Playback default, never multiplied into physical velocity or acceleration. */
-export const GRAVITY_SPEED_SCALE = 1.45;
+export const GRAVITY_SPEED_SCALE = 1.4;
 export const GRAVITY_FORCE_SCALE = 1;
 export const GRAVITY_FIXED_STEP = 1 / 120;
 export const WELL_SOFTENING = 40;

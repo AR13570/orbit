@@ -3,6 +3,7 @@ import PathAssistControl from "./PathAssistControl";
 import AdvancedSettings from "./AdvancedSettings";
 import { dialogControls } from "./dialogFocus";
 import Icon from "./Icon";
+import Attribution from "./Attribution";
 export default function PauseMenu({
   onModes,
   onResume,
@@ -28,7 +29,7 @@ export default function PauseMenu({
   }, []);
   return (
     <div
-      className="dialog-backdrop pause-backdrop"
+      className="dialog-backdrop pause-backdrop pause-backdrop-attributed"
       onClick={(event) => {
         if (event.target === event.currentTarget) onResume();
       }}
@@ -116,6 +117,7 @@ export default function PauseMenu({
           )}
         </div>
       </section>
+      <Attribution />
     </div>
   );
 }

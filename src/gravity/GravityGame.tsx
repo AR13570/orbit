@@ -585,7 +585,12 @@ export default function GravityGame({
           </button>
         </GravityMenu>
       ) : paused ? (
-        <GravityMenu title="Paused" onClose={resume} dismissOnBackdrop>
+        <GravityMenu
+          title="Paused"
+          onClose={resume}
+          dismissOnBackdrop
+          showAttribution
+        >
           <button className="pause-resume" onClick={resume}>
             Resume <Icon name="play" />
           </button>

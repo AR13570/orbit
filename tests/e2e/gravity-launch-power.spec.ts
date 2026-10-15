@@ -9,10 +9,10 @@ import {
 } from "./zoom-fixture";
 
 for (const device of [
-  { width: 1280, height: 800, touch: false, limit: 180 },
-  { width: 390, height: 844, touch: true, limit: 96 },
-  { width: 844, height: 390, touch: true, limit: 96 },
-  { width: 320, height: 568, touch: true, limit: 96 },
+  { width: 1280, height: 800, touch: false, limit: 90 },
+  { width: 390, height: 844, touch: true, limit: 48 },
+  { width: 844, height: 390, touch: true, limit: 48 },
+  { width: 320, height: 568, touch: true, limit: 48 },
 ]) {
   for (const zoom of [0.25, 0.45, 1, 2, 4]) {
     test(`Gravity deliberate launch response at ${device.width}x${device.height}, zoom ${zoom}`, async ({
@@ -155,7 +155,7 @@ for (const device of [
   }
 }
 
-test("Gravity gentle pulls remain visibly slower than the previous response", async ({
+test("Gravity half-length pulls retain the deliberate normalized launch response", async ({
   page,
 }) => {
   await page.goto("/?mode=gravity&seed=42");
@@ -202,11 +202,13 @@ test("Gravity gentle pulls remain visibly slower than the previous response", as
       const results = [24, 48, 80].map((distance) => {
         const previous =
           Math.min(1, distance / (mobile ? 72 : 160)) ** (mobile ? 1.6 : 1);
-        const current = gravityAim({ power: distance / limit }).power;
+        // The shorter reach represents the same fraction of the full pull.
+        const current = gravityAim({ power: distance / 2 / limit }).power;
         return {
           width,
           height,
           distance,
+          currentDistance: distance / 2,
           before: measure(previous),
           after: measure(current),
           beforePower: previous,

@@ -25,8 +25,10 @@ export function useGameplayZoom({
   callbacks.current = { blocked, cancel, apply };
   const change = useCallback((next: number) => {
     if (callbacks.current.blocked()) return;
+    const clamped = clampGameplayZoom(next);
+    if (clamped === value.current) return;
     callbacks.current.cancel();
-    value.current = clampGameplayZoom(next);
+    value.current = clamped;
     callbacks.current.apply(value.current);
     setZoom(value.current);
   }, []);

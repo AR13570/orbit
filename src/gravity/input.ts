@@ -8,7 +8,7 @@ export function gravityPullDistance(
   gameplayZoom = 1,
 ): number {
   const base =
-    pointerType === "touch" || usesTouchLayout(width, height) ? 96 : 180;
+    pointerType === "touch" || usesTouchLayout(width, height) ? 48 : 90;
   // Screen-space reach follows zoom gently without shrinking to a tiny target.
   const zoom =
     Number.isFinite(gameplayZoom) && gameplayZoom > 0 ? gameplayZoom : 1;

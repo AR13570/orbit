@@ -6,7 +6,7 @@ it("keeps all campaign witness powers reachable by a deliberate drag above the t
   for (let index = 0; index < 45; index++) {
     const level = getGravityLevel(42, index);
     for (const shot of level.witness) {
-      for (const limit of [180, 96]) {
+      for (const limit of [90, 48]) {
         const distance = limit * Math.sqrt(shot.power);
         expect(distance).toBeGreaterThanOrEqual(8);
         expect(distance).toBeLessThanOrEqual(limit);
@@ -21,15 +21,15 @@ it("keeps all campaign witness powers reachable by a deliberate drag above the t
   }
 });
 it("uses reachable Gravity-only full-pull limits for mouse and touch layouts", () => {
-  expect(gravityPullDistance("mouse", 1280, 800)).toBe(180);
-  expect(gravityPullDistance("touch", 1280, 800)).toBe(96);
-  expect(gravityPullDistance("mouse", 390, 844)).toBe(96);
-  expect(gravityPullDistance("touch", 844, 390)).toBe(96);
+  expect(gravityPullDistance("mouse", 1280, 800)).toBe(90);
+  expect(gravityPullDistance("touch", 1280, 800)).toBe(48);
+  expect(gravityPullDistance("mouse", 390, 844)).toBe(48);
+  expect(gravityPullDistance("touch", 844, 390)).toBe(48);
 });
 it("shortens zoomed-out pulls gently and bounds the adjustment at extreme zoom", () => {
   for (const [pointer, width, height, base] of [
-    ["mouse", 1280, 800, 180],
-    ["touch", 390, 844, 96],
+    ["mouse", 1280, 800, 90],
+    ["touch", 390, 844, 48],
   ] as const) {
     const reduced = gravityPullDistance(pointer, width, height, 0.45);
     expect(reduced).toBeCloseTo(base * Math.sqrt(0.45), 10);

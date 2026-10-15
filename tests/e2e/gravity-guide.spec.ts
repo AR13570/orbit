@@ -1,5 +1,65 @@
 import { expect, test } from "@playwright/test";
 
+for (const device of [
+  { width: 1200, height: 800, touch: false },
+  { width: 390, height: 844, touch: true },
+]) {
+  test(`Gravity guide Skip stays quiet until keyboard navigation on ${device.width}x${device.height}`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: device,
+      hasTouch: device.touch,
+      isMobile: device.touch,
+      reducedMotion: "reduce",
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto("/?mode=gravity&seed=42");
+      const skip = page.getByRole("button", { name: "Skip", exact: true });
+      const practice = page.getByLabel("Gravity practice field");
+      await expect(skip).toBeVisible();
+      await expect(page.locator("body")).toBeFocused();
+      await expect(skip).not.toBeFocused();
+      await expect(skip).toHaveCSS("outline-style", "none");
+      await expect(skip).toHaveCSS("border-radius", "8px");
+      await expect(skip).toHaveCSS("font-size", "12px");
+      const box = (await skip.boundingBox())!;
+      expect(box.width).toBe(56);
+      expect(box.height).toBe(44);
+      await page.screenshot({
+        path: `/private/tmp/orbit-guide-skip-initial-${device.width}x${device.height}.png`,
+      });
+      await page.keyboard.press("Tab");
+      await expect(skip).toBeFocused();
+      await expect(skip).toHaveCSS("outline-color", "rgb(137, 148, 157)");
+      await expect(skip).toHaveCSS("outline-width", "1px");
+      await page.screenshot({
+        path: `/private/tmp/orbit-guide-skip-keyboard-${device.width}x${device.height}.png`,
+      });
+      await page.keyboard.press("Tab");
+      await expect(practice).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(
+        page.getByRole("heading", { name: "Add another while it moves" }),
+      ).toBeVisible();
+      await page.keyboard.press("Tab");
+      await expect(skip).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
+      await expect(practice).toBeFocused();
+      await page.reload();
+      await expect(skip).toBeVisible();
+      await expect(skip).not.toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(
+        page.getByRole("dialog", { name: "How to play Gravity" }),
+      ).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+}
+
 test("Gravity guide recovers when interrupted touches lift outside the field", async ({
   browser,
 }) => {
