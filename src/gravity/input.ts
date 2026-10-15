@@ -1,4 +1,20 @@
 import { usesTouchLayout } from "../controls";
+import type { GravityState, Vec2 } from "./types";
+
+/** Use live well positions and the next planet's physical radius. */
+export function gravityLaunchIsClear(
+  position: Vec2,
+  state: Pick<GravityState, "level" | "physics">,
+): boolean {
+  return (
+    !state.physics.bodyCollisions ||
+    state.level.bodies.every(
+      (body) =>
+        Math.hypot(position.x - body.position.x, position.y - body.position.y) >
+        body.radius + state.physics.planetRadius + 1e-9,
+    )
+  );
+}
 
 /** Deliberate full-power pulls remain reachable with one thumb or a mouse. */
 export function gravityPullDistance(

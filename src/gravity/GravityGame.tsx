@@ -6,15 +6,13 @@ import AdvancedSettings from "../components/AdvancedSettings";
 import PathAssistControl from "../components/PathAssistControl";
 import ProjectileSizeControl from "./ProjectileSizeControl";
 import { PullGesture } from "../controls";
-import { gravityAim, gravityPullDistance } from "./input";
+import { gravityAim, gravityLaunchIsClear, gravityPullDistance } from "./input";
 import { gravityAimPredictionSeconds } from "./aim-preview";
 import { gravityLaunchSpeed } from "./physics";
 import Icon from "../components/Icon";
 import GameHeader from "../components/GameHeader";
 import { resolveGravitySeed } from "./seed";
-import { GravityMusic } from "./music";
-import { OrbitSound } from "../sound";
-import { AccelerationSoundTracker } from "../audio/acceleration";
+import { useAmbientMusic } from "../audio/useAmbientMusic";
 import {
   getGravityLevel,
   getCampaignCatalog,
@@ -84,6 +82,12 @@ export default function GravityGame({
   const [projectileSize, setProjectileSize] = useState(() =>
     engine.getProjectileSize(),
   );
+  const [blockedLaunch, setBlockedLaunch] = useState(false);
+  useEffect(() => {
+    if (!blockedLaunch) return;
+    const timer = window.setTimeout(() => setBlockedLaunch(false), 2400);
+    return () => window.clearTimeout(timer);
+  }, [blockedLaunch]);
   const [projectileScale, setProjectileScale] = useState(1);
   const [snapshot, setSnapshot] = useState(() => hudSnapshot(engine));
   const [levels, setLevels] = useState(false);
@@ -91,7 +95,8 @@ export default function GravityGame({
   const [help, setHelp] = useState(
     () => !customLevel && (startTutorial || !gravityGuideSeen()),
   );
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const pauseMusic = useAmbientMusic(!muted && !paused && !help);
   const pathAssist = usePathAssist(),
     pathAssistRef = useRef(pathAssist);
   pathAssistRef.current = pathAssist;
@@ -109,25 +114,23 @@ export default function GravityGame({
     preview = useRef<Vec2[]>([]);
   const lastPreview = useRef(-Infinity);
   const pause = useRef(false),
-    helpRef = useRef(help),
-    mute = useRef(true),
-    sound = useRef(new OrbitSound());
-  const accelerationSound = useRef(new AccelerationSoundTracker());
-  const music = useRef(new GravityMusic());
-  const saveCurrent = useCallback((index: number, complete = false) => {
-    if (customLevel) return;
-    const next = complete
-      ? recordGravityCompletion(progressRef.current, index)
-      : setGravityCurrentIndex(progressRef.current, index);
-    progressRef.current = next;
-    setSavedProgress(next);
-    saveGravityProgress(next);
-  }, [customLevel]);
+    helpRef = useRef(help);
+  const saveCurrent = useCallback(
+    (index: number, complete = false) => {
+      if (customLevel) return;
+      const next = complete
+        ? recordGravityCompletion(progressRef.current, index)
+        : setGravityCurrentIndex(progressRef.current, index);
+      progressRef.current = next;
+      setSavedProgress(next);
+      saveGravityProgress(next);
+    },
+    [customLevel],
+  );
   const lastComplete = useRef(false),
     returnToPause = useRef(false);
   const frameSize = useRef({ width: 0, height: 0, dpr: 1 });
   helpRef.current = help;
-  mute.current = muted;
   const refresh = useCallback(() => setSnapshot(hudSnapshot(engine)), [engine]);
   const cancel = useCallback(() => {
     const id = gesture.current.pointerId;
@@ -153,14 +156,12 @@ export default function GravityGame({
     apply: (value) => renderer.current?.setZoom(value),
   });
   const openPause = useCallback(() => {
-    sound.current.setEnabled(false);
-    music.current.pause();
-    accelerationSound.current.reset();
+    pauseMusic();
     cancel();
     pause.current = true;
     engine.setPaused(true);
     setPaused(true);
-  }, [cancel, engine]);
+  }, [cancel, engine, pauseMusic]);
   const resume = () => {
     pause.current = false;
     engine.setPaused(false);
@@ -202,19 +203,12 @@ export default function GravityGame({
       const active = !pause.current && !helpRef.current && !document.hidden;
       if (active) engine.update(dt);
       const state = engine.getRenderSnapshot();
-      const audioActive = active && !mute.current;
-      sound.current.setEnabled(audioActive);
-      const gravityPresent =
-        state.physics.planetGravity ||
-        state.level.bodies.some((body) => body.strength !== 0);
-      if (audioActive && gravityPresent) {
-        const cue = accelerationSound.current.sample(
-          state.particles,
-          state.elapsed,
-        );
-        if (cue) sound.current.accelerate(cue.intensity);
-      } else accelerationSound.current.reset();
-      if (active && gesture.current.active && origin.current) {
+      if (
+        active &&
+        gesture.current.active &&
+        origin.current &&
+        gravityLaunchIsClear(origin.current, state)
+      ) {
         const full = pathAssistRef.current === "full",
           job = predictionJob.current;
         if (
@@ -237,10 +231,18 @@ export default function GravityGame({
           if (current.done) completedPreview.current = current.path;
           preview.current = completedPreview.current ?? current.path;
         }
+      } else if (
+        origin.current &&
+        !gravityLaunchIsClear(origin.current, state)
+      ) {
+        predictionJob.current?.cancel();
+        predictionJob.current = null;
+        completedPreview.current = null;
+        preview.current = [];
+        lastPreview.current = -Infinity;
       }
       if (state.complete && !lastComplete.current) {
         saveCurrent(state.level.index, true);
-        if (audioActive) sound.current.play("dock");
       }
       lastComplete.current = state.complete;
       r.render(state, preview.current, time / 1000, {
@@ -277,22 +279,6 @@ export default function GravityGame({
       renderer.current = null;
     };
   }, [engine, cancel, openPause, saveCurrent]);
-  useEffect(() => {
-    if (!muted && !paused && !help && !document.hidden)
-      void music.current.play();
-    else {
-      music.current.pause();
-      sound.current.setEnabled(false);
-      accelerationSound.current.reset();
-    }
-  }, [muted, paused, help]);
-  useEffect(
-    () => () => {
-      sound.current.destroy();
-      music.current.destroy();
-    },
-    [],
-  );
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (
@@ -369,6 +355,7 @@ export default function GravityGame({
               return;
             }
             if (e.button !== 0 || pause.current || helpRef.current) return;
+            setBlockedLaunch(false);
             gesture.current = new PullGesture(
               gravityPullDistance(
                 e.pointerType,
@@ -428,9 +415,10 @@ export default function GravityGame({
               !helpRef.current &&
               !document.hidden
             ) {
-              engine.setLaunch(position, gravityAim(shot));
-              if (engine.launch() && !mute.current)
-                sound.current.play("launch");
+              if (gravityLaunchIsClear(position, engine.getRenderSnapshot())) {
+                engine.setLaunch(position, gravityAim(shot));
+                engine.launch();
+              } else setBlockedLaunch(true);
               refresh();
             }
           }}
@@ -518,9 +506,11 @@ export default function GravityGame({
         </div>
         <div className="gravity-footer">
           <p className="gravity-feedback" role="status">
-            {snapshot.complete
-              ? "Orbits aligned"
-              : `${alive} ${alive === 1 ? "planet" : "planets"} in motion`}
+            {blockedLaunch
+              ? "Start in clear space"
+              : snapshot.complete
+                ? "Orbits aligned"
+                : `${alive} ${alive === 1 ? "planet" : "planets"} in motion`}
           </p>
           <p className="gravity-instruction">
             Start anywhere. Pull back and release. Keep adding planets.
@@ -631,7 +621,6 @@ export default function GravityGame({
               className="pause-option"
               aria-pressed={!muted}
               onClick={() => {
-                if (muted) sound.current.unlock();
                 setMuted((m) => !m);
               }}
             >

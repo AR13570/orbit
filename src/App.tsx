@@ -12,8 +12,7 @@ import { createRenderer } from "./render/renderer";
 import type { SlingshotVisual } from "./render/renderer";
 import { PullGesture, TapSequence, runSeed, pullDistance } from "./controls";
 import { FeedbackClock } from "./transitions";
-import { OrbitSound } from "./sound";
-import { AccelerationSoundTracker } from "./audio/acceleration";
+import { useAmbientMusic } from "./audio/useAmbientMusic";
 import Walkthrough from "./tutorial/Walkthrough";
 import {
   tutorialSeen,
@@ -45,8 +44,9 @@ export function ZenGame({
     [help, setHelp] = useState(
       () => startTutorial || (!debug.enabled && !tutorialSeen("zen")),
     ),
-    [muted, setMuted] = useState(true),
+    [muted, setMuted] = useState(false),
     [hint, setHint] = useState(true);
+  const pauseMusic = useAmbientMusic(!muted && !paused && !help);
   const [modeFeedback, setModeFeedback] = useState("");
   const pathAssist = usePathAssist(),
     pathAssistRef = useRef(pathAssist);
@@ -69,14 +69,9 @@ export function ZenGame({
     gestureFrame = useRef({ width: 0, height: 0, dpr: 1 });
   const pauseRef = useRef(false),
     helpRef = useRef(false),
-    muteRef = useRef(true),
-    sound = useRef(new OrbitSound()),
-    accelerationSound = useRef(new AccelerationSoundTracker()),
-    lastEvent = useRef(0),
     clock = useRef(new FeedbackClock());
   pauseRef.current = paused;
   helpRef.current = help;
-  muteRef.current = muted;
   const savedCheckpoint = useRef("");
   const persistCheckpoint = useCallback((s: GameSnapshot) => {
     if (debug.enabled || helpRef.current) return;
@@ -128,12 +123,11 @@ export function ZenGame({
     },
   });
   const openPause = useCallback(() => {
-    sound.current.setEnabled(false);
-    accelerationSound.current.reset();
+    pauseMusic();
     cancel();
     pauseRef.current = true;
     setPaused(true);
-  }, [cancel]);
+  }, [cancel, pauseMusic]);
   const resume = () => {
     pauseRef.current = false;
     setPaused(false);
@@ -255,18 +249,6 @@ export function ZenGame({
           persistCheckpoint(s);
         }
       } else clock.current.step(s.status, dt, false);
-      const audioActive = active && !muteRef.current;
-      sound.current.setEnabled(audioActive);
-      if (s.event && s.event.id !== lastEvent.current) {
-        lastEvent.current = s.event.id;
-        if (s.event.kind === "launch" || s.event.kind === "restart")
-          accelerationSound.current.reset();
-        if (audioActive) sound.current.play(s.event.kind);
-      }
-      if (audioActive && s.status === "flying") {
-        const cue = accelerationSound.current.sample(s.particles, s.elapsed);
-        if (cue) sound.current.accelerate(cue.intensity);
-      } else accelerationSound.current.reset();
       if (
         active &&
         gesture.current.active &&
@@ -312,13 +294,6 @@ export function ZenGame({
       renderer.current = null;
     };
   }, [engine, cancel, openPause, persistCheckpoint]);
-  useEffect(() => {
-    if (muted || paused || help) {
-      sound.current.setEnabled(false);
-      accelerationSound.current.reset();
-    }
-  }, [muted, paused, help]);
-  useEffect(() => () => sound.current.destroy(), []);
   useEffect(() => {
     if (!modeFeedback) return;
     const timer = window.setTimeout(() => setModeFeedback(""), 1500);
@@ -737,7 +712,6 @@ export function ZenGame({
           onRestart={restart}
           onResetShot={resetLevel}
           onSound={() => {
-            if (muted) sound.current.unlock();
             setMuted((m) => !m);
           }}
           muted={muted}

@@ -18,6 +18,7 @@ import { usesTouchLayout } from "../controls";
 import type { PathAssist } from "../pathAssist";
 import { sampleGravityAimPreview } from "./aim-preview";
 import { normalizeProjectileSize } from "./projectile-size";
+import { gravityLaunchIsClear } from "./input";
 interface DrawOptions {
   pathAssist?: PathAssist;
   paused: boolean;
@@ -534,6 +535,8 @@ export function createGravityRenderer(
       }
       // A planet exists at the chosen position only while aiming. The field has no fixed launcher.
       const anchor = snapshot.launchPosition;
+      const blockedLaunch =
+        !!options.pull && !gravityLaunchIsClear(anchor, snapshot);
       if (options.pull) {
         planet(
           anchor,
@@ -543,7 +546,7 @@ export function createGravityRenderer(
             5,
             snapshot.projectileSize,
           ),
-          "#7a60d6",
+          blockedLaunch ? "#c9675e" : "#7a60d6",
         );
         const ghost = {
           x: anchor.x + options.pull.x / renderScale,
@@ -559,7 +562,7 @@ export function createGravityRenderer(
         circle(ghost, 5 / renderScale);
         ctx.stroke();
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = "#7a60d6";
+        ctx.strokeStyle = blockedLaunch ? "#c9675e" : "#7a60d6";
         ctx.lineWidth = 2 / renderScale;
         ctx.beginPath();
         ctx.arc(
@@ -570,10 +573,29 @@ export function createGravityRenderer(
           -Math.PI / 2 + snapshot.aim.power * TAU,
         );
         ctx.stroke();
+        if (blockedLaunch) {
+          ctx.fillStyle = "#a34f48";
+          ctx.font = `${12 / renderScale}px "Avenir Next",sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.strokeStyle = "#e9ecef";
+          ctx.lineWidth = 4 / renderScale;
+          ctx.lineJoin = "round";
+          ctx.strokeText(
+            "Start in clear space",
+            anchor.x,
+            anchor.y - 19 / renderScale,
+          );
+          ctx.fillText(
+            "Start in clear space",
+            anchor.x,
+            anchor.y - 19 / renderScale,
+          );
+        }
       }
       ctx.fillStyle = "#7956cf";
       const aimPreview = sampleGravityAimPreview(
-        preview,
+        blockedLaunch ? [] : preview,
         renderScale,
         options.pathAssist,
       );

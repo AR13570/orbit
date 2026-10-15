@@ -9,6 +9,12 @@ export class OrbitSound {
   private enabled = false;
   private voices = new Set<Voice>();
   private lastAcceleration = -Infinity;
+  private readonly volume: number;
+  constructor({ volume = 1 }: { volume?: number } = {}) {
+    this.volume = Number.isFinite(volume)
+      ? Math.max(0, Math.min(3, volume))
+      : 1;
+  }
   async unlock() {
     try {
       if (typeof AudioContext === "undefined") return;
@@ -62,8 +68,8 @@ export class OrbitSound {
     )
       this.lastAcceleration = ctx.currentTime;
   }
-  ambient() {
-    this.swell({ from: 110, to: 108.5, duration: 6, attack: 2, peak: 0.005 });
+  ambient({ from = 110, to = 108.5, peak = 0.005 } = {}) {
+    this.swell({ from, to, duration: 6, attack: 2, peak });
   }
   private swell({
     from,
@@ -81,6 +87,7 @@ export class OrbitSound {
     const ctx = this.context;
     if (
       !this.enabled ||
+      this.volume === 0 ||
       !ctx ||
       ctx.state !== "running" ||
       this.voices.size >= 3
@@ -105,7 +112,10 @@ export class OrbitSound {
           time + duration * 0.8,
         );
         gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(peak * volume, time + attack);
+        gain.gain.linearRampToValueAtTime(
+          peak * volume * this.volume,
+          time + attack,
+        );
         gain.gain.exponentialRampToValueAtTime(0.0001, time + duration - 0.06);
         gain.gain.linearRampToValueAtTime(0, time + duration);
         oscillator.connect(gain);

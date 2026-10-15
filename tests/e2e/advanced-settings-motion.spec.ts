@@ -104,7 +104,7 @@ for (const mode of ["zen", "gravity"]) {
     const panel = page.locator(
       `[id="${await toggle.getAttribute("aria-controls")}"]`,
     );
-    const sound = menu.getByRole("button", { name: "Sound off", exact: true });
+    const sound = menu.getByRole("button", { name: "Sound on", exact: true });
     const initialSoundY =
       (await sound.boundingBox())!.y - (await menu.boundingBox())!.y;
     expect((await sample(panel)).height).toBe(0);
@@ -203,7 +203,7 @@ for (const mode of ["zen", "gravity"]) {
     await toggle.focus();
     await page.keyboard.press("Tab");
     await expect(
-      menu.getByRole("button", { name: "Sound off", exact: true }),
+      menu.getByRole("button", { name: "Sound on", exact: true }),
     ).toBeFocused();
   });
 }

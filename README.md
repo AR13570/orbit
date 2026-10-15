@@ -40,7 +40,7 @@ In **Gravity**, start a pull anywhere to launch from that spot. Launch again whi
 - Pause with the pause button, **Esc**, or **P**. Resume with the same keys, **Resume**, or a click outside the pause panel.
 - Press **R** or use the reset button to retry the current Zen shot or reset the current Gravity level. In Zen, **New seed** starts a fresh checkpoint journey.
 - Open **Pause → Advanced → Path assist** to switch between the default partial aiming preview and a full predicted path.
-- Sound is optional. Find its switch and **How to play** in the pause menu. Interactive guides also appear on your first visit to each game mode.
+- Both game modes share a warm ambient melody with soft keys and occasional quiet chimes, with sound on by default. Toggle sound in the pause menu, where you can also find **How to play**. Interactive guides appear on your first visit to each game mode.
 
 Zen checkpoints and Gravity level progress save in this browser for each seed. Returning to a run resumes its saved checkpoint or level, rather than an in-flight shot. Add `?seed=42` to the URL for a repeatable starting world. Browser storage does not sync across devices and can be lost if you clear site data.
 

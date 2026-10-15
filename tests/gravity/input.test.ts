@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { gravityAim, gravityPullDistance } from "../../src/gravity/input";
+import {
+  gravityAim,
+  gravityLaunchIsClear,
+  gravityPullDistance,
+} from "../../src/gravity/input";
+import { GravityEngine } from "../../src/gravity/engine";
 import { getGravityLevel } from "../../src/gravity/campaign";
 
 it("keeps all campaign witness powers reachable by a deliberate drag above the tap deadzone", () => {
@@ -43,4 +48,24 @@ it("shortens zoomed-out pulls gently and bounds the adjustment at extreme zoom",
       10,
     );
   }
+});
+
+it("requires physical clearance for the selected size and honors disabled core collisions", () => {
+  const engine = new GravityEngine(42, getGravityLevel(42, 0));
+  const nearCore = { x: 478, y: 450 };
+  expect(gravityLaunchIsClear(nearCore, engine.getRenderSnapshot())).toBe(true);
+  engine.setProjectileSize(2);
+  expect(gravityLaunchIsClear(nearCore, engine.getRenderSnapshot())).toBe(
+    false,
+  );
+  expect(
+    gravityLaunchIsClear({ x: 480, y: 450 }, engine.getRenderSnapshot()),
+  ).toBe(false);
+  expect(
+    gravityLaunchIsClear({ x: 480.001, y: 450 }, engine.getRenderSnapshot()),
+  ).toBe(true);
+  engine.setPhysics({ bodyCollisions: false });
+  expect(
+    gravityLaunchIsClear({ x: 450, y: 450 }, engine.getRenderSnapshot()),
+  ).toBe(true);
 });

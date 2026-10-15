@@ -46,7 +46,7 @@ export function newDraft(): CreatorLevel {
     objective: { kind: "none", count: 1, turns: 1, hold: 0 },
     physics: {
       planetGravity: true,
-      planetCollisions: "merge",
+      planetCollisions: "elastic",
       bodyCollisions: true,
       trailSeconds: 6,
     },

@@ -37,6 +37,17 @@
   flex: 1;
   min-height: 130px;
 }
+.gravity-launch-feedback {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  color: #a34f48;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .gravity-guide-practice .gravity-guide-field {
   display: block;
   height: 100%;

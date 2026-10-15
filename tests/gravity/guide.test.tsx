@@ -61,6 +61,37 @@ function pointer(
 }
 
 describe("Gravity guide", () => {
+  it("keeps unequal practice planets alive and separate through mutual attraction", () => {
+    const launch = vi.spyOn(GravityEngine.prototype, "launch");
+    render(<GravityGuide onFinish={() => {}} />);
+    fireEvent.keyDown(screen.getByLabelText("Gravity practice field"), {
+      key: "Enter",
+    });
+    const engine = launch.mock.instances[0] as GravityEngine;
+    engine.retry();
+    engine.setTimeScale(1);
+    engine.launchFrom({ x: 410, y: 100 }, { x: 0, y: 0 });
+    engine.setProjectileSize(2);
+    engine.launchFrom({ x: 470, y: 100 }, { x: 0, y: 0 });
+    let closest = Infinity;
+    for (let frame = 0; frame < 240; frame++) {
+      engine.update(1 / 120);
+      const particles = engine.getSnapshot().particles;
+      expect(particles.filter((p) => p.alive)).toHaveLength(2);
+      expect(particles.map(({ radius, mass }) => ({ radius, mass }))).toEqual([
+        { radius: 4, mass: 1 },
+        { radius: 8, mass: 4 },
+      ]);
+      const distance = Math.hypot(
+        particles[0].position.x - particles[1].position.x,
+        particles[0].position.y - particles[1].position.y,
+      );
+      expect(distance).toBeGreaterThanOrEqual(12 - 1e-7);
+      closest = Math.min(closest, distance);
+    }
+    expect(closest).toBeLessThan(13);
+  });
+
   it("leaves focus alone on opening and enters the practice loop on first Tab", () => {
     const outside = document.createElement("button");
     document.body.append(outside);
@@ -220,4 +251,25 @@ describe("Gravity guide", () => {
     fireEvent.click(skip);
     expect(finish).toHaveBeenCalledWith("skipped");
   });
+});
+
+it("rejects a practice launch inside a core with feedback and keeps the current lesson", () => {
+  const aim = vi.spyOn(GravityEngine.prototype, "setLaunch");
+  render(<GravityGuide onFinish={() => {}} />);
+  pointer("pointerdown", 450, 420);
+  pointer("pointermove", 405, 420);
+  const engine = aim.mock.instances[0] as GravityEngine;
+  pointer("pointerup", 405, 420);
+  expect(engine.getSnapshot().particles).toHaveLength(0);
+  expect(
+    screen.getByRole("heading", { name: "Make your first planet" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toBe("Start in clear space");
+  pointer("pointerdown", 300, 650);
+  pointer("pointerup", 255, 650);
+  expect(engine.getSnapshot().particles).toHaveLength(1);
+  expect(
+    screen.getByRole("heading", { name: "Add another while it moves" }),
+  ).toBeTruthy();
+  expect(screen.queryByText("Start in clear space")).toBeNull();
 });

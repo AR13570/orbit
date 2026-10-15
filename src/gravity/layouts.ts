@@ -239,7 +239,7 @@ export const GRAVITY_LAYOUTS: readonly LayoutDefinition[] = [
     id: "merging-swarm",
     anchors: [[0, 0]],
     count: 7,
-    physics: { planetGravity: true, planetCollisions: "merge", planetMass: 3 },
+    physics: { planetGravity: true, planetCollisions: "elastic", planetMass: 3 },
   },
   {
     id: "self-gravitating-constellation",

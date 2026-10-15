@@ -67,10 +67,10 @@ test("Gravity desktop free launches, wheel cancellation, player settings and res
   await expect(
     menu.getByRole("switch", { name: "Path assist", exact: true }),
   ).toHaveAttribute("aria-checked", "true");
-  await menu.getByRole("button", { name: "Sound off", exact: true }).click();
+  await menu.getByRole("button", { name: "Sound on", exact: true }).click();
   await expect(
-    menu.getByRole("button", { name: "Sound on", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    menu.getByRole("button", { name: "Sound off", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
   await page.clock.runFor(50);
   const image = await page
     .getByLabel("Gravity orbital field")

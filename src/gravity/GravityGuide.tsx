@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PullGesture } from "../controls";
 import { bodyStrength } from "../game/physics";
-import { gravityAim, gravityPullDistance } from "./input";
+import { gravityAim, gravityLaunchIsClear, gravityPullDistance } from "./input";
 import { gravityLaunchSpeed } from "./physics";
 import { GravityEngine } from "./engine";
 import ProjectileSizeControl from "./ProjectileSizeControl";
@@ -57,7 +57,7 @@ const practice: GravityLevel = {
   requirements: [{ bodyId: "pull", count: 1, turns: 1 }],
   physics: {
     planetGravity: true,
-    planetCollisions: "merge",
+    planetCollisions: "elastic",
     bodyCollisions: true,
   },
   witness: [],
@@ -90,6 +90,7 @@ export default function GravityGuide({
   onFinish: (result: "complete" | "skipped") => void;
 }) {
   const [stage, setStage] = useState(0),
+    [blockedLaunch, setBlockedLaunch] = useState(false),
     [projectileSize, setProjectileSize] = useState(1),
     [projectileScale, setProjectileScale] = useState(1),
     [engine] = useState(() => new GravityEngine(2026, practice));
@@ -112,6 +113,11 @@ export default function GravityGuide({
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
   };
+  useEffect(() => {
+    if (!blockedLaunch) return;
+    const timer = window.setTimeout(() => setBlockedLaunch(false), 2400);
+    return () => window.clearTimeout(timer);
+  }, [blockedLaunch]);
   useEffect(() => {
     const enterGuide = (event: KeyboardEvent) => {
       if (root.current?.contains(event.target as Node)) return;
@@ -207,10 +213,15 @@ export default function GravityGuide({
     const shot = gravityAim(rawShot);
     engine.setLaunch(origin.current, shot);
     pull.current = shot.pull;
-    preview.current = engine.predictFrom(origin.current, {
-      x: Math.cos(shot.angle) * gravityLaunchSpeed(shot.power),
-      y: Math.sin(shot.angle) * gravityLaunchSpeed(shot.power),
-    });
+    preview.current = gravityLaunchIsClear(
+      origin.current,
+      engine.getRenderSnapshot(),
+    )
+      ? engine.predictFrom(origin.current, {
+          x: Math.cos(shot.angle) * gravityLaunchSpeed(shot.power),
+          y: Math.sin(shot.angle) * gravityLaunchSpeed(shot.power),
+        })
+      : [];
   };
   return (
     <div className="gravity-guide-backdrop">
@@ -293,6 +304,7 @@ export default function GravityGuide({
                 return;
               }
               cameraLocked.current = true;
+              setBlockedLaunch(false);
               renderer.current?.setZoom(1);
               gesture.current = new PullGesture(
                 gravityPullDistance(
@@ -323,8 +335,10 @@ export default function GravityGuide({
                 }),
                 p = origin.current;
               if (rawShot && p && !document.hidden && !touchRejected.current) {
-                engine.setLaunch(p, gravityAim(rawShot));
-                if (engine.launch()) launched();
+                if (gravityLaunchIsClear(p, engine.getRenderSnapshot())) {
+                  engine.setLaunch(p, gravityAim(rawShot));
+                  if (engine.launch()) launched();
+                } else setBlockedLaunch(true);
               }
               cancel();
               if (touches.current.size === 0) touchRejected.current = false;
@@ -346,6 +360,11 @@ export default function GravityGuide({
               }
             }}
           />
+          {blockedLaunch && (
+            <p className="gravity-launch-feedback" role="status">
+              Start in clear space
+            </p>
+          )}
           {stage === 3 && (
             <ProjectileSizeControl
               value={projectileSize}

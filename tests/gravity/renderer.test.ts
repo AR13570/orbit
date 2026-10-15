@@ -458,3 +458,40 @@ it("keeps Gravity zoom, projection and visible bounds aligned across resize", ()
   expect(renderer.getScale()).toBe(lens);
   renderer.destroy();
 });
+
+it("keeps an obstructed held planet visible with a clear warning and no trajectory dots", () => {
+  const { renderer, fillRecords, context } = fixture();
+  const engine = new GravityEngine(42, getGravityLevel(42, 0));
+  engine.setLaunch({ x: 450, y: 450 }, { angle: 0, power: 0.25 });
+  renderer.resize(1200, 800);
+  renderer.render(
+    engine.getSnapshot(),
+    [
+      { x: 450, y: 450 },
+      { x: 650, y: 450 },
+    ],
+    0,
+    {
+      paused: true,
+      reducedMotion: true,
+      pull: { x: -45, y: 0 },
+      pathAssist: "full",
+    },
+  );
+  const marker = fillRecords.find(({ color }) => color === "#c9675e");
+  expect(marker?.alpha).toBe(1);
+  expect(marker?.circle.slice(0, 2)).toEqual([450, 450]);
+  expect(fillRecords.filter(({ color }) => color === "#7956cf")).toHaveLength(
+    0,
+  );
+  expect(context.fillText).toHaveBeenCalledWith(
+    "Start in clear space",
+    450,
+    expect.any(Number),
+  );
+  expect(context.strokeText).toHaveBeenCalledWith(
+    "Start in clear space",
+    450,
+    expect.any(Number),
+  );
+});

@@ -377,19 +377,19 @@ describe("Gravity interface", () => {
     expect(screen.queryByRole("button", { name: "Save sky image" })).toBeNull();
     for (const name of [
       "Resume",
-      "Sound off",
+      "Sound on",
       "How to play",
       "Reset level",
       "Choose a level",
       "Choose mode",
     ])
       expect(screen.getByRole("button", { name, exact: true })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Sound off" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sound on" }));
     expect(
       screen
-        .getByRole("button", { name: "Sound on" })
+        .getByRole("button", { name: "Sound off" })
         .getAttribute("aria-pressed"),
-    ).toBe("true");
+    ).toBe("false");
     fireEvent.keyDown(screen.getByRole("button", { name: "Resume" }), {
       key: "Escape",
     });
@@ -510,16 +510,66 @@ describe("Gravity interface", () => {
   });
 });
 
-it('Reset level after completion persists the level actually being replayed', () => {
+it("Reset level after completion persists the level actually being replayed", () => {
   const current = GravityEngine.prototype.getRenderSnapshot;
-  vi.spyOn(GravityEngine.prototype, 'getRenderSnapshot').mockImplementation(function (this: GravityEngine) {
-    const state = current.call(this);
-    return { ...state, complete: true };
-  });
+  vi.spyOn(GravityEngine.prototype, "getRenderSnapshot").mockImplementation(
+    function (this: GravityEngine) {
+      const state = current.call(this);
+      return { ...state, complete: true };
+    },
+  );
   render(<GravityGame onExit={() => {}} />);
   act(() => frame!(100));
-  const seed = Number(localStorage.getItem('orbit.gravity.default-seed.v1'));
+  const seed = Number(localStorage.getItem("orbit.gravity.default-seed.v1"));
   expect(loadGravityProgress(seed).currentIndex).toBe(1);
-  fireEvent.click(screen.getByRole('button', { name: 'Reset level (R)' }));
-  expect(loadGravityProgress(seed)).toMatchObject({ currentIndex: 0, unlockedIndex: 1, completedIndices: [0] });
+  fireEvent.click(screen.getByRole("button", { name: "Reset level (R)" }));
+  expect(loadGravityProgress(seed)).toMatchObject({
+    currentIndex: 0,
+    unlockedIndex: 1,
+    completedIndices: [0],
+  });
+});
+
+it("rejects core-overlapping release and lets the next clear-space drag launch", () => {
+  const aim = vi.spyOn(GravityEngine.prototype, "setLaunch");
+  render(<GravityGame onExit={() => {}} />);
+  const canvas = field();
+  pointer(canvas, "pointerdown", 450, 450, 1, true, "mouse");
+  pointer(canvas, "pointermove", 405, 450, 1, true, "mouse");
+  const engine = aim.mock.instances[0] as GravityEngine;
+  pointer(canvas, "pointerup", 405, 450, 1, true, "mouse");
+  expect(engine.getSnapshot().particles).toHaveLength(0);
+  expect(screen.getByRole("status").textContent).toBe("Start in clear space");
+  pointer(canvas, "pointerdown", 300, 650, 1, true, "mouse");
+  pointer(canvas, "pointerup", 255, 650, 1, true, "mouse");
+  expect(engine.getSnapshot().particles).toHaveLength(1);
+  expect(screen.getByRole("status").textContent).toBe("1 planet in motion");
+});
+
+it("checks the live core pose when a moving core crosses the held launch point", () => {
+  const level = toGravityLevel(newDraft());
+  level.motions = [
+    {
+      bodyId: "body-1",
+      kind: "circle",
+      center: { x: 450, y: 450 },
+      radius: 100,
+      period: 1,
+    },
+  ];
+  const aim = vi.spyOn(GravityEngine.prototype, "setLaunch");
+  render(<GravityGame onExit={() => {}} customLevel={level} />);
+  const canvas = field();
+  pointer(canvas, "pointerdown", 450, 550, 1, true, "mouse");
+  pointer(canvas, "pointermove", 405, 550, 1, true, "mouse");
+  const engine = aim.mock.instances[0] as GravityEngine;
+  expect(engine.getSnapshot().level.bodies[0].position).toEqual({
+    x: 550,
+    y: 450,
+  });
+  engine.setTimeScale(1);
+  engine.update(0.25);
+  pointer(canvas, "pointerup", 405, 550, 1, true, "mouse");
+  expect(engine.getSnapshot().particles).toHaveLength(0);
+  expect(screen.getByRole("status").textContent).toBe("Start in clear space");
 });

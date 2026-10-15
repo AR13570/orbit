@@ -28,7 +28,7 @@ for (const mode of ["zen", "gravity"])
       await expect(advanced).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(
-        menu.getByRole("button", { name: "Sound off", exact: true }),
+        menu.getByRole("button", { name: "Sound on", exact: true }),
       ).toBeFocused();
       await advanced.click();
       const assist = menu.getByRole("switch", {
@@ -43,7 +43,7 @@ for (const mode of ["zen", "gravity"])
         .getByText("Path assist", { exact: true })
         .boundingBox())!;
       const soundLabel = (await menu
-        .getByText("Sound off", { exact: true })
+        .getByText("Sound on", { exact: true })
         .boundingBox())!;
       const switchRow = (await assist.boundingBox())!;
       expect(Math.abs(label.x - soundLabel.x)).toBeLessThan(1);
@@ -69,7 +69,7 @@ for (const mode of ["zen", "gravity"])
         "Advanced",
         "Path assist",
         ...(mode === "gravity" ? ["Particle Interaction"] : []),
-        "Sound off",
+        "Sound on",
         "How to play",
         "Choose mode",
         ...(mode === "gravity"
@@ -104,11 +104,11 @@ for (const mode of ["zen", "gravity"])
       await page.keyboard.press("Enter");
       await expect(assist).toHaveAttribute("aria-checked", "true");
       await menu
-        .getByRole("button", { name: "Sound off", exact: true })
+        .getByRole("button", { name: "Sound on", exact: true })
         .click();
       await expect(
-        menu.getByRole("button", { name: "Sound on", exact: true }),
-      ).toHaveAttribute("aria-pressed", "true");
+        menu.getByRole("button", { name: "Sound off", exact: true }),
+      ).toHaveAttribute("aria-pressed", "false");
       const last = menu.getByRole("button", {
         name: "Choose mode",
         exact: true,

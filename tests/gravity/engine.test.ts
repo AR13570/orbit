@@ -35,16 +35,16 @@ function advanceFrames(engine: GravityEngine, frames: number) {
 }
 
 describe("Gravity playback pace", () => {
-  it("advances fewer physical steps at 1.4 than the previous pace over equal wall time", () => {
+  it("advances fewer physical steps at 1.2 than the previous pace over equal wall time", () => {
     const current = orbitEngine();
     const previous = orbitEngine();
-    previous.setTimeScale(1.45);
+    previous.setTimeScale(1.35);
     advanceFrames(current, 120);
     advanceFrames(previous, 120);
     const slower = current.getSnapshot();
     const faster = previous.getSnapshot();
-    expect(slower.elapsed).toBeCloseTo(2.8, 10);
-    expect(faster.elapsed).toBeCloseTo(2.9, 10);
+    expect(slower.elapsed).toBeCloseTo(2.4, 10);
+    expect(faster.elapsed).toBeCloseTo(2.7, 10);
     expect(slower.elapsed).toBeLessThan(faster.elapsed);
     expect(slower.particles[0].position).not.toEqual(faster.particles[0].position);
     expect(Math.abs(slower.particles[0].orbits.well.winding)).toBeLessThan(
@@ -55,13 +55,13 @@ describe("Gravity playback pace", () => {
   it("preserves the full orbit and trajectory at matched physical time", () => {
     const current = orbitEngine();
     const previous = orbitEngine();
-    previous.setTimeScale(1.45);
-    // 14.5 seconds at 1.4 and 14 seconds at 1.45 both simulate 20.3 seconds.
-    advanceFrames(current, 870);
-    advanceFrames(previous, 840);
+    previous.setTimeScale(1.35);
+    // 15 seconds at 1.2 and 40/3 seconds at 1.35 both simulate 18 seconds.
+    advanceFrames(current, 900);
+    advanceFrames(previous, 800);
     const slower = current.getSnapshot();
     const faster = previous.getSnapshot();
-    expect(slower.elapsed).toBeCloseTo(20.3, 10);
+    expect(slower.elapsed).toBeCloseTo(18, 10);
     expect(slower.elapsed).toBe(faster.elapsed);
     expect(slower.particles[0].alive).toBe(true);
     expect(Math.abs(slower.particles[0].orbits.well.winding)).toBeGreaterThan(

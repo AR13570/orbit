@@ -87,7 +87,7 @@ for (const device of [
         CanvasRenderingContext2D.prototype.fill = function (...args: any[]) {
           if (
             this.canvas.classList.contains("scene-canvas") &&
-            this.fillStyle === "#7a60d6"
+            (this.fillStyle === "#7a60d6" || this.fillStyle === "#c9675e")
           ) {
             const transform = this.getTransform();
             const dpr =
