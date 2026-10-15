@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { generateSector } from "../../src/game/generator";
 import { createRenderer } from "../../src/render/renderer";
 import { sampleGravityWave } from "../../src/render/gravity-surface";
 import type { GameSnapshot } from "../../src/game/types";
@@ -1093,21 +1094,21 @@ it("applies bounded gameplay zoom consistently to transforms and visible flight 
     state = snapshot();
   renderer.prepareFrame(state, 0, { reducedMotion: true });
   const base = renderer.getViewport();
-  expect(renderer.setZoom(3)).toBe(1.6);
+  expect(renderer.setZoom(8)).toBe(4);
   const zoomed = renderer.getViewport();
   expect(zoomed.center).toEqual(base.center);
-  expect(zoomed.scale).toBeCloseTo(base.scale * 1.6);
-  expect(zoomed.bounds.width).toBeCloseTo(base.bounds.width / 1.6);
-  expect(zoomed.bounds.height).toBeCloseTo(base.bounds.height / 1.6);
+  expect(zoomed.scale).toBeCloseTo(base.scale * 4);
+  expect(zoomed.bounds.width).toBeCloseTo(base.bounds.width / 4);
+  expect(zoomed.bounds.height).toBeCloseTo(base.bounds.height / 4);
   const point = state.sector.launch,
     screen = renderer.worldToScreen(point),
     roundTrip = renderer.screenToWorld(screen.x, screen.y);
   expect(roundTrip.x).toBeCloseTo(point.x, 8);
   expect(roundTrip.y).toBeCloseTo(point.y, 8);
   renderer.resize(390, 844);
-  expect(renderer.getZoom()).toBe(1.6);
+  expect(renderer.getZoom()).toBe(4);
   renderer.prepareFrame(snapshot(1), 1, { reducedMotion: true });
-  expect(renderer.getZoom()).toBe(1.6);
+  expect(renderer.getZoom()).toBe(4);
   renderer.setWalkthroughFocus({
     position: point,
     radius: 20,
@@ -1116,5 +1117,60 @@ it("applies bounded gameplay zoom consistently to transforms and visible flight 
   const lens = renderer.getViewport().scale;
   renderer.setZoom(0.8);
   expect(renderer.getViewport().scale).toBe(lens);
+  renderer.destroy();
+});
+
+it("renders the full predicted Zen route beyond the short aiming window with bounded dots", () => {
+  const { renderer, context } = fixture(),
+    board = snapshot();
+  const path = Array.from({ length: 661 }, (_, index) => ({
+    x: board.sector.launch.x + index * 2,
+    y: 500,
+  }));
+  const dots: number[] = [];
+  (context.arc as ReturnType<typeof vi.fn>).mockImplementation((x: number) => {
+    if (context.fillStyle === "#8a0f4b") dots.push(x);
+  });
+  renderer.render(board, [path], 0, {
+    paused: true,
+    pathAssist: "partial",
+    slingshot: {
+      anchor: board.sector.launch,
+      pull: board.sector.launch,
+      power: 0.5,
+    },
+  });
+  const partial = dots.slice();
+  dots.length = 0;
+  renderer.render(board, [path], 1, {
+    paused: true,
+    pathAssist: "full",
+    slingshot: {
+      anchor: board.sector.launch,
+      pull: board.sector.launch,
+      power: 0.5,
+    },
+  });
+  expect(partial.length).toBeLessThanOrEqual(16);
+  expect(dots.length).toBeGreaterThan(partial.length * 5);
+  expect(dots.length).toBeLessThanOrEqual(220);
+  expect(dots.at(-1)!).toBeGreaterThan(partial.at(-1)! + 1000);
+});
+
+for(const [width,height] of [[1440,900],[390,844],[844,390]])it(`fits both ends of a maximum-length Zen course at ${width}x${height}`,()=>{
+  const {renderer}=fixture();
+  renderer.resize(width,height);
+  const board={...snapshot(),sector:generateSector(42,14)};
+  renderer.prepareFrame(board,0,{reducedMotion:true});
+  for(const zoom of [1,.25]){
+    renderer.setZoom(zoom);
+    const bounds=renderer.getVisibleBounds();
+    for(const circle of [{position:board.sector.launch,radius:5},board.sector.checkpoint]){
+      expect(circle.position.x-circle.radius).toBeGreaterThanOrEqual(bounds.x);
+      expect(circle.position.x+circle.radius).toBeLessThanOrEqual(bounds.x+bounds.width);
+      expect(circle.position.y-circle.radius).toBeGreaterThanOrEqual(bounds.y);
+      expect(circle.position.y+circle.radius).toBeLessThanOrEqual(bounds.y+bounds.height);
+    }
+  }
   renderer.destroy();
 });

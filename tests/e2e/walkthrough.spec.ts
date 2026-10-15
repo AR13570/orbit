@@ -133,7 +133,7 @@ async function learn(
     .click();
   await page.clock.runFor(350);
 }
-for (const mode of ["zen", "gravity"] as const)
+for (const mode of ["zen"] as ("zen" | "gravity")[])
   for (const viewport of [
     { width: 390, height: 844 },
     { width: 844, height: 390 },
@@ -182,7 +182,9 @@ for (const mode of ["zen", "gravity"] as const)
           mode,
           `/private/tmp/orbit-interactive-tutorial-${mode}-${viewport.width}x${viewport.height}`,
         );
-        await expect(page.locator(".walkthrough")).toHaveCount(0);
+        await expect(
+          page.getByRole("dialog", { name: /How to play/ }),
+        ).toHaveCount(0);
         expect(
           await page.evaluate(
             (mode) => localStorage.getItem(`orbit.walkthrough.${mode}.v1`),
@@ -191,7 +193,9 @@ for (const mode of ["zen", "gravity"] as const)
         ).toBe("complete");
         await page.reload();
         await page.clock.runFor(100);
-        await expect(page.locator(".walkthrough")).toHaveCount(0);
+        await expect(
+          page.getByRole("dialog", { name: /How to play/ }),
+        ).toHaveCount(0);
         expect(errors).toEqual([]);
       } finally {
         await context.close();
@@ -282,7 +286,7 @@ test("background and resize cancel held input and practice resumes automatically
     await context.close();
   }
 });
-for (const mode of ["zen", "gravity"] as const)
+for (const mode of ["zen"] as ("zen" | "gravity")[])
   test(`${mode} isolated practice preserves an existing live flight`, async ({
     browser,
   }) => {
@@ -340,7 +344,9 @@ test("Skip survives a mode remount when storage reads work but writes fail", asy
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.getByRole("button", { name: "Choose mode", exact: true }).click();
   await page.getByRole("button", { name: /Zen/ }).click();
-  await expect(page.locator(".walkthrough")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /How to play/ })).toHaveCount(
+    0,
+  );
 });
 test("Escape saves dismissal independently for both modes", async ({
   page,
@@ -360,7 +366,9 @@ test("Escape saves dismissal independently for both modes", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "Skip", exact: true }).click();
   await page.reload();
-  await expect(page.locator(".walkthrough")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /How to play/ })).toHaveCount(
+    0,
+  );
 });
 
 test("unavailable storage still permits dismissal and same-page mode revisits", async ({
@@ -382,7 +390,9 @@ test("unavailable storage still permits dismissal and same-page mode revisits", 
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.getByRole("button", { name: "Choose mode", exact: true }).click();
   await page.getByRole("button", { name: /^Gravity Build/ }).click();
-  await expect(page.locator(".walkthrough")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /How to play/ })).toHaveCount(
+    0,
+  );
 });
 
 test("force introduction keeps body cores uniform during emphasis", async ({

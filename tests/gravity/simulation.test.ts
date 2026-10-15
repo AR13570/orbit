@@ -88,9 +88,10 @@ describe("Gravity simulation", () => {
     expect(state.particles[0].alive).toBe(false);
     expect(goalProgress(state).current).toBe(0);
   });
-  it("keeps each projectile on its own path when another passes nearby", () => {
-    const solo = createState(level),
-      together = createState(level);
+  it("keeps paths independent when mutual attraction is explicitly disabled", () => {
+    const isolated = { ...level, physics: { planetGravity: false } };
+    const solo = createState(isolated),
+      together = createState(isolated);
     for (const state of [solo, together]) {
       fire(state, aim);
       advance(state, 1);
@@ -105,11 +106,9 @@ describe("Gravity simulation", () => {
     expect(together.particles[1].alive).toBe(true);
   });
   it("bounds projectile memory and expires trails by time even after impact", () => {
-    const state = createState(level);
+    const state = createState({ ...level, physics: { trailSeconds: 3 } });
     for (let n = 0; n < 50; n++) fire(state, aim);
-    expect(state.particles.filter((p) => p.alive).length).toBeLessThanOrEqual(
-      12,
-    );
+    expect(state.particles.filter((p) => p.alive)).toHaveLength(50);
     advance(state, 15);
     expect(state.particles.every((p) => p.trail.length <= 100)).toBe(true);
     expect(
@@ -162,6 +161,7 @@ it("does not confuse two shared orbits around a pair with separate local orbits"
   const binary = {
     ...level,
     family: "paired" as const,
+    physics: { planetGravity: false },
     launch: { x: 450, y: 630 },
     bodies: [
       { ...level.bodies[0], id: "a", position: { x: 410, y: 450 }, radius: 30 },
@@ -187,7 +187,9 @@ it("preserves an old live orbiter when repeated crashes fill the trail budget", 
     advance(state, 0.1);
   }
   expect(state.particles.some((p) => p.id === 0 && p.alive)).toBe(true);
-  expect(state.particles.length).toBeLessThanOrEqual(24);
+  expect(state.particles.filter((p) => !p.alive).length).toBeLessThanOrEqual(
+    96,
+  );
 });
 
 it("keeps living projectile colors distinct after failed shots cycle the palette", () => {
@@ -223,13 +225,13 @@ it("retains revolution progress through the far side of an elliptical orbit", ()
   expect(goalProgress(state).complete).toBe(true);
 });
 
-it("completes a familiar orbit in ten seconds with faster launches and stronger pull", () => {
+it("completes a familiar orbit in physical time without damping its radius", () => {
   const state = createState(level);
   fire(state, aim);
   expect(
     Math.hypot(state.particles[0].velocity.x, state.particles[0].velocity.y),
-  ).toBeGreaterThan(125);
-  advance(state, 10);
+  ).toBeCloseTo(83.20502943378436);
+  advance(state, 16);
   expect(goalProgress(state).complete).toBe(true);
   advance(state, 20);
   const particle = state.particles[0];
@@ -264,7 +266,7 @@ it("counts a wide local orbit in a paired puzzle without awarding its neighborin
     angle: 0,
     power: Math.sqrt((1440000 * 360) / (360 * 360 + 40 * 40)) / 420,
   });
-  advance(state, 25);
+  advance(state, 40);
   expect(state.particles[0].alive).toBe(true);
   expect(goalProgress(state).current).toBe(1);
   expect(orbitFraction(state, state.particles[0], "a")).toBe(1);

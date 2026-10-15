@@ -6,11 +6,14 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GravityEngine } from "../../src/gravity/engine";
 import GravityCreator from "../../src/gravity/creator/GravityCreator";
 import {
+  levelShareUrl,
   loadDraft,
   loadLibrary,
   newDraft,
+  toGravityLevel,
   saveDraft,
 } from "../../src/gravity/creator/model";
 import type { GravityLevel } from "../../src/gravity/types";
@@ -96,6 +99,103 @@ function rename(name: string) {
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
 }
 describe("canvas Gravity creator", () => {
+  it("consumes a portable sky link once and preserves later edits on creator reentry and reload", () => {
+    const shared = newDraft();
+    shared.name = "Shared sky";
+    const url = new URL(
+      levelShareUrl(shared, "http://localhost/?mode=creator"),
+    );
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    let view = setup();
+    expect(loadDraft()?.name).toBe("Shared sky");
+    expect(new URLSearchParams(window.location.search).has("sky")).toBe(false);
+    rename("My latest sky");
+    view.unmount();
+    view = setup();
+    expect(
+      screen.getByRole("button", { name: "Rename level" }).textContent,
+    ).toContain("My latest sky");
+    expect(loadDraft()?.name).toBe("My latest sky");
+    view.unmount();
+    window.history.replaceState({}, "", "/?mode=creator");
+    setup();
+    expect(
+      screen.getByRole("button", { name: "Rename level" }).textContent,
+    ).toContain("My latest sky");
+    expect(loadDraft()?.name).toBe("My latest sky");
+    window.history.replaceState({}, "", "/");
+  });
+  it("gives added and duplicated attractive cores goals while retaining edited paired counts", () => {
+    setup();
+    addBody("attractor", 200, 200);
+    fireEvent.click(screen.getByRole("button", { name: "Choose challenge" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "An orbit around each body",
+        exact: true,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Increase core 1 planets" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Increase core 1 planets" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Done", exact: true }));
+    addBody("attractor", 650, 200);
+    expect(loadDraft()?.requirements?.map((goal) => goal.count)).toEqual([
+      3, 1, 1,
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate body" }));
+    const draft = loadDraft()!;
+    expect(draft.requirements?.map((goal) => goal.count)).toEqual([3, 1, 1, 1]);
+    expect(
+      new GravityEngine(42, toGravityLevel(draft)).getSnapshot().progress
+        .target,
+    ).toBe(6);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Playtest", exact: true }),
+    );
+    expect(screen.getByText("4 test bodies")).toBeTruthy();
+  });
+  it("restores paired goals after all configured cores are removed and new ones are placed", () => {
+    setup();
+    addBody("attractor", 200, 200);
+    fireEvent.click(screen.getByRole("button", { name: "Choose challenge" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "An orbit around each body",
+        exact: true,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Increase core 1 planets" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Done", exact: true }));
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Attractor 1 on field" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Delete body" }));
+    }
+    expect(loadDraft()?.requirements).toEqual([]);
+    addBody("attractor", 200, 200);
+    addBody("attractor", 650, 200);
+    const draft = loadDraft()!;
+    expect(draft.requirements?.map((goal) => goal.count)).toEqual([1, 1]);
+    expect(
+      new GravityEngine(42, toGravityLevel(draft)).getSnapshot().progress
+        .target,
+    ).toBe(2);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Playtest",
+          exact: true,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
   it("toggles the selected body type directly in its bar without changing size or gravity", () => {
     setup();
     fireEvent.click(

@@ -59,11 +59,13 @@ export class PullGesture {
       dy = this.origin.y - point.y;
     const distance = Math.hypot(dx, dy);
     this.furthestDistance = Math.max(this.furthestDistance, distance);
+    const visualScale =
+      distance > this.fullDistance ? this.fullDistance / distance : 1;
     return {
       angle: Math.atan2(dy, dx),
       power: Math.min(1, distance / this.fullDistance),
       distance,
-      pull: { x: -dx, y: -dy },
+      pull: { x: -dx * visualScale, y: -dy * visualScale },
     };
   }
   end(pointer: number, point: Vec2) {

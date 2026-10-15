@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import Icon from "./Icon";
+import "./help.css";
 export default function Help({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -44,13 +46,13 @@ export default function Help({ onClose }: { onClose: () => void }) {
             aria-label="Close help"
             onClick={onClose}
           >
-            ✕
+            <Icon name="close" />
           </button>
         </div>
         <div className="help-list">
           <div className="help-row">
             <span className="help-icon" aria-hidden="true">
-              ↔
+              <Icon name="drag" />
             </span>
             <div className="help-copy">
               <strong>Pull back and release</strong>
@@ -66,7 +68,7 @@ export default function Help({ onClose }: { onClose: () => void }) {
           </div>
           <div className="help-row">
             <span className="help-icon" aria-hidden="true">
-              ◉
+              <Icon name="orbit" />
             </span>
             <div className="help-copy">
               <strong>Read the gravity</strong>
@@ -79,7 +81,7 @@ export default function Help({ onClose }: { onClose: () => void }) {
           </div>
           <div className="help-row">
             <span className="help-icon" aria-hidden="true">
-              ○
+              <Icon name="flag" />
             </span>
             <div className="help-copy">
               <strong>Keep moving right</strong>
@@ -93,7 +95,7 @@ export default function Help({ onClose }: { onClose: () => void }) {
           </div>
           <div className="help-row">
             <span className="help-icon" aria-hidden="true">
-              ↻
+              <Icon name="reset" />
             </span>
             <div className="help-copy">
               <strong>Keep exploring</strong>
@@ -108,10 +110,11 @@ export default function Help({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <p className="help-controls">
-          Escape or P pauses and cancels a held pull. R or the top reset icon
-          resets your current shot without losing checkpoint progress. Rotating,
-          resizing, or switching apps cancels safely. Sound, New seed, and a
-          free shot reset are in the pause menu.
+          Pinch to zoom, or scroll on desktop. Escape or P pauses and cancels a
+          held pull. R or the top reset icon resets your current shot without
+          losing checkpoint progress. Rotating, resizing, or switching apps
+          cancels safely. Sound, New seed, and a free shot reset are in the
+          pause menu.
         </p>
         <div className="dialog-actions">
           <button className="button-primary" onClick={onClose}>

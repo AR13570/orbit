@@ -25,12 +25,13 @@ export function blocksStraightCorridor(layout:ChallengeLayout):boolean {
  return false;
 }
 /** No edge or clock failure: unresolved is conservatively rejected, never difficulty evidence. */
-export function probeFlight(layout:ChallengeLayout,angle:number,power:number,bodyForces=true,budget?:SearchBudget,sample=false,observationSeconds=22):ProbeResult {
+export function probeFlight(layout:ChallengeLayout,angle:number,power:number,bodyForces:boolean|ReadonlySet<string>=true,budget?:SearchBudget,sample=false,observationSeconds=22):ProbeResult {
  const speed=launchSpeed(power);let position={...layout.launch},velocity={x:Math.cos(angle)*speed,y:Math.sin(angle)*speed};
+ const activeBodies=bodyForces===true?layout.bodies:bodyForces===false?[]:layout.bodies.filter(body=>!bodyForces.has(body.id));
  const path:Vec2[]=sample?[{...position}]:[];
  for(let step=0;step<Math.min(2640,Math.max(0,Math.floor(observationSeconds/FIXED_STEP)));step++){
   if(budget&&budget.remaining--<=0)return {ending:'unresolved',path};
-  const next=stepParticle(position,velocity,bodyForces?layout.bodies:[],FIXED_STEP,layout.checkpoint),dock=segmentCircleIntersection(position,next.position,layout.checkpoint.position,layout.checkpoint.radius+SHIP_RADIUS);
+  const next=stepParticle(position,velocity,activeBodies,FIXED_STEP,layout.checkpoint),dock=segmentCircleIntersection(position,next.position,layout.checkpoint.position,layout.checkpoint.radius+SHIP_RADIUS);
   for(const body of layout.bodies){const hit=segmentCircleIntersection(position,next.position,body.position,body.radius+SHIP_RADIUS);if(hit!==null&&(dock===null||hit<=dock))return {ending:'collision',path};}
   if(dock!==null){if(sample)path.push({x:position.x+(next.position.x-position.x)*dock,y:position.y+(next.position.y-position.y)*dock});return {ending:'dock',path};}
   position=next.position;velocity=next.velocity;if(sample&&(step+1)%4===0)path.push({...position});
@@ -52,10 +53,13 @@ export function acceptsCoreChallenge(layout:ChallengeLayout,solution:Pick<Valida
 /** Finite empirical screening for intentionally open, force-driven structures. */
 export function acceptsSampledCurvature(layout:ChallengeLayout,budget?:SearchBudget):boolean {
  const bearing=Math.atan2(layout.checkpoint.position.y-layout.launch.y,layout.checkpoint.position.x-layout.launch.x);
+ // Enlarged formations keep launch speed, so observe them for proportionally
+ // longer before accepting the finite curvature screen.
+ const fieldScale=layout.checkpoint.gravityScale??1,observationSeconds=Number.isFinite(fieldScale)?Math.min(22,8*Math.max(1,fieldScale)):8;
  const checked=new Map<string,number>();
  const screen=(powerIndex:number,angleIndex:number):number=>{
   const key=`${powerIndex}:${angleIndex}`,old=checked.get(key);if(old!==undefined)return old;
-  const shot=probeFlight(layout,bearing+angleIndex*.025,powerIndex*.025,true,budget,true,8);
+  const shot=probeFlight(layout,bearing+angleIndex*.025,powerIndex*.025,true,budget,true,observationSeconds);
   const bend=shot.ending==='dock'?captureChordBend(shot.path):Infinity;checked.set(key,bend);return bend;
  };
  for(let p=0;p<=20;p++)for(let a=-15;a<=15;a++){
@@ -71,11 +75,11 @@ export function acceptsSampledCurvature(layout:ChallengeLayout,budget?:SearchBud
  }
  return true;
 }
-export function acceptsChallenge(layout:ChallengeLayout,solution:Pick<ValidatedSolution,'angle'|'power'>,budget?:SearchBudget,validation:ChallengeValidation='geometric'):boolean {
+export function acceptsChallenge(layout:ChallengeLayout,solution:Pick<ValidatedSolution,'angle'|'power'>,budget?:SearchBudget,validation:ChallengeValidation='geometric',tolerance=.025):boolean {
  if(validation==='geometric'&&!blocksStraightCorridor(layout))return false;
  if(!acceptsCoreChallenge(layout,solution,budget))return false;
  if(validation==='geometric')return true;
- for(const [da,dp] of [[0,0],[.025,0],[-.025,0],[0,.025],[0,-.025]]){
+ for(const [da,dp] of [[0,0],[tolerance,0],[-tolerance,0],[0,tolerance],[0,-tolerance]]){
   const shot=probeFlight(layout,solution.angle+da,solution.power+dp,true,budget,true);
   if(shot.ending!=='dock'||captureChordBend(shot.path)<MIN_CAPTURE_CHORD_BEND)return false;
  }

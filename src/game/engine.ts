@@ -1,4 +1,5 @@
 import { generateSector } from './generator';
+import { validZenCheckpoint, type ZenCheckpoint } from './progress';
 import { describeComposition,RECENT_LAYOUT_LIMIT } from './composition';
 import type { CompositionDescriptor } from './composition';
 import { distance,ZEN_FIXED_STEP as FIXED_STEP,zenLaunchSpeed as launchSpeed,MAX_FLIGHT_SECONDS,OFFSCREEN_TIMEOUT_SECONDS,segmentCircleIntersection,SHIP_RADIUS,stepZenParticle as stepParticle } from './physics';
@@ -93,10 +94,23 @@ export class OrbitEngine {
  private trailElapsed=0;
  private branched=false;
  private recentLayouts:CompositionDescriptor[]=[];
- constructor(seed?:number){this.restart(seed);}
+ constructor(seed?:number,startLevel=1){this.restart(seed,startLevel);}
  getSnapshot():GameSnapshot {
   if(this.cachedSectorSource!==this.state.sector||!this.cachedStaticSector){this.cachedStaticSector=freezeGeometry(structuredClone(this.state.sector));this.cachedSectorSource=this.state.sector;}
   return {...this.state,trailElapsed:this.trailElapsed,canBranch:this.branchIsAvailable(),sector:this.cachedStaticSector,aim:{...this.state.aim},particles:this.state.particles.map(p=>({...p,position:{...p.position},velocity:{...p.velocity},trail:p.trail.map(point=>({...point}))})),event:this.state.event?{...this.state.event}:null};
+ }
+ /** Capture static checkpoint state without retaining live projectiles or camera bounds. */
+ getCheckpoint():ZenCheckpoint {
+  return structuredClone({version:1,seed:this.runSeed,checkpointCount:this.state.checkpointCount,pendingAdvance:this.state.status==='docked',sector:this.state.sector,recentLayouts:this.recentLayouts});
+ }
+ restoreCheckpoint(checkpoint:ZenCheckpoint):void {
+  if(!validZenCheckpoint(checkpoint,this.runSeed))return;
+  const saved=structuredClone(checkpoint);
+  this.recentLayouts=saved.recentLayouts;
+  this.state={status:saved.pendingAdvance?'docked':'aiming',sector:saved.sector,aim:{angle:0,power:0.5},shotCount:this.state.shotCount,particles:[],checkpointCount:saved.checkpointCount,message:'Pull back and release.',elapsed:0,event:null};
+  this.accumulator=0;this.steps=0;this.trailElapsed=0;this.branched=false;this.boundaries.clear();this.injectedBounds=null;
+  if(saved.pendingAdvance)this.advance();else this.setDefaultAim();
+  this.emit('restart');
  }
  setFlightBounds(bounds:WorldBounds|null):void {
   if(bounds!==null&&(!Object.values(bounds).every(Number.isFinite)||bounds.width<=SHIP_RADIUS*2||bounds.height<=SHIP_RADIUS*2))return;
@@ -109,7 +123,7 @@ export class OrbitEngine {
  toggleShotCount():void {this.setShotCount(this.state.shotCount===1?3:1);}
  setAim(angle:number,power:number):void {
   if(this.state.status!=='aiming'||!Number.isFinite(angle)||!Number.isFinite(power))return;
-  this.state.aim={angle:Math.atan2(Math.sin(angle),Math.cos(angle)),power:clamp01(power)};
+  this.state.aim={angle:angle>=-Math.PI&&angle<=Math.PI?angle:Math.atan2(Math.sin(angle),Math.cos(angle)),power:clamp01(power)};
  }
  launch():void {
   if(this.state.status!=='aiming')return;
@@ -148,11 +162,22 @@ export class OrbitEngine {
   if(this.state.status!=='docked')return;
   this.state.sector=generateSector(this.runSeed,this.state.sector.index+1,this.state.sector.checkpoint.position,this.recentLayouts);this.rememberLayout();this.state.status='aiming';this.state.particles=[];this.state.elapsed=0;this.accumulator=0;this.branched=false;this.boundaries.clear();this.setDefaultAim();this.state.message='Checkpoint secured.';
  }
- restart(seed?:number):void {
+ restart(seed?:number,startLevel=1):void {
   const shotCount=this.state?.shotCount??1;
+  const index=Number.isSafeInteger(startLevel)&&startLevel>0?startLevel-1:0;
   this.runSeed=Number.isFinite(seed)?seed!>>>0:(Date.now()^Math.floor(Math.random()*0xffffffff))>>>0;this.accumulator=0;this.steps=0;this.trailElapsed=0;this.branched=false;
-  this.state={status:'aiming',sector:generateSector(this.runSeed),aim:{angle:0,power:0.5},shotCount,particles:[],checkpointCount:0,message:'Pull back and release.',elapsed:0,event:null};
-  this.recentLayouts=[];this.rememberLayout();
+  this.recentLayouts=[];
+  // Replay ordinary difficulty levels exactly. Large debug jumps use bounded local
+  // history, so their fields can differ from a full run with the same seed.
+  const firstIndex=index<20?0:Math.max(0,index-RECENT_LAYOUT_LIMIT);
+  let sector=generateSector(this.runSeed,firstIndex);
+  for(let next=firstIndex+1;next<=index;next++){
+   this.recentLayouts.push(describeComposition(sector));
+   if(this.recentLayouts.length>RECENT_LAYOUT_LIMIT)this.recentLayouts.shift();
+   sector=generateSector(this.runSeed,next,sector.checkpoint.position,this.recentLayouts);
+  }
+  this.state={status:'aiming',sector,aim:{angle:0,power:0.5},shotCount,particles:[],checkpointCount:index,message:'Pull back and release.',elapsed:0,event:null};
+  this.rememberLayout();
   this.setDefaultAim();this.boundaries.clear();this.emit('restart');
  }
  predict(seconds=3):Vec2[][] {

@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { bodyStrength, CHECKPOINT_MAX_ACCELERATION, checkpointForceAt, distance, forceAt, launchSpeed, segmentCircleIntersection, stepParticle } from '../../src/game/physics';
 import type { Body } from '../../src/game/types';
+import { bodyStrength, CHECKPOINT_MAX_ACCELERATION, checkpointForceAt, distance, forceAt, launchSpeed, segmentCircleIntersection, stepParticle } from '../../src/game/physics';
+
+it('scales goal acceleration for longer formations at the same launch power', () => {
+ const goal={position:{x:0,y:0},radius:45};
+ const extended={...goal,gravityScale:2};
+ const force=checkpointForceAt({x:-1000,y:0},extended);
+ expect(force.x).toBeGreaterThan(100);
+ expect(force.x).toBeCloseTo(checkpointForceAt({x:-500,y:0},goal).x/2,8);
+ expect(checkpointForceAt({x:-1600,y:0},extended)).toEqual({x:0,y:0});
+});
+
+it('scales small-well acceleration without requiring extra launch power', () => {
+ const body={id:'small',position:{x:0,y:0},radius:35,kind:'attractor' as const,strength:bodyStrength(35)};
+ const enlarged={...body,radius:70,gravityScale:2};
+ expect(forceAt({x:-200,y:0},[enlarged]).x).toBeCloseTo(forceAt({x:-100,y:0},[body]).x/2,8);
+});
 
 const body: Body = { id: 'a', kind: 'attractor', position: { x: 100, y: 0 }, radius: 20, strength: 1000000 };
 

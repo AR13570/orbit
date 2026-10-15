@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import App, { ZenGame } from "../../src/App";
 import GravityGame from "../../src/gravity/GravityGame";
+import { GRAVITY_GUIDE_KEY } from "../../src/gravity/GravityGuide";
 import { tutorialKeys } from "../../src/tutorial/state";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
 vi.mock("../../src/render/renderer", () => ({
@@ -121,6 +122,26 @@ describe("guided mode visits", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(screen.getByRole("dialog", { name: "Paused" })).toBeTruthy();
   });
+  it("keeps the final Gravity guide step available after further practice launches", () => {
+    render(<GravityGame onExit={() => {}} startTutorial />);
+    practiceKey("Enter", "Gravity");
+    practiceKey("Enter", "Gravity");
+    expect(
+      screen.getByRole("heading", { name: "Let gravity draw" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next", exact: true }));
+    expect(
+      screen.getByRole("heading", { name: "Choose a size" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next", exact: true }));
+    practiceKey("Enter", "Gravity");
+    expect(
+      screen.getByRole("heading", { name: "Keep a sky you love" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Start playing", exact: true }),
+    ).toBeTruthy();
+  });
   it("onboards Gravity separately and excludes Creator playtests", () => {
     localStorage.setItem(tutorialKeys.zen, "complete");
     const view = render(<GravityGame onExit={() => {}} />);
@@ -128,7 +149,7 @@ describe("guided mode visits", () => {
       screen.getByRole("dialog", { name: "How to play Gravity" }),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-    expect(localStorage.getItem(tutorialKeys.gravity)).toBe("skipped");
+    expect(localStorage.getItem(GRAVITY_GUIDE_KEY)).toBe("skipped");
     view.unmount();
     localStorage.clear();
     render(
@@ -233,7 +254,10 @@ describe("mode chooser tutorial entry", () => {
     "replays %s (%s, %s) from the start and clears the request on exit",
     (mode, label, result) => {
       window.history.replaceState({}, "", "/");
-      localStorage.setItem(tutorialKeys[mode], result);
+      localStorage.setItem(
+        mode === "gravity" ? GRAVITY_GUIDE_KEY : tutorialKeys.zen,
+        result,
+      );
       render(<App />);
       const help = screen.getByRole("button", { name: `How to play ${label}` });
       expect(help.closest(".mode-choice")).toBeNull();
@@ -241,12 +265,21 @@ describe("mode chooser tutorial entry", () => {
       expect(
         screen.getByRole("dialog", { name: `How to play ${label}` }),
       ).toBeTruthy();
+      if (mode === "zen")
+        expect(
+          document.querySelector(".walkthrough")?.getAttribute("data-step"),
+        ).toBe("intro");
       expect(
-        document.querySelector(".walkthrough")?.getAttribute("data-step"),
-      ).toBe("intro");
-      expect(screen.getByText("Your ship")).toBeTruthy();
+        screen.getByText(
+          mode === "zen" ? "Your ship" : "Make your first planet",
+        ),
+      ).toBeTruthy();
       // Opening help must not remove or rewrite the player's saved visit.
-      expect(localStorage.getItem(tutorialKeys[mode])).toBe(result);
+      expect(
+        localStorage.getItem(
+          mode === "gravity" ? GRAVITY_GUIDE_KEY : tutorialKeys.zen,
+        ),
+      ).toBe(result);
       fireEvent.click(screen.getByRole("button", { name: "Skip" }));
       expect(screen.queryByRole("dialog")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Pause" }));
@@ -263,8 +296,10 @@ describe("mode chooser tutorial entry", () => {
         screen.getByRole("button", { name: `How to play ${label}` }),
       );
       expect(
-        document.querySelector(".walkthrough")?.getAttribute("data-step"),
-      ).toBe("intro");
+        screen.getByText(
+          mode === "zen" ? "Your ship" : "Make your first planet",
+        ),
+      ).toBeTruthy();
       window.history.replaceState({}, "", "/");
     },
   );

@@ -6,8 +6,8 @@ export type ChallengeValidation = 'geometric' | 'sampled';
 export type GameStatus = 'aiming' | 'flying' | 'docked' | 'failed';
 export type ShotCount = 1 | 3;
 export type BodyKind = 'attractor' | 'repellent';
-export interface Body { id: string; kind: BodyKind; position: Vec2; radius: number; strength: number }
-export interface Checkpoint { position: Vec2; radius: number }
+export interface Body { id: string; kind: BodyKind; position: Vec2; radius: number; strength: number; /** Scale softening and acceleration for longer formations at unchanged launch power. */ gravityScale?:number }
+export interface Checkpoint { position: Vec2; radius: number; /** Scale the attraction field and acceleration independently of docking contact. */ gravityScale?:number }
 export interface Aim { angle: number; power: number }
 export interface ValidatedSolution { angle: number; power: number; speed: number; flightSeconds: number; path: Vec2[] }
 export interface Sector {
@@ -16,7 +16,7 @@ export interface Sector {
   width: number;
   height: number;
   bounds: WorldBounds;
-  generation: { family: SectorFamily; fallback: boolean; validation?: ChallengeValidation };
+  generation: { family: SectorFamily; fallback: boolean; validation?: ChallengeValidation; difficulty?:number };
   launch: Vec2;
   checkpoint: Checkpoint;
   bodies: Body[];

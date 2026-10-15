@@ -2,7 +2,7 @@ import { clampGameplayZoom, zoomCamera } from "../zoom";
 import { createGravitySurface } from "../render/gravity-surface";
 import { FORCE_PALETTE } from "../render/force-palette";
 import { drawBody, drawGravitySurface } from "../render/renderer";
-import { TRAIL_SECONDS, orbitFraction } from "./simulation";
+import { orbitFraction } from "./simulation";
 import type { GravitySnapshot, TrailPoint, GravityLevel } from "./types";
 import {
   contentBounds,
@@ -15,74 +15,100 @@ import {
 } from "../render/coordinates";
 import type { Vec2 } from "../game/types";
 import { usesTouchLayout } from "../controls";
+import type { PathAssist } from "../pathAssist";
+import { sampleGravityAimPreview } from "./aim-preview";
+import { normalizeProjectileSize } from "./projectile-size";
 interface DrawOptions {
+  pathAssist?: PathAssist;
   paused: boolean;
   reducedMotion: boolean;
   pull?: Vec2 | null;
+  attention?: boolean;
+  ghostCue?: { position: Vec2; pull: Vec2 };
 }
 const TAU = Math.PI * 2;
+function visiblePlanetRadius(
+  radius: number,
+  scale: number,
+  minimum: number,
+  size = 1,
+) {
+  // Keep the default look while making size choices legible even when zoomed out.
+  return Math.max(radius, (minimum * normalizeProjectileSize(size)) / scale);
+}
 export function fitGravityFrame(
   level: GravityLevel,
   width: number,
   height: number,
   touchLayout = usesTouchLayout(width, height),
 ) {
-  if (!touchLayout)
-    return {
-      camera: {
-        center: { x: 450, y: 450 },
-        scale: Math.max(
-          0.01,
-          Math.min((width - 24) / 900, (height - 240) / 900),
-        ),
-      },
-      area: { x: 0, y: 15, width, height },
-    };
-  const landscape = width >= height && height <= 500;
-  const left = landscape ? Math.min(190, width * 0.25) : 16;
-  const top = landscape ? 18 : 128;
-  const bottom = landscape ? 18 : 104;
+  const landscape = touchLayout && width >= height && height <= 500;
+  const left = landscape ? Math.min(190, width * 0.25) : touchLayout ? 16 : 32;
+  const right = touchLayout ? 16 : 80;
+  const top = landscape ? 18 : touchLayout ? 128 : 136;
+  const bottom = landscape ? 18 : touchLayout ? 104 : 128;
   const area = {
     x: left,
     y: top,
-    width: Math.max(1, width - left - 16),
+    width: Math.max(1, width - left - right),
     height: Math.max(1, height - top - bottom),
   };
-  const bounds = contentBounds([
-    { position: level.launch, radius: 0 },
-    ...level.bodies.map((body) => ({
-      position: body.position,
-      // Preserve space for practical orbits, not just the solid surfaces.
-      radius:
-        body.kind === "attractor"
-          ? Math.max(
-              body.radius + 60,
-              Math.min(
-                240,
-                Math.hypot(
-                  level.launch.x - body.position.x,
-                  level.launch.y - body.position.y,
-                ),
-              ),
-            ) + 24
-          : body.radius + 24,
-    })),
-  ]);
-  return {
-    camera: fitPlayableCamera(bounds, level.launch, area.width, area.height),
-    area,
-  };
+  const orbitRadius = (body: GravityLevel["bodies"][number]) =>
+    body.radius + (body.kind === "attractor" ? 84 : 48);
+  const envelopes = level.bodies.map((body) => {
+    const motion = level.motions?.find((path) => path.bodyId === body.id);
+    const travel = motion
+      ? motion.kind === "circle"
+        ? Math.abs(motion.radius ?? 0)
+        : Math.hypot(motion.amplitude?.x ?? 0, motion.amplitude?.y ?? 0)
+      : 0;
+    return {
+      position: motion?.center ?? body.position,
+      radius: orbitRadius(body) + travel,
+    };
+  });
+  const bounds = envelopes.length
+    ? contentBounds([{ position: level.launch, radius: 0 }, ...envelopes])
+    : level.bounds;
+  const camera = fitPlayableCamera(
+    bounds,
+    level.launch,
+    area.width,
+    area.height,
+    touchLayout ? 90 : 36,
+    touchLayout ? 18 : 24,
+  );
+  return { camera, area };
 }
-function trailOpacity(point: TrailPoint, elapsed: number): number {
+function trailOpacity(
+  point: TrailPoint,
+  elapsed: number,
+  seconds: number,
+  progress: number,
+): number {
   return (
-    0.55 *
-    Math.pow(Math.max(0, 1 - (elapsed - point.time) / TRAIL_SECONDS), 1.6)
+    0.52 *
+    progress *
+    Math.pow(Math.max(0, 1 - (elapsed - point.time) / seconds), 1.6)
   );
 }
 function rgba(color: string, alpha: number): string {
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(color);
-  if (!match) return `rgba(82, 124, 154, ${alpha})`;
-  return `rgba(${parseInt(match[1], 16)}, ${parseInt(match[2], 16)}, ${parseInt(match[3], 16)}, ${alpha})`;
+  if (!match) {
+    // The engine extends its finite hex palette with modern HSL colors in busy skies.
+    const hsl = /^hsl\(([-+\d.]+)\s+([\d.]+)%\s+([\d.]+)%\)$/i.exec(color);
+    if (hsl) {
+      const lightness = Number(hsl[3]) + (93 - Number(hsl[3])) * 0.28;
+      return `hsl(${hsl[1]} ${Number(hsl[2]) * 0.8}% ${lightness}% / ${alpha})`;
+    }
+    return `rgba(82, 124, 154, ${alpha})`;
+  }
+  const ground = [233, 236, 239];
+  const channels = match.slice(1).map((channel, index) => {
+    const value = parseInt(channel, 16);
+    return Math.round(value + (ground[index] - value) * 0.28);
+  });
+  return `rgba(${channels.join(", ")}, ${alpha})`;
 }
 function drawTrail(
   ctx: CanvasRenderingContext2D,
@@ -90,8 +116,35 @@ function drawTrail(
   elapsed: number,
   width: number,
   color: string,
+  seconds: number,
+  dense = false,
 ) {
   if (points.length < 2) return;
+  if (dense || points.length > 160) {
+    // Long, busy skies use eight continuous opacity bands instead of a gradient per segment.
+    ctx.lineWidth = width;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    const size = Math.max(1, Math.ceil((points.length - 1) / 8));
+    for (let start = 0; start < points.length - 1; start += size) {
+      const end = Math.min(points.length - 1, start + size),
+        middle = points[Math.floor((start + end) / 2)];
+      const alpha = trailOpacity(
+        middle,
+        elapsed,
+        seconds,
+        Math.floor((start + end) / 2) / (points.length - 1),
+      );
+      if (alpha <= 0) continue;
+      ctx.strokeStyle = rgba(color, alpha);
+      ctx.beginPath();
+      ctx.moveTo(points[start].x, points[start].y);
+      for (let index = start + 1; index <= end; index++)
+        ctx.lineTo(points[index].x, points[index].y);
+      ctx.stroke();
+    }
+    return;
+  }
   const halfWidth = width / 2;
   const edges = points.map((point, index) => {
     const previous = points[Math.max(0, index - 1)],
@@ -148,8 +201,18 @@ function drawTrail(
       toEdge = edges[index];
     if (!fromEdge || !toEdge || Math.hypot(to.x - from.x, to.y - from.y) < 1e-6)
       continue;
-    const startAlpha = trailOpacity(from, elapsed),
-      endAlpha = trailOpacity(to, elapsed);
+    const startAlpha = trailOpacity(
+        from,
+        elapsed,
+        seconds,
+        (index - 1) / (points.length - 1),
+      ),
+      endAlpha = trailOpacity(
+        to,
+        elapsed,
+        seconds,
+        index / (points.length - 1),
+      );
     if (startAlpha <= 0 && endAlpha <= 0) continue;
     ctx.beginPath();
     ctx.moveTo(from.x + fromEdge.left.x, from.y + fromEdge.left.y);
@@ -164,7 +227,10 @@ function drawTrail(
     ctx.fill();
   }
 }
-export function createGravityRenderer(canvas: HTMLCanvasElement) {
+export function createGravityRenderer(
+  canvas: HTMLCanvasElement,
+  options: { compact?: boolean } = {},
+) {
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Canvas2D is unavailable.");
   const ctx = context;
@@ -186,7 +252,29 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
       ? walkthroughCamera(camera, walkthroughFocus, width, height)
       : zoomCamera(camera, gameplayZoom);
   function frame(level: GravityLevel) {
-    ({ camera, area } = fitGravityFrame(level, width, height));
+    if (options.compact) {
+      area = {
+        x: 12,
+        y: 12,
+        width: Math.max(1, width - 24),
+        height: Math.max(1, height - 24),
+      };
+      const bounds = contentBounds([
+        { position: level.launch, radius: 70 },
+        ...level.bodies.map((body) => ({
+          position: body.position,
+          radius: body.radius + 120,
+        })),
+      ]);
+      camera = fitPlayableCamera(
+        bounds,
+        level.launch,
+        area.width,
+        area.height,
+        30,
+        12,
+      );
+    } else ({ camera, area } = fitGravityFrame(level, width, height));
     scale = camera.scale;
     lastLevel = level;
   }
@@ -195,20 +283,10 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, Math.max(0, r), 0, TAU);
   }
-  function ship(p: Vec2, angle: number, color: string) {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(angle);
+  function planet(p: Vec2, radius: number, color: string) {
     ctx.fillStyle = color;
-    const r = 6 / scale;
-    ctx.beginPath();
-    ctx.moveTo(r, 0);
-    ctx.lineTo(-r * 0.7, -r * 0.6);
-    ctx.lineTo(-r * 0.35, 0);
-    ctx.lineTo(-r * 0.7, r * 0.6);
-    ctx.closePath();
+    circle(p, radius);
     ctx.fill();
-    ctx.restore();
   }
   return {
     setZoom(value: number) {
@@ -316,21 +394,44 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
           ctx,
           particle.trail,
           snapshot.elapsed,
-          1.5 / renderScale,
+          2.4 / renderScale,
           particle.color,
+          snapshot.physics.trailSeconds,
+          snapshot.particles.length > 12,
         );
         ctx.globalAlpha = 1;
         if (particle.alive)
-          ship(
+          planet(
             particle.position,
-            Math.atan2(particle.velocity.y, particle.velocity.x),
+            visiblePlanetRadius(
+              particle.radius,
+              renderScale,
+              4.5,
+              particle.projectileSize,
+            ),
             particle.color,
           );
       }
       const showBodyLabels =
         snapshot.level.bodies.filter((b) => b.kind === "attractor").length > 1;
       snapshot.level.bodies.forEach((body, index) => {
-        drawBody(ctx, body, renderScale, showBodyLabels ? 7 / renderScale : 0);
+        const insideLabel = body.radius * renderScale >= 16;
+        drawBody(
+          ctx,
+          body,
+          renderScale,
+          showBodyLabels && insideLabel ? 7 / renderScale : 0,
+        );
+        if (options.attention) {
+          ctx.globalAlpha = options.reducedMotion
+            ? 0.6
+            : 0.35 + 0.25 * Math.sin(motion * 2.5);
+          ctx.strokeStyle = FORCE_PALETTE[body.kind].body;
+          ctx.lineWidth = 2 / renderScale;
+          circle(body.position, body.radius + 16 / renderScale);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
         if (body.kind === "repellent") return;
         const best = Math.max(
           0,
@@ -357,8 +458,22 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
+        const goal = snapshot.progress.bodies?.find(
+          (item) => item.bodyId === body.id,
+        );
+        if (goal) {
+          ctx.fillStyle = "#455c70";
+          ctx.font = `600 ${11 / renderScale}px "Avenir Next",sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillText(
+            `${goal.current}/${goal.target}`,
+            body.position.x,
+            body.position.y + body.radius + 16 / renderScale,
+          );
+        }
         if (showBodyLabels) {
-          ctx.fillStyle = "#e9ecef";
+          ctx.fillStyle = insideLabel ? "#e9ecef" : "#455c70";
           ctx.font = `700 ${11 / renderScale}px "Avenir Next",sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "alphabetic";
@@ -369,7 +484,9 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
           ctx.fillText(
             label,
             body.position.x,
-            body.position.y + (ascent - descent) / 2,
+            insideLabel
+              ? body.position.y + (ascent - descent) / 2
+              : body.position.y - body.radius - 12 / renderScale,
           );
         }
       });
@@ -415,68 +532,92 @@ export function createGravityRenderer(canvas: HTMLCanvasElement) {
         }
         ctx.globalAlpha = 1;
       }
-      const anchor = snapshot.level.launch;
-      const idle = !snapshot.complete && !options.pull;
-      ctx.strokeStyle = idle ? "#c3a446" : "#626d78";
-      ctx.globalAlpha = idle
-        ? options.reducedMotion
-          ? 0.72
-          : 0.72 + 0.04 * Math.sin((motion * TAU) / 2.8)
-        : 0.35;
-      ctx.lineWidth = (idle ? 1.2 : 1) / renderScale;
-      ctx.setLineDash(idle ? [] : [1 / renderScale, 4 / renderScale]);
-      circle(anchor, 20 / renderScale);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-      if (!snapshot.complete) {
-        ship(anchor, snapshot.aim.angle, "#303943");
-        if (options.pull) {
-          const dx = options.pull.x / renderScale,
-            dy = options.pull.y / renderScale;
-          // Clamp the visual handle to the usable screen while preserving shot power.
-          const px = centerX + (anchor.x - renderCamera.center.x) * renderScale,
-            py = centerY + (anchor.y - renderCamera.center.y) * renderScale;
-          let fraction = 1;
-          for (const [delta, start, limit] of [
-            [dx * renderScale, px, width],
-            [dy * renderScale, py, height],
-          ])
-            if (delta)
-              fraction = Math.min(
-                fraction,
-                Math.max(0, ((delta > 0 ? limit - 16 : 16) - start) / delta),
-              );
-          const ghost = {
-            x: anchor.x + dx * fraction,
-            y: anchor.y + dy * fraction,
-          };
-          ctx.strokeStyle = "#626d78";
-          ctx.globalAlpha = 0.6;
-          ctx.beginPath();
-          ctx.moveTo(anchor.x, anchor.y);
-          ctx.lineTo(ghost.x, ghost.y);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-          ship(ghost, snapshot.aim.angle, "#303943");
-          ctx.strokeStyle = "#527c9a";
-          ctx.lineWidth = 2 / renderScale;
-          ctx.beginPath();
-          ctx.arc(
-            anchor.x,
-            anchor.y,
-            20 / renderScale,
-            -Math.PI / 2,
-            -Math.PI / 2 + snapshot.aim.power * TAU,
-          );
-          ctx.stroke();
-        }
+      // A planet exists at the chosen position only while aiming. The field has no fixed launcher.
+      const anchor = snapshot.launchPosition;
+      if (options.pull) {
+        planet(
+          anchor,
+          visiblePlanetRadius(
+            snapshot.physics.planetRadius,
+            renderScale,
+            5,
+            snapshot.projectileSize,
+          ),
+          "#7a60d6",
+        );
+        const ghost = {
+          x: anchor.x + options.pull.x / renderScale,
+          y: anchor.y + options.pull.y / renderScale,
+        };
+        ctx.strokeStyle = "#697783";
+        ctx.globalAlpha = 0.65;
+        ctx.lineWidth = 1 / renderScale;
+        ctx.beginPath();
+        ctx.moveTo(anchor.x, anchor.y);
+        ctx.lineTo(ghost.x, ghost.y);
+        ctx.stroke();
+        circle(ghost, 5 / renderScale);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#7a60d6";
+        ctx.lineWidth = 2 / renderScale;
+        ctx.beginPath();
+        ctx.arc(
+          anchor.x,
+          anchor.y,
+          13 / renderScale,
+          -Math.PI / 2,
+          -Math.PI / 2 + snapshot.aim.power * TAU,
+        );
+        ctx.stroke();
       }
-      ctx.fillStyle = "#8a0f4b";
-      for (let n = 3; n < preview.length; n += 3) {
-        ctx.globalAlpha = Math.pow(1 - n / preview.length, 2) * 0.9;
-        circle(preview[n], 2 / renderScale);
+      ctx.fillStyle = "#7956cf";
+      const aimPreview = sampleGravityAimPreview(
+        preview,
+        renderScale,
+        options.pathAssist,
+      );
+      for (const dot of aimPreview.dots) {
+        const fade = 1 - dot.distance / aimPreview.length;
+        ctx.globalAlpha = fade * fade * 0.98;
+        circle(dot, 2.3 / renderScale);
         ctx.fill();
+      }
+      if (options.ghostCue) {
+        const cue = options.ghostCue,
+          fraction = options.reducedMotion
+            ? 1
+            : (1 - Math.cos(((motion % 2.8) / 2.8) * TAU)) / 2;
+        const handle = {
+          x:
+            cue.position.x +
+            (cue.pull.x / renderScale) * (0.3 + 0.7 * fraction),
+          y:
+            cue.position.y +
+            (cue.pull.y / renderScale) * (0.3 + 0.7 * fraction),
+        };
+        ctx.globalAlpha = 0.65;
+        ctx.strokeStyle = "#7956cf";
+        ctx.lineWidth = 1.5 / renderScale;
+        ctx.setLineDash([3 / renderScale, 5 / renderScale]);
+        ctx.beginPath();
+        ctx.moveTo(cue.position.x, cue.position.y);
+        ctx.lineTo(handle.x, handle.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        circle(cue.position, 5 / renderScale);
+        ctx.stroke();
+        circle(handle, 10 / renderScale);
+        ctx.stroke();
+        ctx.fillStyle = "#697783";
+        ctx.font = `${11 / renderScale}px "Avenir Next",sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(
+          "Pull back, then release",
+          cue.position.x - 28 / renderScale,
+          cue.position.y + 22 / renderScale,
+        );
       }
       ctx.globalAlpha = 1;
       ctx.restore();

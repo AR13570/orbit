@@ -1,3 +1,5 @@
+import Icon from "./components/Icon";
+
 export type OrbitMode = "zen" | "gravity" | "creator";
 export default function ModeChooser({
   onSelect,
@@ -46,7 +48,7 @@ export default function ModeChooser({
                 Find the next checkpoint.
               </span>
               <span className="mode-enter">
-                Free flight <span aria-hidden="true">↗</span>
+                Free flight <Icon name="play" />
               </span>
             </button>
             <button
@@ -103,7 +105,7 @@ export default function ModeChooser({
                 Solve an endless sky.
               </span>
               <span className="mode-enter">
-                Orbital puzzles <span aria-hidden="true">↗</span>
+                Orbital puzzles <Icon name="play" />
               </span>
             </button>
             <button
@@ -125,8 +127,10 @@ export default function ModeChooser({
           </div>
         </div>
         <button className="mode-creator" onClick={() => onSelect("creator")}>
-          <span aria-hidden="true">＋</span> Gravity creator{" "}
-          <span>Design your own puzzle ↗</span>
+          <Icon name="edit" /> Gravity creator
+          <span>
+            Design your own puzzle <Icon name="play" />
+          </span>
         </button>
       </div>
       <p className="mode-footer">No lives. No rush. Just one more launch.</p>

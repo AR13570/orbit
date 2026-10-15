@@ -6,6 +6,22 @@ import {
   pullDistance,
 } from "../../src/controls";
 describe("pullback gestures", () => {
+  it.each([72, 160])(
+    "caps the visible handle at the %ipx full-power extent during move and release",
+    (limit) => {
+      const gesture = new PullGesture(limit);
+      gesture.begin(1, { x: 0, y: 0 });
+      const atLimit = gesture.move(1, { x: limit * 0.6, y: limit * 0.8 })!;
+      const beyond = gesture.move(1, { x: limit * 6, y: limit * 8 })!;
+      expect(beyond.power).toBe(1);
+      expect(beyond.distance).toBeCloseTo(limit * 10);
+      expect(beyond.pull.x).toBeCloseTo(atLimit.pull.x);
+      expect(beyond.pull.y).toBeCloseTo(atLimit.pull.y);
+      const release = gesture.end(1, { x: limit * 60, y: limit * 80 })!;
+      expect(release.power).toBe(1);
+      expect(Math.hypot(release.pull.x, release.pull.y)).toBeCloseTo(limit);
+    },
+  );
   it("reaches actual full power with a comfortable 72px mobile pull in either orientation", () => {
     for (const [width, height] of [
       [390, 844],

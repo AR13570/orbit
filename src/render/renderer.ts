@@ -39,7 +39,9 @@ export interface SlingshotVisual {
   pull: Vec2;
   power: number;
 }
+import type { PathAssist } from "../pathAssist";
 export interface RenderOptions {
+  pathAssist?: PathAssist;
   reducedMotion?: boolean;
   paused?: boolean;
   cameraLocked?: boolean;
@@ -381,6 +383,7 @@ function drawPreview(
   ctx: CanvasRenderingContext2D,
   paths: Vec2[][],
   scale: number,
+  assist: PathAssist = "partial",
 ) {
   const path = paths[0];
   if (!path) return;
@@ -388,10 +391,14 @@ function drawPreview(
   ctx.fillStyle = COLOR.aim;
   ctx.strokeStyle = "#f8f9fa";
   ctx.lineWidth = 1.6 / scale;
-  const length = Math.min(path.length, 49);
-  for (let n = 3; n < length; n += 3) {
-    const fade = 1 - n / length;
-    ctx.globalAlpha = 0.98 * fade * fade;
+  const length = assist === "full" ? path.length : Math.min(path.length, 49);
+  const stride = assist === "full" ? Math.max(3, Math.ceil(length / 220)) : 3;
+  for (let n = 3; n < length; n += stride) {
+    const fade =
+      assist === "full"
+        ? 1 - Math.max(0, (n / length - 0.75) / 0.25)
+        : 1 - n / length;
+    ctx.globalAlpha = (assist === "full" ? 0.82 : 0.98) * fade * fade;
     circle(ctx, path[n].x, path[n].y, 2.1 / scale);
     ctx.stroke();
     ctx.fill();
@@ -790,7 +797,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
         surfaceScratch,
       );
       if (snapshot.status === "aiming" && options.slingshot)
-        drawPreview(ctx, preview, renderCamera.scale);
+        drawPreview(ctx, preview, renderCamera.scale, options.pathAssist);
       if (previousSector)
         drawGeometry(ctx, previousSector, renderCamera.scale, 1 - progress);
       drawGeometry(ctx, snapshot.sector, renderCamera.scale);

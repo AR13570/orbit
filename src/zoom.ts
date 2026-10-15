@@ -1,7 +1,7 @@
 import type { Vec2 } from "./game/types";
 import type { Camera } from "./render/coordinates";
-export const MIN_GAMEPLAY_ZOOM = 0.8;
-export const MAX_GAMEPLAY_ZOOM = 1.6;
+export const MIN_GAMEPLAY_ZOOM = 0.25;
+export const MAX_GAMEPLAY_ZOOM = 4;
 export function clampGameplayZoom(value: number) {
   return Number.isFinite(value)
     ? Math.max(MIN_GAMEPLAY_ZOOM, Math.min(MAX_GAMEPLAY_ZOOM, value))

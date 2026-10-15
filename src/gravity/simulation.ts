@@ -1,41 +1,40 @@
-import {
-  distance,
-  segmentCircleIntersection,
-  SHIP_RADIUS,
-} from "../game/physics";
-import {
-  gravityForceAt,
-  gravityLaunchSpeed,
-  GRAVITY_SPEED_SCALE,
-} from "./physics";
 import type { Aim, Vec2 } from "../game/types";
-import type {
-  GravityLevel,
-  GravityParticle,
-  GravityState,
-  GoalProgress,
-  OrbitTrack,
-} from "./types";
-export const TRAIL_SECONDS = 3;
-export const MAX_PROJECTILES = 12;
-const TAU = Math.PI * 2;
+import { moveWells } from "./motion";
+import { driftWithContacts } from "./contacts";
+import { goalProgress, initialOrbits, updateOrbits } from "./orbits";
+import {
+  GRAVITY_FIXED_STEP,
+  gravityLaunchSpeed,
+  physicsSettings,
+  planetAccelerations,
+  wellPotential,
+} from "./physics";
+import type { GravityLevel, GravityParticle, GravityState } from "./types";
+export { goalProgress, orbitFraction } from "./orbits";
+export const TRAIL_SECONDS = 24;
+/** Legacy export retained without enforcing an active planet cap. */
+export const MAX_PROJECTILES = Infinity;
 const COLORS = [
-  "#476f9b",
-  "#a45c52",
-  "#64846a",
-  "#8c6796",
-  "#a17c3e",
-  "#448b8d",
-  "#6e73ad",
-  "#b26f85",
-  "#727d49",
-  "#966f53",
-  "#567b80",
-  "#7c6c89",
+  "#ff6b8b",
+  "#53d9ff",
+  "#ffd66b",
+  "#a58aff",
+  "#6ee7a8",
+  "#ff9b61",
+  "#f18aff",
+  "#58e3d1",
+  "#93b6ff",
+  "#e4ef6a",
+  "#ff789d",
+  "#bd95ff",
 ];
 export function createState(level: GravityLevel): GravityState {
+  const copy = structuredClone(level);
+  copy.objective = { ...copy.objective, hold: 0 };
+  moveWells(copy, 0);
   return {
-    level,
+    level: copy,
+    physics: physicsSettings(level.physics),
     particles: [],
     elapsed: 0,
     held: 0,
@@ -43,278 +42,204 @@ export function createState(level: GravityLevel): GravityState {
     sampleClock: 0,
   };
 }
-function targets(level: GravityLevel) {
-  const attractors = level.bodies.filter((b) => b.kind === "attractor");
-  const bodies = attractors.map((body) => ({
-    id: body.id,
-    position: body.position,
-  }));
-  if (level.objective.kind === "tour" && bodies.length > 1) {
-    const position = {
-      x: (bodies[0].position.x + bodies[1].position.x) / 2,
-      y: (bodies[0].position.y + bodies[1].position.y) / 2,
-    };
-    bodies.push({ id: "pair", position });
-  }
-  return bodies;
+const finiteVector = (p: Vec2) => Number.isFinite(p.x) && Number.isFinite(p.y);
+export function fireFrom(
+  state: GravityState,
+  position: Vec2,
+  velocity: Vec2,
+): boolean {
+  if (!finiteVector(position) || !finiteVector(velocity)) return false;
+  const id = state.nextId++;
+  const color =
+    COLORS.find(
+      (c) => !state.particles.some((p) => p.alive && p.color === c),
+    ) ?? `hsl(${(id * 137.507764) % 360} 90% 68%)`;
+  state.particles.push({
+    id,
+    position: { ...position },
+    velocity: { ...velocity },
+    mass: state.physics.planetMass,
+    radius: state.physics.planetRadius,
+    projectileSize: state.projectileSize ?? 1,
+    alive: true,
+    color,
+    born: state.elapsed,
+    outside: 0,
+    trail: [{ ...position, time: state.elapsed }],
+    orbits: initialOrbits(state.level, position),
+  });
+  return true;
 }
 export function fire(state: GravityState, aim: Aim): boolean {
   if (
     !Number.isFinite(aim.angle) ||
     !Number.isFinite(aim.power) ||
-    aim.power <= 0 ||
-    state.particles.filter((p) => p.alive).length >= MAX_PROJECTILES
+    aim.power <= 0
   )
     return false;
-  const id = state.nextId++,
-    position = { ...state.level.launch },
-    speed = gravityLaunchSpeed(aim.power),
-    orbits: Record<string, OrbitTrack> = {};
-  for (const target of targets(state.level))
-    orbits[target.id] = {
-      angle: Math.atan2(
-        position.y - target.position.y,
-        position.x - target.position.x,
-      ),
-      winding: 0,
-      localWinding: 0,
-      lapStart: 0,
-      lapBaseline: {},
-    };
-  state.particles.push({
-    id,
-    position,
-    velocity: {
-      x: Math.cos(aim.angle) * speed,
-      y: Math.sin(aim.angle) * speed,
-    },
-    alive: true,
-    color:
-      COLORS.find(
-        (color) =>
-          !state.particles.some(
-            (particle) => particle.alive && particle.color === color,
-          ),
-      ) ?? COLORS[id % COLORS.length],
-    born: state.elapsed,
-    outside: 0,
-    trail: [{ ...position, time: state.elapsed }],
-    orbits,
+  const speed = gravityLaunchSpeed(aim.power);
+  return fireFrom(state, state.level.launch, {
+    x: Math.cos(aim.angle) * speed,
+    y: Math.sin(aim.angle) * speed,
   });
-  return true;
 }
-function qualifying(
-  state: GravityState,
-  particle: GravityParticle,
-  id: string,
-): boolean {
-  const track = particle.orbits[id];
-  return (
-    particle.alive &&
-    !!track &&
-    Math.abs(track.winding) >= TAU * state.level.objective.turns &&
-    (state.level.objective.kind !== "paired" ||
-      Math.abs(track.localWinding) >= TAU * state.level.objective.turns)
-  );
-}
-export function goalProgress(state: GravityState): GoalProgress {
-  if (state.level.objective.kind === "none")
-    return { current: 0, target: 0, held: 0, hold: 0, complete: false };
-  const goal = state.level.objective,
-    bodies = state.level.bodies.filter((b) => b.kind === "attractor"),
-    live = state.particles.filter((p) => p.alive);
-  let current = 0;
-  if (goal.kind === "paired") {
-    // Maximum matching prevents one orbit around the pair from filling both slots.
-    const assigned = new Map<number, string>();
-    const match = (bodyId: string, seen: Set<number>): boolean => {
-      for (const particle of live) {
-        if (seen.has(particle.id) || !qualifying(state, particle, bodyId))
-          continue;
-        seen.add(particle.id);
-        const previous = assigned.get(particle.id);
-        if (!previous || match(previous, seen)) {
-          assigned.set(particle.id, bodyId);
-          return true;
-        }
-      }
-      return false;
+function escaped(state: GravityState, p: GravityParticle): boolean {
+  const bounds = state.level.bounds,
+    center = {
+      x: bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2,
     };
-    current = bodies.filter((body) => match(body.id, new Set())).length;
-  } else if (goal.kind === "tour")
-    current = live.filter((p) => qualifying(state, p, "pair")).length;
-  else
-    for (const body of bodies) {
-      const orbiters = live.filter((p) => qualifying(state, p, body.id));
-      let score = orbiters.length;
-      if (goal.kind === "counter")
-        score =
-          Number(orbiters.some((p) => p.orbits[body.id].winding > 0)) +
-          Number(orbiters.some((p) => p.orbits[body.id].winding < 0));
-
-      current = Math.max(current, score);
-    }
-  return {
-    current: Math.min(current, goal.count),
-    target: goal.count,
-    held: state.held,
-    hold: goal.hold,
-    complete: current >= goal.count && state.held + 1e-9 >= goal.hold,
-  };
+  const dx = p.position.x - center.x,
+    dy = p.position.y - center.y;
+  if (
+    Math.hypot(dx, dy) <
+      Math.max(bounds.width, bounds.height) + state.physics.escapeDistance ||
+    dx * p.velocity.x + dy * p.velocity.y <= 0
+  )
+    return false;
+  let energy =
+    0.5 * (p.velocity.x ** 2 + p.velocity.y ** 2) +
+    wellPotential(p.position, state.level.bodies);
+  if (state.physics.planetGravity)
+    for (const other of state.particles)
+      if (other.alive && other !== p)
+        energy -=
+          (state.physics.planetGravityStrength * other.mass) /
+          Math.max(
+            2,
+            Math.hypot(
+              p.position.x - other.position.x,
+              p.position.y - other.position.y,
+            ),
+          );
+  return energy >= 0;
 }
-/** Advances one small simulation step. Engine and generation use this same path. */
+/** One physical step. Callers use the exported fixed step, not playback time. */
 export function step(state: GravityState, dt: number): void {
   if (!Number.isFinite(dt) || dt <= 0) return;
-  dt = Math.min(dt, 1 / 120);
+  dt = Math.min(dt, GRAVITY_FIXED_STEP);
+  const live = state.particles.filter((p) => p.alive);
+  const before = planetAccelerations(live, state.level.bodies, state.physics);
+  const previousBodies = new Map(
+    state.level.bodies.map((body) => [body.id, { ...body.position }]),
+  );
+  moveWells(state.level, state.elapsed + dt);
+  live.forEach((p, i) => {
+    p.velocity.x += before[i].x * dt * 0.5;
+    p.velocity.y += before[i].y * dt * 0.5;
+
+    if (!finiteVector(p.position) || !finiteVector(p.velocity)) p.alive = false;
+  });
+  driftWithContacts(state, live, previousBodies, dt);
+  const survivors = live.filter((p) => p.alive),
+    after = planetAccelerations(survivors, state.level.bodies, state.physics);
+  survivors.forEach((p, i) => {
+    p.velocity.x += after[i].x * dt * 0.5;
+    p.velocity.y += after[i].y * dt * 0.5;
+  });
   state.elapsed += dt;
   state.sampleClock += dt;
-  const sample = state.sampleClock + 1e-9 >= 1 / 30;
-  if (sample) state.sampleClock = 0;
-  const live = state.particles.filter((p) => p.alive),
-    forces = live.map((p) => gravityForceAt(p.position, state.level.bodies));
-  const orbitTargets = targets(state.level),
-    bounds = state.level.bounds;
-  live.forEach((particle, index) => {
-    const from = particle.position,
-      force = forces[index];
-    // Very gentle dissipation allows eventual collapse without spoiling early revolutions.
-    particle.velocity = {
-      x:
-        (particle.velocity.x + force.x * dt) *
-        Math.exp(-0.0003 * GRAVITY_SPEED_SCALE * dt),
-      y:
-        (particle.velocity.y + force.y * dt) *
-        Math.exp(-0.0003 * GRAVITY_SPEED_SCALE * dt),
-    };
-    let to = {
-        x: from.x + particle.velocity.x * dt,
-        y: from.y + particle.velocity.y * dt,
-      },
-      hit = Infinity;
-    for (const body of state.level.bodies) {
-      const contact = segmentCircleIntersection(
-        from,
-        to,
-        body.position,
-        body.radius + SHIP_RADIUS,
-      );
-      if (contact !== null) hit = Math.min(hit, contact);
-    }
-    if (hit !== Infinity) {
-      to = {
-        x: from.x + (to.x - from.x) * hit,
-        y: from.y + (to.y - from.y) * hit,
-      };
-      particle.alive = false;
-    }
-    particle.position = to;
-    const outside =
-      to.x < bounds.x ||
-      to.y < bounds.y ||
-      to.x > bounds.x + bounds.width ||
-      to.y > bounds.y + bounds.height;
-    particle.outside = outside ? particle.outside + dt : 0;
-    if (
-      particle.outside >= 6 ||
-      state.elapsed - particle.born > 150 ||
-      !Number.isFinite(to.x) ||
-      !Number.isFinite(to.y)
-    )
-      particle.alive = false;
-    for (const target of orbitTargets) {
-      const track = particle.orbits[target.id],
-        angle = Math.atan2(to.y - target.position.y, to.x - target.position.x),
-        radius = distance(to, target.position);
-      const delta = Math.atan2(
-        Math.sin(angle - track.angle),
-        Math.cos(angle - track.angle),
-      );
-      track.angle = angle;
-      track.winding += delta;
-    }
-    // Classify each completed lap by what it encloses, without a distance cutoff.
-    // A shared lap also winds around another body; it cannot fill a local-orbit slot.
-    for (const target of orbitTargets) {
-      if (target.id === "pair") continue;
-      const track = particle.orbits[target.id];
-      const lap = track.winding - track.lapStart;
-      if (Math.abs(lap) < TAU) continue;
-      const shared = orbitTargets.some(
-        (other) =>
-          other.id !== target.id &&
-          other.id !== "pair" &&
-          Math.abs(
-            particle.orbits[other.id].winding -
-              (track.lapBaseline[other.id] ?? 0),
-          ) >=
-            TAU * 0.75,
-      );
-      if (!shared) {
-        // Moving into a new local orbit replaces this projectile's previous capture.
-        for (const other of orbitTargets)
-          if (other.id !== target.id)
-            particle.orbits[other.id].localWinding = 0;
-      }
-      track.localWinding = shared
-        ? 0
-        : track.localWinding + Math.sign(lap) * TAU;
-      track.lapStart = track.winding;
-      track.lapBaseline = Object.fromEntries(
-        orbitTargets.map((other) => [
-          other.id,
-          particle.orbits[other.id].winding,
-        ]),
-      );
-    }
-
-    if (sample || !particle.alive)
-      particle.trail.push({ ...to, time: state.elapsed });
-  });
-  for (const particle of state.particles)
-    particle.trail = particle.trail.filter(
-      (point) => state.elapsed - point.time <= TRAIL_SECONDS,
-    );
-  const survivors = state.particles.filter((particle) => particle.alive);
+  const sampleInterval = Math.max(1 / 30, state.physics.trailSeconds / 511);
+  const sample = state.sampleClock + 1e-9 >= sampleInterval;
+  if (sample)
+    state.sampleClock = Math.max(0, state.sampleClock - sampleInterval);
+  for (const p of live) {
+    if (p.alive && escaped(state, p)) p.alive = false;
+    updateOrbits(state.level, p);
+    if (sample || !p.alive)
+      p.trail.push({ ...p.position, time: state.elapsed });
+  }
+  const oldest = state.elapsed - state.physics.trailSeconds;
+  const maxPoints = Math.min(
+    512,
+    Math.ceil(state.physics.trailSeconds * 30) + 1,
+  );
+  for (const p of state.particles) {
+    let remove = 0;
+    while (remove < p.trail.length && p.trail[remove].time < oldest - 1e-9)
+      remove++;
+    remove = Math.max(remove, p.trail.length - maxPoints);
+    if (remove > 0) p.trail.splice(0, remove);
+  }
+  const living = state.particles.filter((p) => p.alive);
   const fading = state.particles
-    .filter((particle) => !particle.alive && particle.trail.length > 0)
-    .slice(-(24 - survivors.length));
-  state.particles = [...survivors, ...fading].sort((a, b) => a.id - b.id);
-  const progress = goalProgress(state);
-  state.held =
-    progress.target > 0 && progress.current >= progress.target
-      ? state.held + dt
-      : 0;
-}
-export function orbitFraction(
-  state: GravityState,
-  particle: GravityParticle,
-  id: string,
-): number {
-  if (state.level.objective.kind === "none") return 0;
-  const track = particle.orbits[id];
-  if (!track) return 0;
-  const winding =
-    state.level.objective.kind === "paired"
-      ? Math.min(
-          Math.abs(track.winding),
-          Math.abs(track.localWinding + track.winding - track.lapStart),
-        )
-      : Math.abs(track.winding);
-  return Math.min(1, winding / (TAU * state.level.objective.turns));
+    .filter((p) => !p.alive && p.trail.length)
+    .slice(-96);
+  state.particles = [...living, ...fading].sort((a, b) => a.id - b.id);
+  // Legacy snapshots keep this compatibility field at zero.
+  state.held = 0;
 }
 export function objectiveText(level: GravityLevel): string {
+  if (level.source === "procedural") {
+    const { turns, count, kind } = level.objective;
+    const duration = ` for ${turns} ${turns === 1 ? "revolution" : "revolutions"}`;
+    if (kind === "tour")
+      return `Keep ${count} planets orbiting both cores${duration}.`;
+    if (
+      level.requirements &&
+      level.requirements.length > 2 &&
+      level.requirements.every(
+        (goal) =>
+          (goal.turns ?? turns) === turns &&
+          (!goal.direction || goal.direction === "either"),
+      )
+    ) {
+      const population = level.requirements.reduce(
+        (sum, goal) => sum + goal.count,
+        0,
+      );
+      return `Keep ${population} planets across ${level.requirements.length} cores${duration}.`;
+    }
+  }
+  const targetLabel = (id: string) => {
+    const index = level.bodies.findIndex((body) => body.id === id);
+    if (level.bodies.filter((body) => body.kind === "attractor").length === 1)
+      return "the core";
+    return index >= 0 ? `core ${String.fromCharCode(65 + index)}` : "a core";
+  };
+  if (level.requirements?.length) {
+    const requirements = level.requirements,
+      attractors = level.bodies.filter((body) => body.kind === "attractor");
+    const first = requirements[0],
+      turns = first.turns ?? level.objective.turns,
+      direction = first.direction ?? "either";
+    const uniform =
+      requirements.length === attractors.length &&
+      attractors.every((body) =>
+        requirements.some((goal) => goal.bodyId === body.id),
+      ) &&
+      requirements.every(
+        (goal) =>
+          goal.count === first.count &&
+          (goal.turns ?? level.objective.turns) === turns &&
+          (goal.direction ?? "either") === direction,
+      );
+    const duration = (value: number) =>
+      value > 1 ? ` for ${value} revolutions` : "";
+    const rotation = (value: string | undefined) =>
+      value && value !== "either" ? ` ${value}` : "";
+    const text = uniform
+      ? `Keep ${first.count} ${first.count === 1 ? "planet" : "planets"} orbiting ${attractors.length === 1 ? "the core" : "each core"}${rotation(direction)}${duration(turns)}`
+      : requirements
+          .map(
+            (goal) =>
+              `${goal.count} ${goal.count === 1 ? "planet" : "planets"} around ${targetLabel(goal.bodyId)}${rotation(goal.direction)}${duration(goal.turns ?? level.objective.turns)}`,
+          )
+          .join(" · ");
+    return `${text}.`;
+  }
   if (level.objective.kind === "none") return "Free play";
-  const { kind, count, turns, hold } = level.objective,
+  const { kind, count, turns } = level.objective,
     loops = turns === 1 ? "one revolution" : `${turns} revolutions`;
   const text =
     kind === "loop"
       ? `Complete ${loops} around a body`
       : kind === "crowd"
-        ? `Keep ${count} projectiles orbiting one body`
+        ? `Keep ${count} planets orbiting one body`
         : kind === "counter"
           ? "Orbit one body in both directions"
           : kind === "paired"
             ? "Keep an orbit around each body"
             : "Loop around both bodies together";
-  return hold > 0 ? `${text}. Hold for ${hold}s.` : `${text}.`;
+  return `${text}.`;
 }

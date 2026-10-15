@@ -1,0 +1,118 @@
+.projectile-size-control {
+  --projectile-size-rail: 88px;
+  --projectile-size-limit: 18px;
+  --projectile-size-display-thumb: min(
+    var(--projectile-size-thumb),
+    calc(var(--projectile-size-limit) * var(--projectile-size-factor))
+  );
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(48px, calc(env(safe-area-inset-bottom) + 38px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 44px;
+  gap: 6px;
+  color: var(--muted);
+  user-select: none;
+}
+.projectile-size-control label {
+  font-size: 11px;
+  line-height: 16px;
+}
+.projectile-size-control input {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  appearance: none;
+  display: block;
+  width: 44px;
+  height: var(--projectile-size-rail);
+  margin: 0;
+  padding: 0 20px;
+  background: transparent;
+  cursor: ns-resize;
+  touch-action: none;
+  border-radius: 8px;
+}
+.projectile-size-control input::-webkit-slider-runnable-track {
+  width: 3px;
+  border-radius: 2px;
+  background: #bac7d0;
+}
+.projectile-size-control input::-webkit-slider-thumb {
+  appearance: none;
+  box-sizing: border-box;
+  width: var(--projectile-size-display-thumb);
+  height: var(--projectile-size-display-thumb);
+  margin-left: calc((3px - var(--projectile-size-display-thumb)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 2px var(--ground);
+}
+.projectile-size-control input::-moz-range-track {
+  width: 3px;
+  border-radius: 2px;
+  background: #bac7d0;
+}
+.projectile-size-control input::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--projectile-size-display-thumb);
+  height: var(--projectile-size-display-thumb);
+  border: 0;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 2px var(--ground);
+}
+.projectile-size-control input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.projectile-size-circle {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.projectile-size-large {
+  width: min(
+    var(--projectile-size-max),
+    calc(var(--projectile-size-limit) * 2)
+  );
+  height: min(
+    var(--projectile-size-max),
+    calc(var(--projectile-size-limit) * 2)
+  );
+}
+.projectile-size-small {
+  width: min(var(--projectile-size-min), var(--projectile-size-limit));
+  height: min(var(--projectile-size-min), var(--projectile-size-limit));
+}
+.gravity-guide-practice .projectile-size-control {
+  --projectile-size-rail: 64px;
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .projectile-size-control {
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(54px, calc(env(safe-area-inset-bottom) + 44px));
+    gap: 4px;
+  }
+  .projectile-size-control,
+  .gravity-guide-practice .projectile-size-control {
+    --projectile-size-rail: 56px;
+  }
+}
+@media (max-width: 480px) and (orientation: portrait) {
+  .projectile-size-control {
+    bottom: max(80px, calc(env(safe-area-inset-bottom) + 70px));
+    gap: 4px;
+  }
+}
+@media (orientation: landscape) and (max-height: 350px) {
+  .projectile-size-control {
+    /* Keep wrapped objectives clear even when zoom enlarges the preview. */
+    --projectile-size-limit: 9px;
+    bottom: calc(env(safe-area-inset-bottom) + 8px);
+  }
+}

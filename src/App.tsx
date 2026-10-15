@@ -1,15 +1,19 @@
 import { useGameplayZoom } from "./useGameplayZoom";
-import ZoomControls from "./components/ZoomControls";
+import { usePathAssist } from "./pathAssist";
+import { MAX_FLIGHT_SECONDS } from "./game/physics";
 import ModeChooser, { type OrbitMode } from "./ModeChooser";
 import GravityGame from "./gravity/GravityGame";
 import GravityCreator from "./gravity/creator/GravityCreator";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OrbitEngine } from "./game/engine";
+import { zenDebugStart } from "./game/debug";
+import { loadZenCheckpoint, resolveZenSeed, saveZenCheckpoint, rememberZenSeed } from "./game/progress";
 import { createRenderer } from "./render/renderer";
 import type { SlingshotVisual } from "./render/renderer";
 import { PullGesture, TapSequence, runSeed, pullDistance } from "./controls";
 import { FeedbackClock } from "./transitions";
 import { OrbitSound } from "./sound";
+import { AccelerationSoundTracker } from "./audio/acceleration";
 import Walkthrough from "./tutorial/Walkthrough";
 import {
   tutorialSeen,
@@ -21,20 +25,34 @@ import { worldHighlight, elementHighlight } from "./tutorial/targets";
 import type { FocusArea } from "./render/coordinates";
 import PauseMenu from "./components/PauseMenu";
 import Icon from "./components/Icon";
-import type { Vec2 } from "./game/types";
+import GameHeader from "./components/GameHeader";
+import type { GameSnapshot, Vec2 } from "./game/types";
 export function ZenGame({
   onExit,
   startTutorial = false,
 }: { onExit?: () => void; startTutorial?: boolean } = {}) {
-  const [engine] = useState(
-    () => new OrbitEngine(runSeed(window.location.search)),
-  );
+  const [debug] = useState(() => zenDebugStart(window.location.search));
+  const [engine] = useState(() => {
+    if (debug.enabled) return new OrbitEngine(runSeed(window.location.search), debug.level);
+    const seed = resolveZenSeed(window.location.search);
+    const game = new OrbitEngine(seed);
+    const saved = loadZenCheckpoint(seed);
+    if (saved) game.restoreCheckpoint(saved);
+    return game;
+  });
   const [snapshot, setSnapshot] = useState(() => engine.getSnapshot());
   const [paused, setPaused] = useState(false),
-    [help, setHelp] = useState(() => startTutorial || !tutorialSeen("zen")),
+    [help, setHelp] = useState(
+      () => startTutorial || (!debug.enabled && !tutorialSeen("zen")),
+    ),
     [muted, setMuted] = useState(true),
     [hint, setHint] = useState(true);
   const [modeFeedback, setModeFeedback] = useState("");
+  const pathAssist = usePathAssist(),
+    pathAssistRef = useRef(pathAssist);
+  pathAssistRef.current = pathAssist;
+  const previewDirty = useRef(false),
+    lastPreview = useRef(-Infinity);
   const canvas = useRef<HTMLCanvasElement>(null),
     scene = useRef<HTMLElement>(null),
     renderer = useRef<ReturnType<typeof createRenderer> | null>(null);
@@ -53,13 +71,24 @@ export function ZenGame({
     helpRef = useRef(false),
     muteRef = useRef(true),
     sound = useRef(new OrbitSound()),
+    accelerationSound = useRef(new AccelerationSoundTracker()),
     lastEvent = useRef(0),
     clock = useRef(new FeedbackClock());
   pauseRef.current = paused;
   helpRef.current = help;
   muteRef.current = muted;
+  const savedCheckpoint = useRef("");
+  const persistCheckpoint = useCallback((s: GameSnapshot) => {
+    if (debug.enabled || helpRef.current) return;
+    const key = `${s.sector.seed}:${s.sector.index}:${s.checkpointCount}`;
+    if (savedCheckpoint.current === key) return;
+    saveZenCheckpoint(engine.getCheckpoint());
+    savedCheckpoint.current = key;
+  }, [debug.enabled, engine]);
+  useEffect(() => { persistCheckpoint(engine.getSnapshot()); }, [engine, persistCheckpoint]);
   const refresh = useCallback(() => {
     const s = engine.getSnapshot();
+    persistCheckpoint(s);
     const r = renderer.current;
     if (r) {
       r.prepareFrame(s, performance.now() / 1000, {
@@ -71,7 +100,7 @@ export function ZenGame({
       if (!helpRef.current) engine.setFlightBounds(r.getVisibleBounds());
     }
     setSnapshot(s);
-  }, [engine]);
+  }, [engine, persistCheckpoint]);
   const cancel = useCallback(() => {
     taps.current.reset();
     const id = gesture.current.pointerId ?? flightTap.current.pointerId;
@@ -80,9 +109,14 @@ export function ZenGame({
     tappedFlight.current = null;
     sling.current = null;
     preview.current = [];
+    previewDirty.current = false;
+    lastPreview.current = -Infinity;
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
   }, []);
+  useEffect(() => {
+    cancel();
+  }, [pathAssist, cancel]);
   const zoom = useGameplayZoom({
     canvas,
     blocked: () => helpRef.current || pauseRef.current || document.hidden,
@@ -94,6 +128,8 @@ export function ZenGame({
     },
   });
   const openPause = useCallback(() => {
+    sound.current.setEnabled(false);
+    accelerationSound.current.reset();
     cancel();
     pauseRef.current = true;
     setPaused(true);
@@ -105,7 +141,19 @@ export function ZenGame({
   };
   const restart = () => {
     cancel();
-    engine.restart();
+    if (debug.enabled) engine.restart(undefined, debug.level);
+    else {
+      const previousSeed = engine.getSnapshot().sector.seed;
+      let seed = crypto.getRandomValues(new Uint32Array(1))[0];
+      if (seed === previousSeed) seed = (seed + 1) >>> 0;
+      if (runSeed(window.location.search) === undefined) rememberZenSeed(seed);
+      else {
+        const url = new URL(window.location.href);
+        url.searchParams.set("seed", String(seed));
+        window.history.replaceState(window.history.state, "", url);
+      }
+      engine.restart(seed);
+    }
     clock.current.reset();
     setHelp(false);
     helpRef.current = false;
@@ -184,6 +232,7 @@ export function ZenGame({
         paused: !active,
         cameraLocked: gesture.current.active,
         slingshot: sling.current,
+        pathAssist: pathAssistRef.current,
       };
       r.prepareFrame(s, time / 1000, renderOptions);
       if (!helpRef.current) engine.setFlightBounds(r.getVisibleBounds());
@@ -195,17 +244,39 @@ export function ZenGame({
           hintEnded = true;
           setHint(false);
         }
+        // Dock increments the count before its animation ends. Save that boundary now.
+        persistCheckpoint(s);
         const next = clock.current.step(s.status, dt, true);
         if (next) {
           cancel();
           if (next === "advance") engine.advance();
           else engine.retry();
           s = engine.getSnapshot();
+          persistCheckpoint(s);
         }
       } else clock.current.step(s.status, dt, false);
+      const audioActive = active && !muteRef.current;
+      sound.current.setEnabled(audioActive);
       if (s.event && s.event.id !== lastEvent.current) {
         lastEvent.current = s.event.id;
-        if (!muteRef.current) sound.current.play(s.event.kind);
+        if (s.event.kind === "launch" || s.event.kind === "restart")
+          accelerationSound.current.reset();
+        if (audioActive) sound.current.play(s.event.kind);
+      }
+      if (audioActive && s.status === "flying") {
+        const cue = accelerationSound.current.sample(s.particles, s.elapsed);
+        if (cue) sound.current.accelerate(cue.intensity);
+      } else accelerationSound.current.reset();
+      if (
+        active &&
+        gesture.current.active &&
+        pathAssistRef.current === "full" &&
+        previewDirty.current &&
+        time - lastPreview.current >= 80
+      ) {
+        preview.current = engine.predict(MAX_FLIGHT_SECONDS);
+        previewDirty.current = false;
+        lastPreview.current = time;
       }
       if (!helpRef.current)
         r.render(
@@ -240,7 +311,13 @@ export function ZenGame({
       r.destroy();
       renderer.current = null;
     };
-  }, [engine, cancel, openPause]);
+  }, [engine, cancel, openPause, persistCheckpoint]);
+  useEffect(() => {
+    if (muted || paused || help) {
+      sound.current.setEnabled(false);
+      accelerationSound.current.reset();
+    }
+  }, [muted, paused, help]);
   useEffect(() => () => sound.current.destroy(), []);
   useEffect(() => {
     if (!modeFeedback) return;
@@ -274,7 +351,10 @@ export function ZenGame({
     const aim = gesture.current.move(id, { x, y });
     if (!aim) return;
     if (!gesture.current.tapEligible) taps.current.reset();
-    const launch = engine.getSnapshot().sector.launch;
+    const current = engine.getSnapshot(),
+      launch = current.sector.launch;
+    const changed =
+      current.aim.angle !== aim.angle || current.aim.power !== aim.power;
     engine.setAim(aim.angle, aim.power);
     sling.current = {
       anchor: launch,
@@ -286,7 +366,10 @@ export function ZenGame({
     };
     if (renderer.current)
       engine.setFlightBounds(renderer.current.getVisibleBounds());
-    preview.current = engine.predict(1.6);
+    if (pathAssistRef.current === "full") {
+      if (changed) preview.current = [];
+      previewDirty.current = true;
+    } else preview.current = engine.predict(1.6);
   };
   const restoreTutorialFocus = useRef(false);
   useEffect(() => {
@@ -458,7 +541,8 @@ export function ZenGame({
             };
             if (renderer.current)
               engine.setFlightBounds(renderer.current.getVisibleBounds());
-            preview.current = engine.predict(1.6);
+            if (pathAssistRef.current === "full") previewDirty.current = true;
+            else preview.current = engine.predict(1.6);
             e.preventDefault();
           }}
           onPointerMove={(e) => {
@@ -580,20 +664,20 @@ export function ZenGame({
               cancel();
           }}
         />
-        <div className="scene-hud" aria-label="Journey status">
+        <GameHeader title="Zen" label="Journey status">
+          <span>Checkpoint </span>
           <span
             className="journey-progress"
             aria-label={`Checkpoint ${snapshot.checkpointCount}`}
           >
             {snapshot.checkpointCount}
           </span>
-        </div>
-        <ZoomControls
-          zoom={zoom.zoom}
-          onIn={zoom.zoomIn}
-          onOut={zoom.zoomOut}
-          onReset={zoom.reset}
-        />
+          {debug.enabled && (
+            <small className="game-header-debug">
+              Debug level {snapshot.sector.index + 1}
+            </small>
+          )}
+        </GameHeader>
         <div className="scene-actions">
           <button
             className="pause-button"
@@ -667,6 +751,8 @@ export function ZenGame({
 export default function App() {
   const [mode, setMode] = useState<OrbitMode | null>(() => {
     const value = new URLSearchParams(window.location.search).get("mode");
+    if (value === null && zenDebugStart(window.location.search).enabled)
+      return "zen";
     return value === "zen" || value === "gravity" || value === "creator"
       ? value
       : null;

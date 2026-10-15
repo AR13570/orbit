@@ -1,6 +1,82 @@
 import { describe, expect, it } from "vitest";
 import { GravityEngine } from "../../src/gravity/engine";
+import type { GravityLevel } from "../../src/gravity/types";
+
+function orbitEngine() {
+  const level: GravityLevel = {
+    index: 0,
+    seed: 1,
+    family: "loop",
+    bounds: { x: 0, y: 0, width: 900, height: 900 },
+    launch: { x: 450, y: 650 },
+    bodies: [
+      {
+        id: "well",
+        kind: "attractor",
+        position: { x: 450, y: 450 },
+        radius: 40,
+        strength: 1440000,
+      },
+    ],
+    objective: { kind: "loop", count: 1, turns: 1, hold: 0 },
+    witness: [],
+  };
+  const engine = new GravityEngine(1, level);
+  engine.setAim(
+    0,
+    Math.sqrt((1440000 * 200) / (200 * 200 + 40 * 40)) / 420,
+  );
+  engine.launch();
+  return engine;
+}
+
+function advanceFrames(engine: GravityEngine, frames: number) {
+  for (let n = 0; n < frames; n++) engine.update(1 / 60);
+}
+
+describe("Gravity playback pace", () => {
+  it("advances fewer physical steps at 1.45 than the previous pace over equal wall time", () => {
+    const current = orbitEngine();
+    const previous = orbitEngine();
+    previous.setTimeScale(1.65);
+    advanceFrames(current, 120);
+    advanceFrames(previous, 120);
+    const slower = current.getSnapshot();
+    const faster = previous.getSnapshot();
+    expect(slower.elapsed).toBeCloseTo(2.9, 10);
+    expect(faster.elapsed).toBeCloseTo(3.3, 10);
+    expect(slower.elapsed).toBeLessThan(faster.elapsed);
+    expect(slower.particles[0].position).not.toEqual(faster.particles[0].position);
+    expect(Math.abs(slower.particles[0].orbits.well.winding)).toBeLessThan(
+      Math.abs(faster.particles[0].orbits.well.winding),
+    );
+  });
+
+  it("preserves the full orbit and trajectory at matched physical time", () => {
+    const current = orbitEngine();
+    const previous = orbitEngine();
+    previous.setTimeScale(1.65);
+    // 11 seconds at 1.45 and 29/3 seconds at 1.65 both simulate 15.95 seconds.
+    advanceFrames(current, 660);
+    advanceFrames(previous, 580);
+    const slower = current.getSnapshot();
+    const faster = previous.getSnapshot();
+    expect(slower.elapsed).toBeCloseTo(15.95, 10);
+    expect(slower.elapsed).toBe(faster.elapsed);
+    expect(slower.particles[0].alive).toBe(true);
+    expect(Math.abs(slower.particles[0].orbits.well.winding)).toBeGreaterThan(
+      2 * Math.PI,
+    );
+    expect(slower.particles).toEqual(faster.particles);
+    expect(slower.physics).toEqual(faster.physics);
+    expect(slower.progress).toEqual(faster.progress);
+    expect(slower.complete).toBe(true);
+    expect(slower.complete).toBe(faster.complete);
+  });
+});
+
 function solve(engine: GravityEngine) {
+  engine.setTimeScale(1);
   const level = engine.getSnapshot().level;
   let shot = 0;
   for (let n = 0; n < 120 * 85 && !engine.getSnapshot().complete; n++) {
@@ -8,8 +84,13 @@ function solve(engine: GravityEngine) {
       shot < level.witness.length &&
       level.witness[shot].time <= n / 120 + 1e-8
     ) {
-      engine.setAim(level.witness[shot].angle, level.witness[shot].power);
-      engine.launch();
+      const witness = level.witness[shot];
+      if (witness.position && witness.velocity)
+        engine.launchFrom(witness.position, witness.velocity);
+      else {
+        engine.setAim(witness.angle, witness.power);
+        engine.launch();
+      }
       shot++;
     }
     engine.update(1 / 120);
@@ -26,10 +107,15 @@ describe("Gravity engine lifecycle", () => {
     expect(engine.getSnapshot().level).toEqual(first);
     solve(engine);
     expect(engine.getSnapshot().complete).toBe(true);
+    engine.setProjectileSize(2);
     engine.advance();
     engine.advance();
     expect(engine.getSnapshot().level.index).toBe(1);
     expect(engine.getSnapshot().completedCount).toBe(1);
+    expect(engine.getProjectileSize()).toBe(2);
+    expect(engine.getSnapshot().physics.planetRadius).toBe(
+      (engine.getSnapshot().level.physics?.planetRadius ?? 4) * 2,
+    );
   });
   it("skips without counting a completion and retries the new layout", () => {
     const engine = new GravityEngine(3);

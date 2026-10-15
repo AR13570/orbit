@@ -1,5 +1,6 @@
 import type { BodyKind, SectorFamily, StaticSector } from './types';
 import { CERTIFIED_LAYOUTS } from './certified-layouts';
+import { PROGRESSIVE_LAYOUTS } from './progressive-layouts';
 export interface CompositionDescriptor {
  readonly family?:SectorFamily;
  readonly goal:readonly [number,number];
@@ -26,9 +27,13 @@ export function geometryDistance(a:CompositionDescriptor,b:CompositionDescriptor
 export function freshComposition(candidate:CompositionDescriptor,recent:readonly CompositionDescriptor[]):boolean {
  return recent.slice(-RECENT_LAYOUT_LIMIT).every(previous=>(candidate.family===undefined||previous.family!==candidate.family)&&compositionDistance(candidate,previous)>=MIN_COMPOSITION_DISTANCE&&geometryDistance(candidate,previous)>=MIN_GEOMETRY_DISTANCE);
 }
-const certifiedDescriptors:CompositionDescriptor[]=CERTIFIED_LAYOUTS.map(entry=>({family:entry.family,goal:[Math.round(entry.goal[0]/80),Math.round(entry.goal[1]/80)],bodies:entry.bodies.map(([x,y,radius,kind])=>({x:Math.round(x/80),y:Math.round(y/80),size:Math.round(radius/16),kind}))}));
+const certifiedByStage:CompositionDescriptor[][]=[CERTIFIED_LAYOUTS,...PROGRESSIVE_LAYOUTS].map(entries=>entries.map(entry=>({family:entry.family,goal:[Math.round(entry.goal[0]/80),Math.round(entry.goal[1]/80)],bodies:entry.bodies.map(([x,y,radius,kind])=>({x:Math.round(x/80),y:Math.round(y/80),size:Math.round(radius/16),kind}))})));
 /** Preserve enough unblocked certificates to survive any following six emergency selections. */
-export function preservesFallbackCoverage(candidate:CompositionDescriptor,recent:readonly CompositionDescriptor[]):boolean {
+export function preservesFallbackCoverage(candidate:CompositionDescriptor,recent:readonly CompositionDescriptor[],stage=0):boolean {
+ const certifiedDescriptors=certifiedByStage[stage];
+ // With at least seven pairwise distinct families, each of the six recent
+ // fields may obscure only its own family's canonical certificate.
+ if(stage>0)return certifiedDescriptors.every(certificate=>certificate.family===candidate.family||freshComposition(certificate,[candidate]));
  const next=[...recent.slice(-(RECENT_LAYOUT_LIMIT-1)),candidate];
  const certifiedCount=next.filter(descriptor=>certifiedDescriptors.some(certificate=>compositionDistance(descriptor,certificate)===0&&geometryDistance(descriptor,certificate)===0)).length;
  const available=certifiedDescriptors.filter(certificate=>freshComposition(certificate,next)).length;

@@ -1,4 +1,7 @@
 import { useEffect, useRef } from "react";
+import PathAssistControl from "./PathAssistControl";
+import AdvancedSettings from "./AdvancedSettings";
+import { dialogControls } from "./dialogFocus";
 import Icon from "./Icon";
 export default function PauseMenu({
   onModes,
@@ -24,7 +27,12 @@ export default function PauseMenu({
     ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, []);
   return (
-    <div className="dialog-backdrop pause-backdrop">
+    <div
+      className="dialog-backdrop pause-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onResume();
+      }}
+    >
       <section
         ref={ref}
         className="game-dialog pause-menu"
@@ -38,7 +46,7 @@ export default function PauseMenu({
             onResume();
           }
           if (e.key === "Tab") {
-            const buttons = ref.current!.querySelectorAll("button");
+            const buttons = dialogControls(ref.current!);
             const first = buttons[0],
               last = buttons[buttons.length - 1];
             if (e.shiftKey && document.activeElement === first) {
@@ -52,9 +60,6 @@ export default function PauseMenu({
         }}
       >
         <div className="pause-heading">
-          <div className="pause-emblem" aria-hidden="true">
-            <Icon name="pause" />
-          </div>
           <h1 id="pause-title">Paused</h1>
         </div>
         <div className="pause-actions">
@@ -62,6 +67,9 @@ export default function PauseMenu({
             Resume
             <Icon name="play" />
           </button>
+          <AdvancedSettings>
+            <PathAssistControl />
+          </AdvancedSettings>
           <div className="pause-options">
             <button
               className="pause-option"
@@ -79,16 +87,7 @@ export default function PauseMenu({
             </button>
             {flying && (
               <button className="pause-option" onClick={onResetShot}>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M4 10a8 8 0 1 1 1.8 7M4 5v5h5" />
-                </svg>
+                <Icon name="reset" />
                 <span>Reset shot</span>
                 <span className="pause-chevron" aria-hidden="true" />
               </button>
@@ -110,7 +109,9 @@ export default function PauseMenu({
           </button>
           {onModes && (
             <button className="pause-option" onClick={onModes}>
-              Choose mode
+              <Icon name="swap" />
+              <span>Choose mode</span>
+              <span className="pause-chevron" aria-hidden="true" />
             </button>
           )}
         </div>

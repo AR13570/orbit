@@ -10,6 +10,10 @@ import CreatorPopover from "./CreatorPopover";
 import { clampPosition, clearPosition, nearbyPosition } from "./controls";
 import {
   OBJECTIVES,
+  exportDraft,
+  importDraft,
+  levelShareUrl,
+  sharedDraft,
   deleteLevel,
   layoutErrors,
   loadDraft,
@@ -21,7 +25,7 @@ import {
   type CreatorLevel,
 } from "./model";
 
-type Popup = { kind: "challenge" | "levels" | "name" };
+type Popup = { kind: "challenge" | "levels" | "name" | "physics" | "transfer" };
 function Stepper({
   label,
   value,
@@ -57,13 +61,38 @@ function Stepper({
   );
 }
 export default function GravityCreator({ onExit }: { onExit: () => void }) {
-  const [draft, setDraft] = useState(() => loadDraft() ?? newDraft());
+  const [incoming] = useState(() => {
+    try {
+      const shared = sharedDraft(window.location.search),
+        previous = loadDraft();
+      if (shared && previous && shared.id !== previous.id) saveLevel(previous);
+      return { draft: shared, error: "" };
+    } catch (error) {
+      return { draft: null, error: (error as Error).message };
+    }
+  });
+  useEffect(() => {
+    // A portable link is an import action, not an instruction to replace future edits on every visit.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("sky")) {
+      url.searchParams.delete("sky");
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+    }
+  }, []);
+  const [draft, setDraft] = useState(
+    () => incoming.draft ?? loadDraft() ?? newDraft(),
+  );
+  const [portable, setPortable] = useState("");
   const [library, setLibrary] = useState(loadLibrary);
   const [selected, setSelected] = useState("");
   const [tool, setTool] = useState<CreatorTool>("select");
   const [popup, setPopup] = useState<Popup | null>(null);
   const closePopup = useCallback(() => setPopup(null), []);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(incoming.error);
   const [storageError, setStorageError] = useState("");
   const [playtest, setPlaytest] = useState<{
     level: GravityLevel;
@@ -99,9 +128,17 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
     setDraft((d) => ({
       ...d,
       bodies: d.bodies.map((b) => (b.id === id ? { ...b, ...update } : b)),
+      requirements:
+        update.kind === "repellent"
+          ? d.requirements?.filter((goal) => goal.bodyId !== id)
+          : d.requirements,
     }));
   const remove = (id: string) => {
-    setDraft((d) => ({ ...d, bodies: d.bodies.filter((b) => b.id !== id) }));
+    setDraft((d) => ({
+      ...d,
+      bodies: d.bodies.filter((b) => b.id !== id),
+      requirements: d.requirements?.filter((goal) => goal.bodyId !== id),
+    }));
     setSelected("");
     setPopup(null);
     setNotice("Body removed.");
@@ -208,7 +245,7 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
             aria-label="Choose mode"
             onClick={onExit}
           >
-            ←
+            <Icon name="back" />
           </button>
           <button
             className="creator-title"
@@ -219,7 +256,7 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
             }
           >
             <span>{draft.name || "Untitled orbit"}</span>
-            <span aria-hidden="true">✎</span>
+            <Icon name="edit" />
           </button>
         </div>
         <div className="creator-actions">
@@ -239,7 +276,7 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
               setPlaytest({ level: toGravityLevel(draft), name: draft.name });
             }}
           >
-            Play ↗
+            Play <Icon name="play" />
           </button>
         </div>
       </header>
@@ -261,14 +298,23 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
           ) : (
             <>
               {draft.objective.kind === "crowd"
-                ? `${draft.objective.count} projectiles · `
+                ? `${draft.objective.count} planets · `
                 : ""}
               {draft.objective.turns}{" "}
               {draft.objective.turns === 1 ? "revolution" : "revolutions"}
-              {draft.objective.hold ? ` · hold ${draft.objective.hold}s` : ""}
             </>
           )}
         </small>
+      </button>
+      <button
+        className="creator-physics"
+        aria-label="Sandbox settings"
+        data-creator-popup-trigger
+        onClick={() =>
+          setPopup(popup?.kind === "physics" ? null : { kind: "physics" })
+        }
+      >
+        Physics
       </button>
       <div className="creator-bottom">
         <div className="creator-messages" aria-live="polite">
@@ -348,7 +394,7 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
             ? `Tap the field to place an ${tool === "attractor" ? "attractor" : "repeller"}.`
             : body
               ? "Drag Size or Gravity. Tap the body type to switch it."
-              : "Select a body to shape it. Drag the launcher to move it."}
+              : "Select a core to shape it. In play, launch planets from anywhere."}
         </p>
         <nav className="creator-tools" aria-label="Creator tools">
           <button
@@ -359,7 +405,7 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
               setPopup(null);
             }}
           >
-            ↖ <span>Move</span>
+            <Icon name="move" /> <span>Move</span>
           </button>
           <button
             aria-label="Add attractor"
@@ -408,6 +454,170 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
           </button>
         </nav>
       </div>
+      {popup?.kind === "physics" && (
+        <CreatorPopover title="Sandbox physics" onClose={closePopup}>
+          <div className="gravity-settings">
+            <label>
+              Planet gravity{" "}
+              <input
+                type="checkbox"
+                aria-label="Planet gravity"
+                checked={draft.physics?.planetGravity ?? false}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    physics: { ...d.physics, planetGravity: e.target.checked },
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Core collisions{" "}
+              <input
+                type="checkbox"
+                aria-label="Core collisions"
+                checked={draft.physics?.bodyCollisions ?? true}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    physics: { ...d.physics, bodyCollisions: e.target.checked },
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Planet collisions{" "}
+              <select
+                aria-label="Planet collisions"
+                value={draft.physics?.planetCollisions ?? "none"}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    physics: {
+                      ...d.physics,
+                      planetCollisions: e.target.value as
+                        "none" | "elastic" | "merge",
+                    },
+                  }))
+                }
+              >
+                <option value="none">Pass through</option>
+                <option value="elastic">Bounce</option>
+                <option value="merge">Merge</option>
+              </select>
+            </label>
+            <label>
+              Trail length{" "}
+              <select
+                aria-label="Trail length"
+                value={draft.physics?.trailSeconds ?? 6}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    physics: {
+                      ...d.physics,
+                      trailSeconds: Number(e.target.value),
+                    },
+                  }))
+                }
+              >
+                <option value={3}>Short</option>
+                <option value={6}>Normal</option>
+                <option value={30}>Long</option>
+              </select>
+            </label>
+          </div>
+          <button className="creator-popover-done" onClick={closePopup}>
+            Done
+          </button>
+        </CreatorPopover>
+      )}
+      {popup?.kind === "transfer" && (
+        <CreatorPopover title="Share a sky" onClose={closePopup}>
+          <p className="creator-note">
+            Copy a link to open this sky on another device, or keep its JSON.
+            Levels are stored in your browser.
+          </p>
+          <label className="creator-name-label">
+            Level JSON
+            <textarea
+              aria-label="Level JSON"
+              value={portable}
+              onChange={(e) => setPortable(e.target.value)}
+              maxLength={18000}
+              spellCheck={false}
+            />
+          </label>
+          <div className="creator-transfer-actions">
+            <button
+              onClick={() => {
+                try {
+                  const next = importDraft(portable);
+                  if (!persist()) return;
+                  setDraft(next);
+                  setSelected("");
+                  setPopup(null);
+                  setNotice("Sky imported.");
+                } catch (error) {
+                  setNotice((error as Error).message);
+                }
+              }}
+            >
+              Import JSON
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(exportDraft(draft));
+                  setNotice("Level JSON copied.");
+                } catch {
+                  setNotice("Select and copy the JSON above.");
+                }
+              }}
+            >
+              Copy JSON
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const url = levelShareUrl(draft);
+                  await navigator.clipboard.writeText(url);
+                  setNotice("Sky link copied.");
+                } catch (error) {
+                  setNotice(
+                    error instanceof Error && error.message.includes("large")
+                      ? error.message
+                      : "Link could not be copied. Copy the JSON instead.",
+                  );
+                }
+              }}
+            >
+              Copy sky link
+            </button>
+            <button
+              onClick={() => {
+                const url = URL.createObjectURL(
+                  new Blob([exportDraft(draft)], { type: "application/json" }),
+                );
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `${draft.name.replace(/[^a-z0-9 -]/gi, "").trim() || "gravity-sky"}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+                setNotice("Level JSON exported.");
+              }}
+            >
+              Export JSON
+            </button>
+          </div>
+          <p role="status" className="creator-note">
+            {notice}
+          </p>
+          <button className="creator-popover-done" onClick={closePopup}>
+            Done
+          </button>
+        </CreatorPopover>
+      )}
       {popup?.kind === "name" && (
         <CreatorPopover title="Name your level" onClose={closePopup}>
           <label className="creator-name-label">
@@ -449,14 +659,45 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
               >
                 {o.label}
                 <span aria-hidden="true">
-                  {draft.objective.kind === o.kind ? "✓" : ""}
+                  {draft.objective.kind === o.kind && <Icon name="check" />}
                 </span>
               </button>
             ))}
           </div>
+          {draft.objective.kind === "paired" &&
+            draft.bodies
+              .filter((core) => core.kind === "attractor")
+              .map((core, index) => (
+                <Stepper
+                  key={core.id}
+                  label={`Core ${index + 1} planets`}
+                  min={1}
+                  max={8}
+                  value={
+                    draft.requirements?.find((goal) => goal.bodyId === core.id)
+                      ?.count ?? 1
+                  }
+                  onChange={(count) =>
+                    setDraft((d) => ({
+                      ...d,
+                      requirements: d.bodies
+                        .filter((body) => body.kind === "attractor")
+                        .map((body) => ({
+                          bodyId: body.id,
+                          count:
+                            body.id === core.id
+                              ? count
+                              : (d.requirements?.find(
+                                  (goal) => goal.bodyId === body.id,
+                                )?.count ?? 1),
+                        })),
+                    }))
+                  }
+                />
+              ))}
           {draft.objective.kind === "crowd" && (
             <Stepper
-              label="Projectiles"
+              label="Planets"
               value={draft.objective.count}
               min={2}
               max={6}
@@ -482,18 +723,6 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
                   }))
                 }
               />
-              <Stepper
-                label="Hold seconds"
-                value={draft.objective.hold}
-                min={0}
-                max={10}
-                onChange={(hold) =>
-                  setDraft((d) => ({
-                    ...d,
-                    objective: { ...d.objective, hold },
-                  }))
-                }
-              />
             </>
           )}
           <button className="creator-popover-done" onClick={closePopup}>
@@ -506,6 +735,15 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
           <p className="creator-note">
             Your draft saves automatically. Saved levels stay in this browser.
           </p>
+          <button
+            className="creator-new"
+            onClick={() => {
+              setPortable(exportDraft(draft));
+              setPopup({ kind: "transfer" });
+            }}
+          >
+            Import, export or share
+          </button>
           <button
             className="creator-new"
             onClick={() => replaceDraft(newDraft())}

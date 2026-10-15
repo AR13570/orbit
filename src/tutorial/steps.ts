@@ -14,7 +14,10 @@ export function tutorialSteps(
       id: "intro",
       tone: "warm",
       title: "Your ship",
-      text: "Pull anywhere to aim, then release to launch from this ring.",
+      text:
+        mode === "zen"
+          ? "Pull anywhere to aim, then release from this ring. While playing, pinch to zoom; scroll on desktop."
+          : "Pull anywhere to aim, then release to launch from this ring.",
     },
     {
       id: "forces",

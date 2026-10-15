@@ -9,10 +9,10 @@ import {
 
 describe("gameplay camera zoom", () => {
   it("keeps zoom inside the supported range", () => {
-    expect(MIN_GAMEPLAY_ZOOM).toBe(0.8);
-    expect(MAX_GAMEPLAY_ZOOM).toBe(1.6);
-    expect(clampGameplayZoom(0.2)).toBe(0.8);
-    expect(clampGameplayZoom(4)).toBe(1.6);
+    expect(MIN_GAMEPLAY_ZOOM).toBe(0.25);
+    expect(MAX_GAMEPLAY_ZOOM).toBe(4);
+    expect(clampGameplayZoom(0.2)).toBe(0.25);
+    expect(clampGameplayZoom(4)).toBe(4);
     expect(clampGameplayZoom(1.25)).toBe(1.25);
   });
 
@@ -38,8 +38,8 @@ describe("pinch gesture ownership", () => {
       consumed: true,
       zoom: 1.5,
     });
-    expect(pinch.move(2, { x: 510, y: 100 }).zoom).toBe(1.6);
-    expect(pinch.move(2, { x: 120, y: 100 }).zoom).toBe(0.8);
+    expect(pinch.move(2, { x: 510, y: 100 }).zoom).toBe(4);
+    expect(pinch.move(2, { x: 120, y: 100 }).zoom).toBe(0.25);
   });
 
   it("keeps the first pinch pair stable when a third finger arrives", () => {

@@ -29,13 +29,18 @@ export const STRUCTURES:readonly StructureGrammar[]=[
 /** Reject perturbations that dissolve a grammar's ordering, gates, islands or voids. */
 export function matchesStructure(family:SectorFamily,bodies:readonly Body[],launch:Vec2,checkpoint:Checkpoint):boolean {
  const grammar=STRUCTURES.find(g=>g.id===family);
- if(!grammar||bodies.length!==grammar.slots.length)return false;
+ if(!grammar||bodies.length<grammar.slots.length||bodies.length>grammar.slots.length+3)return false;
+ // The grammar describes the core. Difficulty adds up to three separately
+ // collision-validated wells along its extended route.
+ const bodyScale=checkpoint.gravityScale??1;
+ if(!Number.isFinite(bodyScale)||bodyScale<=0)return false;
+ bodies=bodies.slice(0,grammar.slots.length);
  const goalX=checkpoint.position.x-launch.x,goalY=checkpoint.position.y-launch.y;
  if(goalX<=0)return false;
- const points=bodies.map(b=>({x:(b.position.x-launch.x)*(grammar.referenceGoalX??750)/goalX,y:b.position.y-launch.y-(grammar.validation==='sampled'?0:goalY*(b.position.x-launch.x)/goalX)}));
+ const points=bodies.map(b=>({x:(b.position.x-launch.x)*(grammar.referenceGoalX??750)/goalX,y:(b.position.y-launch.y-(grammar.validation==='sampled'?0:goalY*(b.position.x-launch.x)/goalX))/bodyScale}));
  const mirror=points.reduce((sum,p,i)=>sum+p.y*grammar.slots[i][1],0)<0?-1:1;
  points.forEach(p=>{p.y*=mirror;});
- if(points.some((p,i)=>Math.abs(p.x-grammar.slots[i][0])>90||Math.abs(p.y-grammar.slots[i][1])>45+Math.abs(grammar.slots[i][1])*.3||bodies[i].radius/grammar.slots[i][2]<.75||bodies[i].radius/grammar.slots[i][2]>1.2))return false;
+ if(points.some((p,i)=>Math.abs(p.x-grammar.slots[i][0])>90||Math.abs(p.y-grammar.slots[i][1])>45+Math.abs(grammar.slots[i][1])*.3||bodies[i].radius/(grammar.slots[i][2]*bodyScale)<.75||bodies[i].radius/(grammar.slots[i][2]*bodyScale)>1.2))return false;
  for(let i=0;i<points.length;i++)for(let j=0;j<i;j++){
   const [x,y]=grammar.slots[i],[u,v]=grammar.slots[j],dx=points[i].x-points[j].x,dy=points[i].y-points[j].y;
   if(Math.abs(x-u)>=100&&dx*Math.sign(x-u)<40)return false;

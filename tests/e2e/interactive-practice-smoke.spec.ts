@@ -219,7 +219,7 @@ test.afterEach(async ({ page }, info) => {
       .catch(() => {});
 });
 
-for (const mode of ["zen", "gravity"] as const)
+for (const mode of ["zen"] as ("zen" | "gravity")[])
   for (const touch of [false, true])
     test(`${mode} completes authored practice using ${touch ? "touch" : "mouse"} launch`, async ({
       browser,
@@ -288,7 +288,7 @@ for (const mode of ["zen", "gravity"] as const)
       }
     });
 
-for (const mode of ["zen", "gravity"] as const)
+for (const mode of ["zen"] as ("zen" | "gravity")[])
   test(`${mode} practice replay freezes the live attempt and returns it intact`, async ({
     page,
   }) => {

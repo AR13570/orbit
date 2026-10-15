@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
+import { loadGravityProgress } from "../../src/gravity/progress";
 import GravityGame from "../../src/gravity/GravityGame";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
@@ -18,6 +19,8 @@ vi.mock("../../src/gravity/renderer", () => ({
     getScale: () => 1,
     setWalkthroughFocus() {},
     worldToScreen: (point: unknown) => point,
+    screenToWorld: (x: number, y: number) => ({ x, y }),
+    setZoom: () => {},
   }),
 }));
 vi.mock("../../src/render/renderer", () => ({
@@ -38,6 +41,7 @@ beforeEach(() => {
   localStorage.clear();
   localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
   localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.gravity.v2", "complete");
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -68,6 +72,7 @@ function pointer(
   y: number,
   id = 1,
   primary = true,
+  pointerType = "touch",
 ) {
   const e = new MouseEvent(type, {
     bubbles: true,
@@ -78,7 +83,7 @@ function pointer(
   Object.defineProperties(e, {
     pointerId: { value: id },
     isPrimary: { value: primary },
-    pointerType: { value: "touch" },
+    pointerType: { value: pointerType },
   });
   fireEvent(c, e);
 }
@@ -87,17 +92,217 @@ function pull(c: HTMLCanvasElement) {
   pointer(c, "pointerup", 220, 330);
 }
 describe("Gravity interface", () => {
-  it("sets full launch power with the same 72px touch gesture", () => {
+  describe.each([
+    {
+      name: "desktop",
+      width: 1280,
+      height: 800,
+      pointerType: "mouse",
+      limit: 180,
+    },
+    { name: "phone", width: 390, height: 844, pointerType: "touch", limit: 96 },
+    {
+      name: "landscape",
+      width: 844,
+      height: 390,
+      pointerType: "touch",
+      limit: 96,
+    },
+  ])("$name launch response", ({ width, height, pointerType, limit }) => {
+    it.each([24, 48, 80, "maximum", "over cap"] as const)(
+      "keeps %s pull preview, arc power and physical release consistent",
+      (pull) => {
+        vi.spyOn(window, "innerWidth", "get").mockReturnValue(width);
+        vi.spyOn(window, "innerHeight", "get").mockReturnValue(height);
+        const launch = vi.spyOn(GravityEngine.prototype, "launch");
+        const setLaunch = vi.spyOn(GravityEngine.prototype, "setLaunch");
+        render(<GravityGame onExit={() => {}} />);
+        const canvas = field(),
+          distance =
+            pull === "maximum" ? limit : pull === "over cap" ? limit * 3 : pull;
+        pointer(canvas, "pointerdown", 300, 300, 1, true, pointerType);
+        pointer(
+          canvas,
+          "pointermove",
+          300 - distance,
+          300,
+          1,
+          true,
+          pointerType,
+        );
+        const previewAim = setLaunch.mock.calls.at(-1)![1] as {
+          power: number;
+          angle: number;
+          pull: { x: number; y: number };
+        };
+        const expectedPower = Math.min(1, distance / limit) ** 2;
+        expect(previewAim.power).toBeCloseTo(expectedPower, 12);
+        expect(Math.hypot(previewAim.pull!.x, previewAim.pull!.y)).toBeCloseTo(
+          Math.min(distance, limit),
+        );
+        pointer(canvas, "pointerup", 300 - distance, 300, 1, true, pointerType);
+        expect(setLaunch.mock.calls.at(-1)![1]).toEqual(previewAim);
+        const state = (launch.mock.instances[0] as GravityEngine).getSnapshot();
+        expect(state.aim.power).toBeCloseTo(expectedPower, 12);
+        expect(state.particles[0].position).toEqual({ x: 300, y: 300 });
+        expect(state.particles[0].velocity.x).toBeCloseTo(
+          expectedPower === 1 ? 460 : 420 * expectedPower,
+          10,
+        );
+        expect(state.particles[0].velocity.y).toBeCloseTo(0);
+      },
+    );
+  });
+  it.each([
+    {
+      pointerType: "mouse",
+      width: 1280,
+      height: 800,
+      base: 180,
+      zoom: 0.45,
+      factor: Math.sqrt(0.45),
+    },
+    {
+      pointerType: "mouse",
+      width: 1280,
+      height: 800,
+      base: 180,
+      zoom: 0.25,
+      factor: 0.65,
+    },
+    {
+      pointerType: "touch",
+      width: 390,
+      height: 844,
+      base: 96,
+      zoom: 0.45,
+      factor: Math.sqrt(0.45),
+    },
+    {
+      pointerType: "touch",
+      width: 844,
+      height: 390,
+      base: 96,
+      zoom: 0.25,
+      factor: 0.65,
+    },
+  ])(
+    "keeps $pointerType aim, capped handle and release aligned at $zoom zoom",
+    ({ pointerType, width, height, base, zoom, factor }) => {
+      vi.spyOn(window, "innerWidth", "get").mockReturnValue(width);
+      vi.spyOn(window, "innerHeight", "get").mockReturnValue(height);
+      const launch = vi.spyOn(GravityEngine.prototype, "launch");
+      const setLaunch = vi.spyOn(GravityEngine.prototype, "setLaunch");
+      render(<GravityGame onExit={() => {}} />);
+      const canvas = field();
+      fireEvent.wheel(canvas, { deltaY: -Math.log(zoom) / 0.002 });
+      for (const [fraction, expectedPower, expectedSpeed] of [
+        [0.5, 0.25, 105],
+        [0.95, 0.9025, 399.79984375],
+        [1.3, 1, 460],
+      ]) {
+        const distance = base * factor * fraction;
+        pointer(canvas, "pointerdown", 300, 300, 1, true, pointerType);
+        pointer(
+          canvas,
+          "pointermove",
+          300 - distance,
+          300,
+          1,
+          true,
+          pointerType,
+        );
+        const aim = setLaunch.mock.calls.at(-1)![1] as {
+          power: number;
+          pull: { x: number; y: number };
+        };
+        expect(aim.power).toBeCloseTo(expectedPower, 12);
+        expect(Math.hypot(aim.pull.x, aim.pull.y)).toBeCloseTo(
+          Math.min(distance, base * factor),
+          10,
+        );
+        pointer(canvas, "pointerup", 300 - distance, 300, 1, true, pointerType);
+        expect(setLaunch.mock.calls.at(-1)![1]).toEqual(aim);
+        const state = (
+          launch.mock.instances.at(-1) as GravityEngine
+        ).getSnapshot();
+        const planet = state.particles.at(-1)!;
+        expect(Math.hypot(planet.velocity.x, planet.velocity.y)).toBeCloseTo(
+          expectedSpeed,
+          8,
+        );
+      }
+    },
+  );
+  it("cancels held shots before changing zoom with wheel or keyboard", () => {
     const launch = vi.spyOn(GravityEngine.prototype, "launch");
     render(<GravityGame onExit={() => {}} />);
     const canvas = field();
-    pointer(canvas, "pointerdown", 90, 300);
-    pointer(canvas, "pointermove", 18, 300);
-    pointer(canvas, "pointerup", 18, 300);
-    expect(launch).toHaveBeenCalledTimes(1);
+    for (const change of [
+      () => fireEvent.wheel(canvas, { deltaY: 300 }),
+      () => fireEvent.keyDown(canvas, { key: "-" }),
+      () => fireEvent.keyDown(window, { key: "0" }),
+    ]) {
+      pointer(canvas, "pointerdown", 300, 300, 1, true, "mouse");
+      pointer(canvas, "pointermove", 250, 300, 1, true, "mouse");
+      change();
+      pointer(canvas, "pointerup", 250, 300, 1, true, "mouse");
+    }
+    expect(launch).not.toHaveBeenCalled();
+  });
+  it("persists the interaction toggle across retry, level changes and remount without resetting a running sky", () => {
+    const launch = vi.spyOn(GravityEngine.prototype, "launch");
+    const view = render(<GravityGame onExit={() => {}} />);
+    pull(field());
+    act(() => frame(100));
+    act(() => frame(150));
+    const engine = launch.mock.instances[0] as GravityEngine;
+    const before = engine.getSnapshot();
+    fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Advanced", exact: true }),
+    );
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Particle Interaction" }),
+    );
+    const after = engine.getSnapshot();
+    expect(after.physics.planetGravity).toBe(false);
+    expect(after.particles).toEqual(before.particles);
+    expect(after.elapsed).toBe(before.elapsed);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reset level", exact: true }),
+    );
+    expect(engine.getSnapshot().physics.planetGravity).toBe(false);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Skip level", exact: true }),
+    );
+    expect(engine.getSnapshot().physics.planetGravity).toBe(false);
+    view.unmount();
+    render(<GravityGame onExit={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Advanced", exact: true }),
+    );
     expect(
-      (launch.mock.instances[0] as GravityEngine).getSnapshot().aim.power,
-    ).toBe(1);
+      screen
+        .getByRole("switch", { name: "Particle Interaction" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+  });
+  it("honors a custom sky's interaction rule until an explicit player choice", () => {
+    const draft = newDraft();
+    draft.physics.planetGravity = false;
+    render(
+      <GravityGame customLevel={toGravityLevel(draft)} onExit={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Advanced", exact: true }),
+    );
+    const toggle = screen.getByRole("switch", { name: "Particle Interaction" });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
   });
   it("opens the creator from the chooser and returns to modes", () => {
     render(<App />);
@@ -155,13 +360,41 @@ describe("Gravity interface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to editor" }));
     expect(exit).toHaveBeenCalledOnce();
   });
-  it("ignores the old interaction preference and exposes no interaction control", () => {
+  it("keeps authored level rules out of the player menu while retaining gameplay actions", () => {
     localStorage.setItem("orbit-gravity-interaction", "true");
     render(<GravityGame onExit={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.queryByRole("combobox")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Advanced", exact: true }),
+    );
     expect(
-      screen.queryByRole("switch", { name: "Projectile interaction" }),
-    ).toBeNull();
+      screen
+        .getByRole("switch", { name: "Path assist" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(screen.queryByRole("button", { name: "Clear trails" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save sky image" })).toBeNull();
+    for (const name of [
+      "Resume",
+      "Sound off",
+      "How to play",
+      "Reset level",
+      "Choose a level",
+      "Choose mode",
+    ])
+      expect(screen.getByRole("button", { name, exact: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sound off" }));
+    expect(
+      screen
+        .getByRole("button", { name: "Sound on" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Resume" }), {
+      key: "Escape",
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(field());
   });
   it("starts at the mode chooser and can enter either mode and return", () => {
     render(<App />);
@@ -240,7 +473,7 @@ describe("Gravity interface", () => {
     fireEvent(document, new Event("visibilitychange"));
     expect(screen.getByRole("dialog", { name: "Paused" })).toBeTruthy();
   });
-  it("advances a completed puzzle once after visible, unpaused feedback", () => {
+  it("keeps a completed sky moving until Next level is chosen", () => {
     let engine: GravityEngine;
     const original = GravityEngine.prototype.launch;
     vi.spyOn(GravityEngine.prototype, "launch").mockImplementation(function (
@@ -269,7 +502,24 @@ describe("Gravity interface", () => {
     expect(screen.getByText("Level 1")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     for (let t = 1500; t <= 3000; t += 50) act(() => frame(t));
+    expect(screen.getByText("Level 1")).toBeTruthy();
+    expect(engine!.getSnapshot().elapsed).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Next level" }));
     expect(screen.getByText("Level 2")).toBeTruthy();
     expect(engine!.getSnapshot().completedCount).toBe(1);
   });
+});
+
+it('Reset level after completion persists the level actually being replayed', () => {
+  const current = GravityEngine.prototype.getRenderSnapshot;
+  vi.spyOn(GravityEngine.prototype, 'getRenderSnapshot').mockImplementation(function (this: GravityEngine) {
+    const state = current.call(this);
+    return { ...state, complete: true };
+  });
+  render(<GravityGame onExit={() => {}} />);
+  act(() => frame!(100));
+  const seed = Number(localStorage.getItem('orbit.gravity.default-seed.v1'));
+  expect(loadGravityProgress(seed).currentIndex).toBe(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Reset level (R)' }));
+  expect(loadGravityProgress(seed)).toMatchObject({ currentIndex: 0, unlockedIndex: 1, completedIndices: [0] });
 });

@@ -19,16 +19,18 @@ export const CHECKPOINT_SOFTENING = 90;
 export function bodyStrength(radius: number): number {
   return Number.isFinite(radius) && radius > 0 ? radius * radius * AREA_STRENGTH_COEFFICIENT : 0;
 }
+function validGravityScale(scale:number|undefined):number {return scale!==undefined&&Number.isFinite(scale)&&scale>0?scale:1;}
 export function checkpointForceAt(position:Vec2,checkpoint:Checkpoint):Vec2 {
   if(!Number.isFinite(checkpoint.radius)||checkpoint.radius<=0)return {x:0,y:0};
   const dx=checkpoint.position.x-position.x,dy=checkpoint.position.y-position.y,square=dx*dx+dy*dy;
-  const range=CHECKPOINT_ASSIST_RANGE;
+  const gravityScale=validGravityScale(checkpoint.gravityScale);
+  const range=CHECKPOINT_ASSIST_RANGE*gravityScale;
   if(square===0||square>=range*range)return {x:0,y:0};
-  const softening=CHECKPOINT_SOFTENING;
-  const coefficient=CHECKPOINT_ASSIST_STRENGTH/Math.pow(square+softening*softening,1.5);
+  const softening=CHECKPOINT_SOFTENING*gravityScale;
+  const coefficient=CHECKPOINT_ASSIST_STRENGTH*gravityScale*gravityScale/Math.pow(square+softening*softening,1.5);
   const magnitude=coefficient*Math.sqrt(square),falloff=1-square/(range*range);
   const scale=coefficient*CHECKPOINT_MAX_ACCELERATION/(CHECKPOINT_MAX_ACCELERATION+magnitude)*falloff*falloff;
-  return {x:dx*scale,y:dy*scale};
+  return {x:dx*scale/gravityScale,y:dy*scale/gravityScale};
 }
 export function forceAt(position: Vec2, bodies: readonly Body[], checkpoint?:Checkpoint|null): Vec2 {
   let x = 0;
@@ -38,15 +40,17 @@ export function forceAt(position: Vec2, bodies: readonly Body[], checkpoint?:Che
     const dy = body.position.y - position.y;
     const square = dx * dx + dy * dy;
     if (square < 0.000001) continue;
-    const softening = Math.max(40, body.radius * 0.75);
-    const magnitude = (body.kind === 'attractor' ? 1 : -1) * bodyStrength(body.radius) / (square + softening * softening);
+    const gravityScale=validGravityScale(body.gravityScale);
+    const softening = Math.max(40 * gravityScale, body.radius * 0.75);
+    const magnitude = (body.kind === 'attractor' ? 1 : -1) * bodyStrength(body.radius) / ((square + softening * softening) * gravityScale);
     const inverseDistance = 1 / Math.sqrt(square);
     x += dx * inverseDistance * magnitude;
     y += dy * inverseDistance * magnitude;
   }
   if(checkpoint){const goalForce=checkpointForceAt(position,checkpoint);x+=goalForce.x;y+=goalForce.y;}
   const magnitude = Math.hypot(x, y);
-  const scale = magnitude > 840 ? 840 / magnitude : 1;
+  const maxAcceleration=840/validGravityScale(checkpoint?.gravityScale);
+  const scale = magnitude > maxAcceleration ? maxAcceleration / magnitude : 1;
   return { x: x * scale, y: y * scale };
 }
 export function distance(a: Vec2, b: Vec2): number { return Math.hypot(a.x - b.x, a.y - b.y); }

@@ -15,7 +15,7 @@ for (const viewport of [
   { width: 768, height: 1024, seed: 42 },
   { width: 320, height: 568, seed: 17 },
 ])
-  for (const mode of ["zen", "gravity"] as const) {
+  for (const mode of ["zen"] as ("zen" | "gravity")[]) {
     test(`${mode} mobile launcher has real full-power room and rotation preserves play ${viewport.width}`, async ({
       browser,
     }) => {

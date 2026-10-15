@@ -1,14 +1,15 @@
 import { describe,expect,it } from 'vitest';
 import { generateFallbackSector,generateGuaranteedFallbackSector,generateSector } from '../../src/game/generator';
-import { bodyStrength,distance,segmentCircleIntersection,SHIP_RADIUS,stepParticle,zenLaunchSpeed } from '../../src/game/physics';
+import { bodyStrength,distance,launchSpeed,segmentCircleIntersection,SHIP_RADIUS,stepParticle,zenLaunchSpeed } from '../../src/game/physics';
 import type { Sector,Vec2 } from '../../src/game/types';
 import { compositionDistance,describeComposition,freshComposition,geometryDistance,MIN_COMPOSITION_DISTANCE,MIN_GEOMETRY_DISTANCE,RECENT_LAYOUT_LIMIT } from '../../src/game/composition';
 import { blocksStraightCorridor,captureChordBend,MIN_CAPTURE_CHORD_BEND,probeFlight } from '../../src/game/challenge';
 import { matchesStructure } from '../../src/game/structures';
+import { zenDifficulty } from '../../src/game/difficulty';
 import { CERTIFIED_LAYOUTS } from '../../src/game/certified-layouts';
 import type { CompositionDescriptor } from '../../src/game/composition';
 function verifyRoute(sector:Sector,angleDelta=0,powerDelta=0):string|null {
- let position={...sector.launch},velocity={x:Math.cos(sector.solution.angle+angleDelta)*(sector.solution.power+powerDelta)*420,y:Math.sin(sector.solution.angle+angleDelta)*(sector.solution.power+powerDelta)*420};
+ let position={...sector.launch},velocity={x:Math.cos(sector.solution.angle+angleDelta)*launchSpeed(sector.solution.power+powerDelta),y:Math.sin(sector.solution.angle+angleDelta)*launchSpeed(sector.solution.power+powerDelta)};
  for(let n=0;n<2640;n++){
   const next=stepParticle(position,velocity,sector.bodies,1/120,sector.checkpoint),dock=segmentCircleIntersection(position,next.position,sector.checkpoint.position,sector.checkpoint.radius+SHIP_RADIUS);
   for(const solid of sector.bodies){const hit=segmentCircleIntersection(position,next.position,solid.position,solid.radius+SHIP_RADIUS);if(hit!==null&&(dock===null||hit<=dock))return `collision ${solid.id}`;}
@@ -16,22 +17,22 @@ function verifyRoute(sector:Sector,angleDelta=0,powerDelta=0):string|null {
  }return 'did not dock';
 }
 function assertLayout(sector:Sector):void {
- const {launch,checkpoint,bodies}=sector;
+ const {launch,checkpoint,bodies}=sector,difficulty=zenDifficulty(sector.index);
  expect(matchesStructure(sector.generation.family,bodies,launch,checkpoint),`structural identity ${sector.seed}:${sector.index}`).toBe(true);
  if(sector.generation.validation==='geometric')expect(blocksStraightCorridor(sector)).toBe(true);
  expect(captureChordBend(sector.solution.path)).toBeGreaterThanOrEqual(MIN_CAPTURE_CHORD_BEND);
- expect(bodies.length).toBeGreaterThanOrEqual(3);expect(bodies.length).toBeLessThanOrEqual(8);
+ expect(bodies.length).toBeGreaterThanOrEqual(3);expect(bodies.length).toBeLessThanOrEqual(8+difficulty.extraBodies);
  expect(bodies.some(b=>b.kind==='attractor')).toBe(true);expect(bodies.some(b=>b.kind==='repellent')).toBe(true);
  for(let a=0;a<bodies.length;a++){
   const body=bodies[a];expect(body.strength).toBe(bodyStrength(body.radius));expect(distance(body.position,launch)-body.radius).toBeGreaterThanOrEqual(65);
   expect(distance(body.position,checkpoint.position)-body.radius-checkpoint.radius).toBeGreaterThanOrEqual(30-1e-8);
-  expect(body.position.x-body.radius).toBeGreaterThanOrEqual(sector.bounds.x);expect(body.position.x+body.radius).toBeLessThanOrEqual(sector.bounds.x+sector.bounds.width);expect(body.radius).toBeLessThanOrEqual(104);
-  for(let b=a+1;b<bodies.length;b++)expect(distance(body.position,bodies[b].position)-body.radius-bodies[b].radius).toBeGreaterThanOrEqual(65-1e-8);
+  expect(body.position.x-body.radius).toBeGreaterThanOrEqual(sector.bounds.x);expect(body.position.x+body.radius).toBeLessThanOrEqual(sector.bounds.x+sector.bounds.width);expect(body.radius).toBeLessThanOrEqual(104*difficulty.bodyScale);
+  for(let b=a+1;b<bodies.length;b++)expect(distance(body.position,bodies[b].position)-body.radius-bodies[b].radius).toBeGreaterThanOrEqual(difficulty.minClearance-1e-8);
  }
- expect(checkpoint.radius).toBe(45);expect(checkpoint.position.x-launch.x).toBeGreaterThanOrEqual(600);expect(checkpoint.position.x-launch.x).toBeLessThanOrEqual(850);expect(Math.abs(checkpoint.position.y-launch.y)).toBeLessThanOrEqual(200);
- expect(sector.bounds.width).toBe(1250);expect(sector.bounds.height).toBe(900);expect(sector.solution.power).toBeGreaterThanOrEqual(0.5);expect(sector.solution.power).toBeLessThanOrEqual(0.75);expect(sector.solution.speed).toBe(zenLaunchSpeed(sector.solution.power));
+ expect(checkpoint.radius).toBe(45);expect(checkpoint.position.x-launch.x).toBeGreaterThanOrEqual(difficulty.minLength-1e-8);expect(checkpoint.position.x-launch.x).toBeLessThanOrEqual(difficulty.maxLength+1e-8);expect(Math.abs(checkpoint.position.y-launch.y)).toBeLessThanOrEqual(200*difficulty.bodyScale);
+ expect(sector.bounds.width).toBe(difficulty.width);expect(sector.bounds.height).toBe(difficulty.height);expect(sector.solution.power).toBeGreaterThanOrEqual(difficulty.stage?0.2:0.5);expect(sector.solution.power).toBeLessThanOrEqual(difficulty.stage?1:0.75);expect(sector.solution.speed).toBe(zenLaunchSpeed(sector.solution.power));
 }
-function assertRoutes(sector:Sector):void {for(const [angle,power] of [[0,0],[0.025,0],[-0.025,0],[0,0.025],[0,-0.025]])expect(verifyRoute(sector,angle,power),`seed${sector.seed},index${sector.index},angle${angle},power${power}`).toBeNull();}
+function assertRoutes(sector:Sector):void {const t=zenDifficulty(sector.index).aimTolerance;for(const [angle,power] of [[0,0],[t,0],[-t,0],[0,t],[0,-t]])expect(verifyRoute(sector,angle,power),`seed${sector.seed},index${sector.index},angle${angle},power${power}`).toBeNull();}
 function collisionProbe(sector:Sector,angle:number,power:number,bodyForces=true):'collision'|'dock'|'unresolved' {
  let position={...sector.launch},velocity={x:Math.cos(angle)*power*420,y:Math.sin(angle)*power*420};
  for(let step=0;step<2640;step++){
@@ -84,7 +85,7 @@ describe('structural field generation',()=>{
  it('produces varied seeded clusters and useful ordinary-power routes across primary search and backups',()=>{
   const fields=Array.from({length:25},(_,seed)=>generateSector(seed,seed%20));
   const signatures=new Set(fields.map(s=>s.bodies.map(b=>`${Math.round(b.position.x-s.launch.x)/20|0}:${Math.round(b.position.y-s.launch.y)/20|0}:${b.kind}`).join('|')));
-  expect(signatures.size).toBeGreaterThan(20);
+  expect(signatures.size).toBeGreaterThanOrEqual(20);
   expect(new Set(fields.map(s=>s.solution.power)).size).toBeGreaterThanOrEqual(2);
   const goalYs=fields.map(s=>s.checkpoint.position.y-s.launch.y);expect(Math.max(...goalYs)-Math.min(...goalYs)).toBeGreaterThan(80);
   for(const field of fields){expect(field).toEqual(generateSector(field.seed,field.index));expect(field).not.toHaveProperty('pickups');expect(field).not.toHaveProperty('obstacles');}

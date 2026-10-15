@@ -92,8 +92,7 @@ describe('single-projectile journey',()=>{
  it('is independent of frame chunking and caps delayed frames',()=>{
   const fine=fixture(),coarse=fixture();fine.launch();coarse.launch();for(let n=0;n<30;n++)fine.update(1/120);coarse.update(10);expect(coarse.getSnapshot().particles).toEqual(fine.getSnapshot().particles);expect(coarse.getSnapshot().elapsed).toBeCloseTo(Math.floor(.25/ZEN_FIXED_STEP)*ZEN_FIXED_STEP,10);
  });
- it('keeps 144 successive checkpoints reachable and globally rightward',()=>{
-  for(let seed=1;seed<=12;seed++){
+ it.each(Array.from({length:12},(_,index)=>index+1))('keeps twelve successive checkpoints reachable and globally rightward for seed %i',(seed)=>{
    const engine=new OrbitEngine(seed),recent:CompositionDescriptor[]=[];
    for(let sector=0;sector<12;sector++){
     const snapshot=engine.getSnapshot(),ring=snapshot.sector.checkpoint.position,descriptor=describeComposition(snapshot.sector);
@@ -101,7 +100,6 @@ describe('single-projectile journey',()=>{
     recent.push(descriptor);if(recent.length>RECENT_LAYOUT_LIMIT)recent.shift();
     expect(ring.x-snapshot.sector.launch.x).toBeGreaterThanOrEqual(600);engine.setAim(snapshot.sector.solution.angle,snapshot.sector.solution.power);engine.launch();tick(engine,10);expect(engine.getSnapshot().status,`seed${seed},sector${sector}`).toBe('docked');engine.advance();expect(engine.getSnapshot().sector.launch).toEqual(ring);
    }
-  }
  });
  it('docks with nearby single-shot angle and power choices across representative compact fields',()=>{
   for(let seed=1;seed<=12;seed++)for(const [angleOffset,powerOffset] of [[0.025,0],[-0.025,0],[0,0.025],[0,-0.025]]){

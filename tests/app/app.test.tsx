@@ -34,6 +34,7 @@ vi.stubGlobal("ResizeObserver", Observer);
 vi.stubGlobal("matchMedia", () => ({ matches: false }));
 const originalURL = window.location.href;
 beforeEach(() => {
+  localStorage.clear();
   localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
   localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
 });
@@ -298,7 +299,9 @@ describe("minimal scene lifecycle", () => {
   it("shows no old launch chrome and opens a focused pause menu", () => {
     render(<App />);
     expect(screen.queryByRole("slider")).toBeNull();
-    expect(screen.getByLabelText("Journey status").children).toHaveLength(1);
+    expect(screen.getByLabelText("Journey status").textContent).toBe(
+      "ZenCheckpoint 0",
+    );
     expect(screen.getByLabelText("Checkpoint 0")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Launch" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
@@ -315,7 +318,7 @@ describe("minimal scene lifecycle", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "p" });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
-  it("New seed creates a fresh playable field without a seed argument", () => {
+  it("New seed creates a fresh playable field with a remembered seed", () => {
     const fields: number[] = [];
     const original = OrbitEngine.prototype.restart;
     render(<App />);
@@ -330,7 +333,7 @@ describe("minimal scene lifecycle", () => {
       });
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "New seed" }));
-    expect(restart).toHaveBeenCalledWith();
+    expect(restart).toHaveBeenCalledWith(expect.any(Number));
     expect(fields[1]).not.toBe(fields[0]);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("Ready to pull");
