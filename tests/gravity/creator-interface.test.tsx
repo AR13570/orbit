@@ -99,6 +99,19 @@ function rename(name: string) {
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
 }
 describe("canvas Gravity creator", () => {
+  it("offers soft contacts by default and saves a player's explicit collision choice", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Sandbox settings" }));
+    const collisions = screen.getByRole("combobox", {
+      name: "Planet collisions",
+    }) as HTMLSelectElement;
+    expect(collisions.value).toBe("soft");
+    expect(screen.getByRole("option", { name: "Surface contact" })).toBeTruthy();
+    fireEvent.change(collisions, { target: { value: "elastic" } });
+    expect(loadDraft()?.physics?.planetCollisions).toBe("elastic");
+    fireEvent.change(collisions, { target: { value: "soft" } });
+    expect(loadDraft()?.physics?.planetCollisions).toBe("soft");
+  });
   it("consumes a portable sky link once and preserves later edits on creator reentry and reload", () => {
     const shared = newDraft();
     shared.name = "Shared sky";

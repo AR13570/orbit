@@ -71,7 +71,7 @@ for (const viewport of [
       ) {
         if (
           this.canvas.classList.contains("gravity-guide-field") &&
-          ["#ff6b8b", "#53d9ff"].includes(String(this.fillStyle))
+          ["#cf315c", "#007c9e"].includes(String(this.fillStyle))
         )
           probe.drawnPlanets[String(this.fillStyle)] = { x, y, radius };
         return arc.call(this, x, y, radius, start, end, anti);
@@ -104,13 +104,13 @@ for (const viewport of [
       };
     });
     expect(result.minimumSurvivors).toBe(2);
-    expect(result.closest).toBeGreaterThanOrEqual(12 - 1e-7);
-    expect(result.closest).toBeLessThan(13);
+    expect(result.closest).toBeGreaterThanOrEqual(24 - 1e-7);
+    expect(result.closest).toBeLessThan(25);
     expect(result.particles).toEqual([
-      { alive: true, radius: 4, mass: 1 },
-      { alive: true, radius: 8, mass: 4 },
+      { alive: true, radius: 8, mass: 1 },
+      { alive: true, radius: 16, mass: 4 },
     ]);
-    expect(Object.keys(result.drawn).sort()).toEqual(["#53d9ff", "#ff6b8b"]);
+    expect(Object.keys(result.drawn).sort()).toEqual(["#007c9e", "#cf315c"]);
     await page.screenshot({
       path: `/private/tmp/orbit-guide-planets-survive-${viewport.width}x${viewport.height}.png`,
     });

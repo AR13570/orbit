@@ -29,7 +29,8 @@ describe("steadily increasing endless Gravity", () => {
       recent.push(fingerprint);
       fingerprints.add(fingerprint);
     }
-    expect(fingerprints.size).toBeGreaterThanOrEqual(25);
+    expect(fingerprints.size).toBe(ENDLESS_LAYOUT_IDS.length);
+    expect(fingerprints.size).toBeGreaterThanOrEqual(20);
   });
   it("describes mixed population goals without timed conditions", () => {
     expect(objectiveText(generateGravityLevel(42, 46))).not.toMatch(

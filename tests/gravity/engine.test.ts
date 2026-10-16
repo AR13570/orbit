@@ -114,7 +114,7 @@ describe("Gravity engine lifecycle", () => {
     expect(engine.getSnapshot().completedCount).toBe(1);
     expect(engine.getProjectileSize()).toBe(2);
     expect(engine.getSnapshot().physics.planetRadius).toBe(
-      (engine.getSnapshot().level.physics?.planetRadius ?? 4) * 2,
+      (engine.getSnapshot().level.physics?.planetRadius ?? 8) * 2,
     );
   });
   it("skips without counting a completion and retries the new layout", () => {

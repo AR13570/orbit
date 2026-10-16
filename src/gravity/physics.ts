@@ -11,7 +11,7 @@ export const GRAVITY_SPEED_SCALE = 1.2;
 export const GRAVITY_FORCE_SCALE = 1;
 export const GRAVITY_FIXED_STEP = 1 / 120;
 export const WELL_SOFTENING = 40;
-export const PARTICLE_GRAVITY_STRENGTH = 24000;
+export const PARTICLE_GRAVITY_STRENGTH = 96000;
 const finitePositive = (value: number | undefined, fallback: number) =>
   value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback;
 export function physicsSettings(
@@ -19,14 +19,14 @@ export function physicsSettings(
 ): GravityPhysicsSettings {
   return {
     planetGravity: options.planetGravity ?? true,
-    planetCollisions: ["none", "elastic", "merge"].includes(
+    planetCollisions: ["none", "soft", "elastic", "merge"].includes(
       options.planetCollisions ?? "",
     )
       ? options.planetCollisions!
-      : "none",
+      : "soft",
     bodyCollisions: options.bodyCollisions ?? true,
     planetMass: finitePositive(options.planetMass, 1),
-    planetRadius: finitePositive(options.planetRadius, 4),
+    planetRadius: finitePositive(options.planetRadius, 8),
     planetGravityStrength: finitePositive(
       options.planetGravityStrength,
       PARTICLE_GRAVITY_STRENGTH,

@@ -1,6 +1,12 @@
 import type { Aim, Vec2 } from "../game/types";
+import { assistGroupSpin } from "./group-spin";
 import { moveWells } from "./motion";
 import { driftWithContacts } from "./contacts";
+import {
+  recoverSurfaceOverlaps,
+  surfaceContacts,
+  supportSurfaces,
+} from "./surface-support";
 import { goalProgress, initialOrbits, updateOrbits } from "./orbits";
 import {
   GRAVITY_FIXED_STEP,
@@ -15,18 +21,18 @@ export const TRAIL_SECONDS = 24;
 /** Legacy export retained without enforcing an active planet cap. */
 export const MAX_PROJECTILES = Infinity;
 const COLORS = [
-  "#ff6b8b",
-  "#53d9ff",
-  "#ffd66b",
-  "#a58aff",
-  "#6ee7a8",
-  "#ff9b61",
-  "#f18aff",
-  "#58e3d1",
-  "#93b6ff",
-  "#e4ef6a",
-  "#ff789d",
-  "#bd95ff",
+  "#cf315c",
+  "#007c9e",
+  "#a66b00",
+  "#7250b5",
+  "#218451",
+  "#bb5826",
+  "#a8469b",
+  "#147f78",
+  "#4869ad",
+  "#7a821b",
+  "#b44357",
+  "#66519e",
 ];
 export function createState(level: GravityLevel): GravityState {
   const copy = structuredClone(level);
@@ -53,7 +59,7 @@ export function fireFrom(
   const color =
     COLORS.find(
       (c) => !state.particles.some((p) => p.alive && p.color === c),
-    ) ?? `hsl(${(id * 137.507764) % 360} 90% 68%)`;
+    ) ?? `hsl(${(id * 137.507764) % 360} 72% 28%)`;
   state.particles.push({
     id,
     position: { ...position },
@@ -84,6 +90,15 @@ export function fire(state: GravityState, aim: Aim): boolean {
   });
 }
 function escaped(state: GravityState, p: GravityParticle): boolean {
+  if (state.flightBounds) {
+    const bounds = state.flightBounds;
+    return (
+      p.position.x + p.radius < bounds.x ||
+      p.position.x - p.radius > bounds.x + bounds.width ||
+      p.position.y + p.radius < bounds.y ||
+      p.position.y - p.radius > bounds.y + bounds.height
+    );
+  }
   const bounds = state.level.bounds,
     center = {
       x: bounds.x + bounds.width / 2,
@@ -119,24 +134,30 @@ export function step(state: GravityState, dt: number): void {
   if (!Number.isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, GRAVITY_FIXED_STEP);
   const live = state.particles.filter((p) => p.alive);
+  assistGroupSpin(state, live, dt);
+  recoverSurfaceOverlaps(state, live);
   const before = planetAccelerations(live, state.level.bodies, state.physics);
   const previousBodies = new Map(
     state.level.bodies.map((body) => [body.id, { ...body.position }]),
   );
   moveWells(state.level, state.elapsed + dt);
+  const surfaces = surfaceContacts(state, live);
   live.forEach((p, i) => {
     p.velocity.x += before[i].x * dt * 0.5;
     p.velocity.y += before[i].y * dt * 0.5;
 
     if (!finiteVector(p.position) || !finiteVector(p.velocity)) p.alive = false;
   });
-  driftWithContacts(state, live, previousBodies, dt);
+  const supported = supportSurfaces(surfaces, dt);
+  driftWithContacts(state, live, previousBodies, dt, supported);
   const survivors = live.filter((p) => p.alive),
     after = planetAccelerations(survivors, state.level.bodies, state.physics);
+  const finalSurfaces = surfaceContacts(state, survivors, supported);
   survivors.forEach((p, i) => {
     p.velocity.x += after[i].x * dt * 0.5;
     p.velocity.y += after[i].y * dt * 0.5;
   });
+  supportSurfaces(finalSurfaces, 0);
   state.elapsed += dt;
   state.sampleClock += dt;
   const sampleInterval = Math.max(1 / 30, state.physics.trailSeconds / 511);

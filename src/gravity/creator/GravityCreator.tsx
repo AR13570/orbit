@@ -3,7 +3,7 @@ import Icon from "../../components/Icon";
 import { bodyStrength } from "../../game/physics";
 import type { Body, Vec2 } from "../../game/types";
 import { FORCE_PALETTE } from "../../render/force-palette";
-import type { GravityLevel } from "../types";
+import type { GravityLevel, GravityPhysicsOptions } from "../types";
 import GravityGame from "../GravityGame";
 import CreatorField, { type CreatorTool } from "./CreatorField";
 import CreatorPopover from "./CreatorPopover";
@@ -489,19 +489,20 @@ export default function GravityCreator({ onExit }: { onExit: () => void }) {
               Planet collisions{" "}
               <select
                 aria-label="Planet collisions"
-                value={draft.physics?.planetCollisions ?? "none"}
+                value={draft.physics?.planetCollisions ?? "soft"}
                 onChange={(e) =>
                   setDraft((d) => ({
                     ...d,
                     physics: {
                       ...d.physics,
-                      planetCollisions: e.target.value as
-                        "none" | "elastic" | "merge",
+                      planetCollisions: e.target
+                        .value as GravityPhysicsOptions["planetCollisions"],
                     },
                   }))
                 }
               >
                 <option value="none">Pass through</option>
+                <option value="soft">Surface contact</option>
                 <option value="elastic">Bounce</option>
                 <option value="merge">Merge</option>
               </select>

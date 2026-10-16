@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_GAMEPLAY_ZOOM,
   MIN_GAMEPLAY_ZOOM,
+  MIN_GRAVITY_ZOOM,
   PinchZoom,
   clampGameplayZoom,
   zoomCamera,
@@ -76,4 +77,18 @@ describe("pinch gesture ownership", () => {
     expect(pinch.down(4, { x: 200, y: 100 }, 1.2)).toBe(true);
     expect(pinch.move(4, { x: 225, y: 100 }).zoom).toBeCloseTo(1.5);
   });
+});
+
+it("uses Gravity's tighter minimum for clamp, camera, and the complete pinch session", () => {
+  expect(clampGameplayZoom(0.01, MIN_GRAVITY_ZOOM)).toBe(0.5);
+  expect(clampGameplayZoom(100, MIN_GRAVITY_ZOOM)).toBe(4);
+  expect(
+    zoomCamera({ center: { x: 0, y: 0 }, scale: 2 }, 0.01, MIN_GRAVITY_ZOOM)
+      .scale,
+  ).toBe(1);
+  const pinch = new PinchZoom(MIN_GRAVITY_ZOOM);
+  pinch.down(1, { x: 0, y: 0 }, 1);
+  pinch.down(2, { x: 100, y: 0 }, 1);
+  expect(pinch.move(2, { x: 1, y: 0 }).zoom).toBe(0.5);
+  expect(pinch.move(2, { x: 500, y: 0 }).zoom).toBe(4);
 });

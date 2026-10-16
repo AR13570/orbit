@@ -1,4 +1,4 @@
-import { clampGameplayZoom, zoomCamera } from "../zoom";
+import { clampGameplayZoom, MIN_GRAVITY_ZOOM, zoomCamera } from "../zoom";
 import { createGravitySurface } from "../render/gravity-surface";
 import { FORCE_PALETTE } from "../render/force-palette";
 import { drawBody, drawGravitySurface } from "../render/renderer";
@@ -17,7 +17,6 @@ import type { Vec2 } from "../game/types";
 import { usesTouchLayout } from "../controls";
 import type { PathAssist } from "../pathAssist";
 import { sampleGravityAimPreview } from "./aim-preview";
-import { normalizeProjectileSize } from "./projectile-size";
 import { gravityLaunchIsClear } from "./input";
 interface DrawOptions {
   pathAssist?: PathAssist;
@@ -28,15 +27,6 @@ interface DrawOptions {
   ghostCue?: { position: Vec2; pull: Vec2 };
 }
 const TAU = Math.PI * 2;
-function visiblePlanetRadius(
-  radius: number,
-  scale: number,
-  minimum: number,
-  size = 1,
-) {
-  // Keep the default look while making size choices legible even when zoomed out.
-  return Math.max(radius, (minimum * normalizeProjectileSize(size)) / scale);
-}
 export function fitGravityFrame(
   level: GravityLevel,
   width: number,
@@ -251,7 +241,7 @@ export function createGravityRenderer(
   const displayCamera = () =>
     walkthroughFocus
       ? walkthroughCamera(camera, walkthroughFocus, width, height)
-      : zoomCamera(camera, gameplayZoom);
+      : zoomCamera(camera, gameplayZoom, MIN_GRAVITY_ZOOM);
   function frame(level: GravityLevel) {
     if (options.compact) {
       area = {
@@ -279,6 +269,13 @@ export function createGravityRenderer(
     scale = camera.scale;
     lastLevel = level;
   }
+  function prepareFrame(level: GravityLevel) {
+    const key = `${level.seed}:${level.index}`;
+    if (!lastLevel || key !== levelKey) {
+      frame(level);
+      levelKey = key;
+    }
+  }
   const scratch = createGravitySurface(ctx);
   function circle(p: Vec2, r: number) {
     ctx.beginPath();
@@ -290,8 +287,9 @@ export function createGravityRenderer(
     ctx.fill();
   }
   return {
+    prepareFrame,
     setZoom(value: number) {
-      gameplayZoom = clampGameplayZoom(value);
+      gameplayZoom = clampGameplayZoom(value, MIN_GRAVITY_ZOOM);
       return gameplayZoom;
     },
     getZoom() {
@@ -323,6 +321,15 @@ export function createGravityRenderer(
         height: height / displayed.scale,
       };
     },
+    getFlightBounds() {
+      const outerScale = camera.scale * MIN_GRAVITY_ZOOM;
+      return {
+        x: camera.center.x - (area.x + area.width / 2) / outerScale,
+        y: camera.center.y - (area.y + area.height / 2) / outerScale,
+        width: width / outerScale,
+        height: height / outerScale,
+      };
+    },
     resize(w: number, h: number, pixelRatio = 1) {
       width = Math.max(1, w);
       height = Math.max(1, h);
@@ -330,6 +337,9 @@ export function createGravityRenderer(
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       if (lastLevel) frame(lastLevel);
+    },
+    getDefaultScale() {
+      return camera.scale;
     },
     getScale() {
       return displayCamera().scale;
@@ -358,11 +368,7 @@ export function createGravityRenderer(
       options: DrawOptions,
     ) {
       if (destroyed) return;
-      const key = `${snapshot.level.seed}:${snapshot.level.index}`;
-      if (!lastLevel || key !== levelKey) {
-        frame(snapshot.level);
-        levelKey = key;
-      }
+      prepareFrame(snapshot.level);
       if (lastTime !== null && !options.paused && !options.reducedMotion)
         motion += Math.min(0.05, Math.max(0, time - lastTime));
       lastTime = time;
@@ -390,7 +396,7 @@ export function createGravityRenderer(
           FORCE_PALETTE[body.kind].wave,
           scratch,
         );
-      for (const particle of snapshot.particles) {
+      for (const particle of snapshot.particles)
         drawTrail(
           ctx,
           particle.trail,
@@ -400,18 +406,17 @@ export function createGravityRenderer(
           snapshot.physics.trailSeconds,
           snapshot.particles.length > 12,
         );
-        ctx.globalAlpha = 1;
-        if (particle.alive)
-          planet(
-            particle.position,
-            visiblePlanetRadius(
-              particle.radius,
-              renderScale,
-              4.5,
-              particle.projectileSize,
-            ),
-            particle.color,
-          );
+      // Opaque surfaces use the physical world radius at every camera scale.
+      const visiblePlanets = snapshot.particles
+        .filter((particle) => particle.alive)
+        .map((particle) => ({
+          particle,
+          radius: particle.radius,
+        }))
+        .sort((a, b) => b.radius - a.radius || a.particle.id - b.particle.id);
+      ctx.globalAlpha = 1;
+      for (const { particle, radius } of visiblePlanets) {
+        planet(particle.position, radius, particle.color);
       }
       const showBodyLabels =
         snapshot.level.bodies.filter((b) => b.kind === "attractor").length > 1;
@@ -540,12 +545,7 @@ export function createGravityRenderer(
       if (options.pull) {
         planet(
           anchor,
-          visiblePlanetRadius(
-            snapshot.physics.planetRadius,
-            renderScale,
-            5,
-            snapshot.projectileSize,
-          ),
+          snapshot.physics.planetRadius,
           blockedLaunch ? "#c9675e" : "#7a60d6",
         );
         const ghost = {
@@ -627,7 +627,7 @@ export function createGravityRenderer(
         ctx.lineTo(handle.x, handle.y);
         ctx.stroke();
         ctx.setLineDash([]);
-        circle(cue.position, 5 / renderScale);
+        circle(cue.position, snapshot.physics.planetRadius);
         ctx.stroke();
         circle(handle, 10 / renderScale);
         ctx.stroke();

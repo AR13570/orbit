@@ -276,7 +276,8 @@ describe("aim prediction setting behavior", () => {
     aim(canvas, "pointerup", 20, 200);
     expect(screen.getByRole("status").textContent).toBe("0 planets in motion");
     aim(canvas, "pointerdown", 100, 200);
-    aim(canvas, "pointermove", 20, 200);
+    // A slower shot needs more physical time to cover the visible preview.
+    aim(canvas, "pointermove", 60, 200);
     act(() => frame(900));
     const partialSeconds = begin.mock.calls.at(-1)![0]!;
     expect(partialSeconds).toBeGreaterThan(1.4);

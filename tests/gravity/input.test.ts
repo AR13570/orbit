@@ -52,20 +52,26 @@ it("shortens zoomed-out pulls gently and bounds the adjustment at extreme zoom",
 
 it("requires physical clearance for the selected size and honors disabled core collisions", () => {
   const engine = new GravityEngine(42, getGravityLevel(42, 0));
-  const nearCore = { x: 478, y: 450 };
-  expect(gravityLaunchIsClear(nearCore, engine.getRenderSnapshot())).toBe(true);
+  const initial = engine.getRenderSnapshot();
+  const core = initial.level.bodies[0];
+  const nearCore = {
+    x: core.position.x + core.radius + initial.physics.planetRadius + 0.001,
+    y: core.position.y,
+  };
+  expect(gravityLaunchIsClear(nearCore, initial)).toBe(true);
   engine.setProjectileSize(2);
-  expect(gravityLaunchIsClear(nearCore, engine.getRenderSnapshot())).toBe(
-    false,
-  );
+  const doubled = engine.getRenderSnapshot();
+  expect(gravityLaunchIsClear(nearCore, doubled)).toBe(false);
+  const boundary = {
+    x: core.position.x + core.radius + doubled.physics.planetRadius,
+    y: core.position.y,
+  };
+  expect(gravityLaunchIsClear(boundary, doubled)).toBe(false);
   expect(
-    gravityLaunchIsClear({ x: 480, y: 450 }, engine.getRenderSnapshot()),
-  ).toBe(false);
-  expect(
-    gravityLaunchIsClear({ x: 480.001, y: 450 }, engine.getRenderSnapshot()),
+    gravityLaunchIsClear({ ...boundary, x: boundary.x + 0.001 }, doubled),
   ).toBe(true);
   engine.setPhysics({ bodyCollisions: false });
   expect(
-    gravityLaunchIsClear({ x: 450, y: 450 }, engine.getRenderSnapshot()),
+    gravityLaunchIsClear(core.position, engine.getRenderSnapshot()),
   ).toBe(true);
 });

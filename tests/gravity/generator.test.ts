@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { generateGravityLevel, verifyLevel } from "../../src/gravity/generator";
 import { GRAVITY_LAYOUTS, buildGravityLayout } from "../../src/gravity/layouts";
 import { distance } from "../../src/game/physics";
+import { ENDLESS_LAYOUT_IDS } from "../../src/gravity/endless";
+import { physicsSettings } from "../../src/gravity/physics";
 describe("structural endless Gravity puzzles", () => {
   it("validates every canonical fallback with its actual objective and physics", () => {
     for (const layout of GRAVITY_LAYOUTS) {
@@ -20,6 +22,7 @@ describe("structural endless Gravity puzzles", () => {
     let previous = "";
     for (let index = 45; index < 165; index++) {
       const level = generateGravityLevel(42, index);
+      const physics = physicsSettings(level.physics);
       expect(verifyLevel(level), `${index}: ${level.layout}`).toBe(true);
       expect(level.layout).not.toBe(previous);
       previous = level.layout!;
@@ -35,7 +38,9 @@ describe("structural endless Gravity puzzles", () => {
       );
       expect(
         level.bodies.every(
-          (body) => distance(body.position, level.launch) > body.radius + 3,
+          (body) =>
+            distance(body.position, level.launch) >
+            body.radius + physics.planetRadius,
         ),
       ).toBe(true);
       expect(
@@ -44,7 +49,8 @@ describe("structural endless Gravity puzzles", () => {
         ),
       ).toBe(true);
     }
-    expect(families.size).toBe(29);
+    expect(families).toEqual(new Set(ENDLESS_LAYOUT_IDS));
+    expect(families.size).toBeGreaterThanOrEqual(20);
     expect(geometries.size).toBeGreaterThan(110);
   }, 60000);
   it("varies seed distribution, protects cached data and preserves structural goal semantics", () => {

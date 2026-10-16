@@ -1,7 +1,7 @@
 import type { Aim, Body, Vec2, WorldBounds } from "../game/types";
 export type { Aim, Body, Vec2, WorldBounds } from "../game/types";
 export type PuzzleFamily = "loop" | "crowd" | "counter" | "paired" | "tour";
-export type PlanetCollisionPolicy = "none" | "elastic" | "merge";
+export type PlanetCollisionPolicy = "none" | "soft" | "elastic" | "merge";
 export interface GravityPhysicsOptions {
   planetGravity?: boolean;
   planetCollisions?: PlanetCollisionPolicy;
@@ -100,6 +100,15 @@ export interface GravityParticle {
   orbits: Record<string, OrbitTrack>;
 }
 export interface GravityState {
+  /** Opt-in gameplay torque history. Absent in pure authored/reference worlds. */
+  groupSpin?: {
+    groups: Record<string, number>;
+    /** Last qualified direction, used only when current angular momentum is negligible. */
+    directions?: Record<string, number>;
+    physicsKey?: string;
+  };
+  /** Full canvas world rectangle at the outermost gameplay zoom, when a UI is attached. */
+  flightBounds?: WorldBounds;
   /** Optional for standalone authored simulations, which use the default size. */
   projectileSize?: number;
   level: GravityLevel;

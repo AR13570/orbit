@@ -13,6 +13,20 @@ import {
 
 beforeEach(() => localStorage.clear());
 describe("custom Gravity levels", () => {
+  it("round trips soft contacts and preserves all explicit legacy collision choices", () => {
+    const draft = newDraft();
+    expect(draft.physics?.planetCollisions).toBe("soft");
+    for (const policy of ["soft", "none", "elastic", "merge"] as const) {
+      draft.physics!.planetCollisions = policy;
+      saveDraft(draft);
+      const restored = loadDraft()!;
+      expect(restored.physics?.planetCollisions).toBe(policy);
+      expect(
+        new GravityEngine(42, toGravityLevel(restored)).getSnapshot().physics
+          .planetCollisions,
+      ).toBe(policy);
+    }
+  });
   it("defaults to no challenge, persists it and permits repeller-only or empty free-play designs", () => {
     const draft = newDraft();
     expect(draft.objective.kind).toBe("none");
@@ -91,7 +105,7 @@ describe("custom Gravity levels", () => {
     expect(engine.getSnapshot().level.launch).toEqual(draft.launch);
     engine.setAim(0, Math.sqrt((1440000 * 200) / (200 * 200 + 1600)) / 420);
     engine.launch();
-    for (let n = 0; n < 120 * 12; n++) engine.update(1 / 120);
+    for (let n = 0; n < 120 * 14; n++) engine.update(1 / 120);
     expect(engine.getSnapshot().complete).toBe(true);
     engine.advance();
     engine.skip();

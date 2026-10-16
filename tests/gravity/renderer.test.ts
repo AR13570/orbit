@@ -9,7 +9,12 @@ import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
 function fixture() {
   const canvas = document.createElement("canvas"),
-    segments: { alpha: number; color: string; width: number }[] = [],
+    segments: {
+      alpha: number;
+      color: string;
+      width: number;
+      circle: number[];
+    }[] = [],
     gradients: { stops: { offset: number; color: string }[] }[] = [],
     fills: unknown[] = [],
     fillRecords: { color: unknown; alpha: number; circle: number[] }[] = [];
@@ -48,6 +53,7 @@ function fixture() {
               alpha: target.globalAlpha as number,
               color: target.strokeStyle as string,
               width: target.lineWidth as number,
+              circle: lastCircle,
             });
         return target[key] ?? (target[key] = vi.fn());
       },
@@ -67,7 +73,30 @@ function fixture() {
   };
 }
 describe("Gravity rendering", () => {
-  it("keeps each flying planet's visible size after choosing a different next launch", () => {
+  it("keeps small cluster members visible over larger planets and all trails", () => {
+    const { renderer, fillRecords } = fixture();
+    const draft = newDraft();
+    draft.bodies = [];
+    const engine = new GravityEngine(42, toGravityLevel(draft));
+    engine.launchFrom({ x: 450, y: 450 }, { x: 0, y: 0 });
+    engine.setProjectileSize(2);
+    engine.launchFrom({ x: 474, y: 450 }, { x: 0, y: 0 });
+    const snapshot = engine.getSnapshot();
+    snapshot.particles[1].trail = [
+      { x: 440, y: 450, time: 0 },
+      { x: 474, y: 450, time: 0 },
+    ];
+    renderer.resize(390, 844);
+    renderer.setZoom(0.5);
+    renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
+    const planetColors = fillRecords
+      .filter(({ color }) => color === "#cf315c" || color === "#007c9e")
+      .map(({ color }) => color);
+    expect(planetColors).toEqual(["#007c9e", "#cf315c"]);
+    expect(fillRecords.at(-1)?.color).toBe("#cf315c");
+    expect(snapshot.particles.map(({ id }) => id)).toEqual([0, 1]);
+  });
+  it("keeps each flying planet's physical surface after choosing a different next launch", () => {
     const { renderer, fillRecords } = fixture();
     const engine = new GravityEngine(42, getGravityLevel(42, 0));
     engine.setProjectileSize(2);
@@ -76,39 +105,87 @@ describe("Gravity rendering", () => {
     engine.setPhysics({ planetRadius: 6, planetMass: 3 });
     engine.launchFrom({ x: 400, y: 300 }, { x: 0, y: 0 });
     renderer.resize(390, 844);
-    renderer.setZoom(0.25);
+    renderer.setZoom(0.5);
     renderer.render(engine.getSnapshot(), [], 0, {
       paused: true,
       reducedMotion: true,
       pull: { x: -72, y: 0 },
     });
-    const first = fillRecords.find(({ color }) => color === "#ff6b8b")!;
-    const second = fillRecords.find(({ color }) => color === "#53d9ff")!;
+    const first = fillRecords.find(({ color }) => color === "#cf315c")!;
+    const second = fillRecords.find(({ color }) => color === "#007c9e")!;
     const aim = fillRecords.find(({ color }) => color === "#7a60d6")!;
-    expect(first.circle[2] * renderer.getScale()).toBeCloseTo(9);
-    expect(second.circle[2] * renderer.getScale()).toBeCloseTo(4.5);
-    expect(aim.circle[2] * renderer.getScale()).toBeCloseTo(5);
+    expect(first.circle[2]).toBe(12);
+    expect(second.circle[2]).toBe(6);
+    expect(aim.circle[2]).toBe(6);
   });
   it.each([1, 1.5, 2])(
-    "keeps projectile size %f visible in flight and while aiming at minimum zoom",
+    "uses the same physical surface in flight and while aiming for size %f at minimum zoom",
     (size) => {
       const { renderer, fillRecords } = fixture();
       const engine = new GravityEngine(42, getGravityLevel(42, 0));
       engine.setProjectileSize(size);
+      engine.setLaunch({ x: 200, y: 320 }, { angle: 0, power: 0.25 });
       engine.launchFrom({ x: 200, y: 300 }, { x: 0, y: 0 });
       renderer.resize(390, 844);
-      renderer.setZoom(0.25);
+      renderer.setZoom(0.5);
       renderer.render(engine.getSnapshot(), [], 0, {
         paused: true,
         reducedMotion: true,
         pull: { x: -72, y: 0 },
       });
-      const actual = fillRecords.find(({ color }) => color === "#ff6b8b")!;
+      const actual = fillRecords.find(({ color }) => color === "#cf315c")!;
       const aim = fillRecords.find(({ color }) => color === "#7a60d6")!;
-      expect(actual.circle[2] * renderer.getScale()).toBeCloseTo(4.5 * size);
-      expect(aim.circle[2] * renderer.getScale()).toBeCloseTo(5 * size);
+      expect(actual.circle[2]).toBe(6 * size);
+      expect(aim.circle[2]).toBe(6 * size);
     },
   );
+  it.each([0.3, 0.5, 1, 2])(
+    "draws touching unequal planets edge to edge at effective camera scale %f",
+    (scale) => {
+      const { renderer, fillRecords } = fixture();
+      const engine = new GravityEngine(42, getGravityLevel(42, 14));
+      engine.setPhysics({ planetRadius: 3 });
+      engine.setProjectileSize(2);
+      engine.launchFrom({ x: 450, y: 450 }, { x: 0, y: 0 });
+      engine.setProjectileSize(1);
+      engine.launchFrom({ x: 459, y: 450 }, { x: 0, y: 0 });
+      const snapshot = engine.getSnapshot();
+      renderer.resize(390, 844);
+      renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
+      renderer.setZoom(scale / renderer.getScale());
+      fillRecords.length = 0;
+      renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
+      expect(renderer.getScale()).toBeCloseTo(scale);
+      const large = fillRecords.find(({ color }) => color === "#cf315c")!;
+      const small = fillRecords.find(({ color }) => color === "#007c9e")!;
+      expect(large.circle[2] * scale).toBeCloseTo(6 * scale);
+      expect(small.circle[2] * scale).toBeCloseTo(3 * scale);
+      const centerDistance = Math.hypot(
+        large.circle[0] - small.circle[0],
+        large.circle[1] - small.circle[1],
+      );
+      expect(
+        (centerDistance - large.circle[2] - small.circle[2]) * scale,
+      ).toBeCloseTo(0, 9);
+    },
+  );
+  it("keeps the tutorial cue's planet outline on the same physical surface", () => {
+    const { renderer, segments } = fixture();
+    const engine = new GravityEngine(42, getGravityLevel(42, 0));
+    engine.setProjectileSize(2);
+    renderer.resize(390, 844);
+    renderer.setZoom(0.5);
+    renderer.render(engine.getSnapshot(), [], 0, {
+      paused: true,
+      reducedMotion: true,
+      ghostCue: { position: { x: 200, y: 300 }, pull: { x: -72, y: 0 } },
+    });
+    const cue = segments.find(
+      ({ color, circle }) =>
+        color === "#7956cf" && circle[0] === 200 && circle[1] === 300,
+    );
+    expect(cue?.circle[2]).toBe(12);
+  });
   it.each(["partial", "full"] as const)(
     "fades %s preview progressively along its whole length",
     (pathAssist) => {
@@ -132,7 +209,7 @@ describe("Gravity rendering", () => {
   );
   it.each(
     [1280, 390, 844, 320].flatMap((width, i) =>
-      [0.25, 0.45, 1, 2, 4].map((zoom) => [
+      [0.5, 0.75, 1, 2, 4].map((zoom) => [
         width,
         [800, 844, 390, 568][i],
         zoom,
@@ -299,11 +376,12 @@ describe("Gravity rendering", () => {
     expect(extra).toHaveLength(4);
     renderer.resize(390, 844);
     renderer.render(state, [], 0, { paused: true, reducedMotion: true });
-    expect(segments).toHaveLength(16 * 8);
+    const trailSegments = segments.filter(({ color }) => color !== "#e9ecef");
+    expect(trailSegments).toHaveLength(16 * 8);
     const bandAlpha = (color: string) =>
       Number(color.match(/(?:, | \/ )([\d.e+-]+)\)$/)?.[1]);
     for (let planet = 0; planet < 16; planet++) {
-      const bands = segments
+      const bands = trailSegments
         .slice(planet * 8, planet * 8 + 8)
         .map(({ color }) => bandAlpha(color));
       expect(bands.every((alpha, i) => i === 0 || alpha > bands[i - 1])).toBe(
@@ -494,4 +572,24 @@ it("keeps an obstructed held planet visible with a clear warning and no trajecto
     450,
     expect.any(Number),
   );
+});
+
+it("exposes the fitted default scale independently of player zoom and tutorial framing", () => {
+  const { renderer } = fixture();
+  const level = getGravityLevel(42, 0);
+  renderer.resize(390, 844);
+  renderer.prepareFrame(level);
+  expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
+  renderer.setZoom(4);
+  expect(renderer.getScale()).toBeCloseTo(5.962962962962963, 10);
+  expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
+  renderer.setWalkthroughFocus({
+    position: { x: 450, y: 450 },
+    radius: 1000,
+    area: { left: 100, top: 100, width: 100, height: 100 },
+  });
+  expect(renderer.getScale()).toBeLessThan(0.1);
+  expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
+  renderer.resize(844, 390);
+  expect(renderer.getDefaultScale()).toBeCloseTo(1.4722222222222223, 10);
 });

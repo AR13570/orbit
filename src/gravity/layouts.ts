@@ -231,7 +231,7 @@ export const GRAVITY_LAYOUTS: readonly LayoutDefinition[] = [
     count: 2,
     physics: {
       planetGravity: true,
-      planetCollisions: "elastic",
+      planetCollisions: "soft",
       planetMass: 2,
     },
   },
@@ -239,7 +239,7 @@ export const GRAVITY_LAYOUTS: readonly LayoutDefinition[] = [
     id: "merging-swarm",
     anchors: [[0, 0]],
     count: 7,
-    physics: { planetGravity: true, planetCollisions: "elastic", planetMass: 3 },
+    physics: { planetGravity: true, planetCollisions: "soft", planetMass: 3 },
   },
   {
     id: "self-gravitating-constellation",
@@ -332,7 +332,7 @@ export function buildGravityLayout(
       hold: 0,
     },
     physics: {
-      planetRadius: 3,
+      planetRadius: 6,
       planetGravityStrength: PARTICLE_GRAVITY_STRENGTH * strength,
       ...layout.physics,
     },

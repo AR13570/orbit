@@ -57,7 +57,7 @@ const practice: GravityLevel = {
   requirements: [{ bodyId: "pull", count: 1, turns: 1 }],
   physics: {
     planetGravity: true,
-    planetCollisions: "elastic",
+    planetCollisions: "soft",
     bodyCollisions: true,
   },
   witness: [],

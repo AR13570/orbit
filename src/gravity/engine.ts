@@ -2,7 +2,7 @@ import {
   createGravityPrediction,
   type GravityPredictionJob,
 } from "./prediction";
-import type { Aim, Vec2 } from "../game/types";
+import type { Aim, Vec2, WorldBounds } from "../game/types";
 import { generateGravityLevel } from "./generator";
 import {
   GRAVITY_FIXED_STEP,
@@ -37,6 +37,8 @@ export class GravityEngine {
   private projectileSize = DEFAULT_PROJECTILE_SIZE;
   private projectileBaseRadius: number;
   private projectileBaseMass: number;
+  private defaultViewScale: number | undefined;
+  private flightBounds: WorldBounds | undefined;
   constructor(
     private seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0,
     customLevel?: GravityLevel,
@@ -44,6 +46,7 @@ export class GravityEngine {
   ) {
     this.customLevel = customLevel ? structuredClone(customLevel) : undefined;
     this.state = createState(this.customLevel ?? levelProvider(seed, 0));
+    this.state.groupSpin = { groups: {} };
     this.projectileBaseRadius = this.state.physics.planetRadius;
     this.projectileBaseMass = this.state.physics.planetMass;
     this.applyProjectileSize();
@@ -78,11 +81,25 @@ export class GravityEngine {
   setPaused(paused: boolean): void {
     this.paused = paused;
   }
+  /** The outermost allowed camera view, independent of the player's current zoom. */
+  setFlightBounds(bounds: WorldBounds): void {
+    if (
+      ![bounds.x, bounds.y, bounds.width, bounds.height].every(
+        Number.isFinite,
+      ) ||
+      bounds.width <= 0 ||
+      bounds.height <= 0
+    )
+      return;
+    this.flightBounds = { ...bounds };
+    this.state.flightBounds = { ...bounds };
+  }
   setTimeScale(scale: number): void {
     if (Number.isFinite(scale))
       this.timeScale = Math.max(0.25, Math.min(2, scale));
   }
   setPhysics(options: GravityPhysicsOptions): void {
+    this.state.groupSpin = { groups: {} };
     this.state.physics = physicsSettings({
       ...this.state.physics,
       planetRadius: this.projectileBaseRadius,
@@ -98,6 +115,13 @@ export class GravityEngine {
     this.projectileSize = normalizeProjectileSize(factor);
     this.applyProjectileSize();
   }
+  /** Calibrate only the next launch against the level's unzoomed fitted view. */
+  setDefaultViewScale(scale: number): void {
+    if (this.customLevel || !Number.isFinite(scale) || scale <= 0) return;
+    if (scale === this.defaultViewScale) return;
+    this.defaultViewScale = scale;
+    this.applyProjectileSize();
+  }
   getProjectileSize(): number {
     return this.projectileSize;
   }
@@ -108,7 +132,9 @@ export class GravityEngine {
   private applyProjectileSize(): void {
     this.state.projectileSize = this.projectileSize;
     const profile = projectileProfile(
-      this.projectileBaseRadius,
+      this.defaultViewScale === undefined
+        ? this.projectileBaseRadius
+        : Math.max(4, Math.min(16, 6 / this.defaultViewScale)),
       this.projectileBaseMass,
       this.projectileSize,
     );
@@ -117,6 +143,7 @@ export class GravityEngine {
   }
   /** Applies a user preference immediately and keeps it across level navigation. */
   setParticleInteraction(enabled: boolean): void {
+    this.state.groupSpin = { groups: {} };
     this.particleInteractionOverride = enabled;
     this.state.physics.planetGravity = enabled;
   }
@@ -154,6 +181,8 @@ export class GravityEngine {
   retry(): void {
     this.complete = false;
     this.state = createState(this.state.level);
+    this.state.groupSpin = { groups: {} };
+    if (this.flightBounds) this.state.flightBounds = { ...this.flightBounds };
     this.captureProjectileBaseline();
     this.applyProjectileSize();
     this.applyParticleInteractionOverride();
@@ -217,6 +246,9 @@ export class GravityEngine {
     this.state = createState(
       this.levelProvider(this.seed, Math.max(0, Math.floor(index))),
     );
+    this.state.groupSpin = { groups: {} };
+    this.defaultViewScale = undefined;
+    if (this.flightBounds) this.state.flightBounds = { ...this.flightBounds };
     this.captureProjectileBaseline();
     this.applyProjectileSize();
     this.applyParticleInteractionOverride();

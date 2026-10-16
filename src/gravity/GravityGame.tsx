@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGameplayZoom } from "../useGameplayZoom";
 import { usePathAssist } from "../pathAssist";
+import { useSoundPreference } from "../soundPreference";
+import { MIN_GRAVITY_ZOOM } from "../zoom";
 import type { GravityPredictionJob } from "./prediction";
 import AdvancedSettings from "../components/AdvancedSettings";
 import PathAssistControl from "../components/PathAssistControl";
@@ -95,7 +97,7 @@ export default function GravityGame({
   const [help, setHelp] = useState(
     () => !customLevel && (startTutorial || !gravityGuideSeen()),
   );
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useSoundPreference();
   const pauseMusic = useAmbientMusic(!muted && !paused && !help);
   const pathAssist = usePathAssist(),
     pathAssistRef = useRef(pathAssist);
@@ -131,7 +133,20 @@ export default function GravityGame({
     returnToPause = useRef(false);
   const frameSize = useRef({ width: 0, height: 0, dpr: 1 });
   helpRef.current = help;
-  const refresh = useCallback(() => setSnapshot(hudSnapshot(engine)), [engine]);
+  const syncWorldFrame = useCallback(() => {
+    const r = renderer.current;
+    if (!r) return;
+    r.prepareFrame?.(engine.getRenderSnapshot().level);
+    const bounds = r.getFlightBounds?.();
+    if (bounds) engine.setFlightBounds(bounds);
+    const defaultScale = r.getDefaultScale?.();
+    if (!customLevel && defaultScale !== undefined)
+      engine.setDefaultViewScale(defaultScale);
+  }, [engine, customLevel]);
+  const refresh = useCallback(() => {
+    syncWorldFrame();
+    setSnapshot(hudSnapshot(engine));
+  }, [engine, syncWorldFrame]);
   const cancel = useCallback(() => {
     const id = gesture.current.pointerId;
     gesture.current.cancel();
@@ -151,6 +166,7 @@ export default function GravityGame({
   }, [pathAssist, cancel]);
   const zoom = useGameplayZoom({
     canvas,
+    minimum: MIN_GRAVITY_ZOOM,
     blocked: () => helpRef.current || pause.current || document.hidden,
     cancel,
     apply: (value) => renderer.current?.setZoom(value),
@@ -183,6 +199,7 @@ export default function GravityGame({
       cancel();
       const rect = scene.current!.getBoundingClientRect();
       r.resize(rect.width, rect.height, window.devicePixelRatio);
+      syncWorldFrame();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(scene.current!);
@@ -201,6 +218,7 @@ export default function GravityGame({
         last === null ? 0 : Math.min(0.05, Math.max(0, (time - last) / 1000));
       last = time;
       const active = !pause.current && !helpRef.current && !document.hidden;
+      syncWorldFrame();
       if (active) engine.update(dt);
       const state = engine.getRenderSnapshot();
       if (
@@ -278,7 +296,7 @@ export default function GravityGame({
       r.destroy();
       renderer.current = null;
     };
-  }, [engine, cancel, openPause, saveCurrent]);
+  }, [engine, cancel, openPause, saveCurrent, syncWorldFrame]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (
@@ -355,6 +373,7 @@ export default function GravityGame({
               return;
             }
             if (e.button !== 0 || pause.current || helpRef.current) return;
+            syncWorldFrame();
             setBlockedLaunch(false);
             gesture.current = new PullGesture(
               gravityPullDistance(
@@ -415,6 +434,7 @@ export default function GravityGame({
               !helpRef.current &&
               !document.hidden
             ) {
+              syncWorldFrame();
               if (gravityLaunchIsClear(position, engine.getRenderSnapshot())) {
                 engine.setLaunch(position, gravityAim(shot));
                 engine.launch();

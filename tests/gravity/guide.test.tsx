@@ -68,6 +68,7 @@ describe("Gravity guide", () => {
       key: "Enter",
     });
     const engine = launch.mock.instances[0] as GravityEngine;
+    expect(engine.getSnapshot().physics.planetCollisions).toBe("soft");
     engine.retry();
     engine.setTimeScale(1);
     engine.launchFrom({ x: 410, y: 100 }, { x: 0, y: 0 });
@@ -79,17 +80,17 @@ describe("Gravity guide", () => {
       const particles = engine.getSnapshot().particles;
       expect(particles.filter((p) => p.alive)).toHaveLength(2);
       expect(particles.map(({ radius, mass }) => ({ radius, mass }))).toEqual([
-        { radius: 4, mass: 1 },
-        { radius: 8, mass: 4 },
+        { radius: 8, mass: 1 },
+        { radius: 16, mass: 4 },
       ]);
       const distance = Math.hypot(
         particles[0].position.x - particles[1].position.x,
         particles[0].position.y - particles[1].position.y,
       );
-      expect(distance).toBeGreaterThanOrEqual(12 - 1e-7);
+      expect(distance).toBeGreaterThanOrEqual(24 - 1e-7);
       closest = Math.min(closest, distance);
     }
-    expect(closest).toBeLessThan(13);
+    expect(closest).toBeLessThan(25);
   });
 
   it("leaves focus alone on opening and enters the practice loop on first Tab", () => {
@@ -185,7 +186,7 @@ describe("Gravity guide", () => {
     const control = size.closest<HTMLElement>(".projectile-size-control")!;
     expect((size as HTMLInputElement).value).toBe("1");
     expect(control.style.getPropertyValue("--projectile-size-thumb")).toBe(
-      "9px",
+      "16px",
     );
     const engine = launches.mock.instances[0] as GravityEngine;
     const original = engine
@@ -193,7 +194,7 @@ describe("Gravity guide", () => {
       .particles.map(({ radius, mass }) => ({ radius, mass }));
     fireEvent.change(size, { target: { value: "2" } });
     expect(control.style.getPropertyValue("--projectile-size-thumb")).toBe(
-      "18px",
+      "32px",
     );
     expect(engine.getProjectileSize()).toBe(2);
     expect(

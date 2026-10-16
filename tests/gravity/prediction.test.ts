@@ -93,6 +93,12 @@ describe("incremental Gravity aim prediction", () => {
       job = engine.beginPrediction(2)!;
     while (!job.done) job.advance(1);
     expect(job.path).toEqual(expected);
-    expect(job.path.some((point) => point.x < 200)).toBe(true);
+    // The elastic encounter reverses motion. Its turning point changes with
+    // mutual attraction, so it need not pass back across the launch position.
+    expect(
+      job.path.some(
+        (point, index) => index > 0 && point.x < job.path[index - 1].x,
+      ),
+    ).toBe(true);
   });
 });

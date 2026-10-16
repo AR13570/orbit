@@ -14,7 +14,7 @@ for (const device of [
   { width: 844, height: 390, touch: true },
   { width: 320, height: 568, touch: true },
 ]) {
-  for (const zoom of [45, 25]) {
+  for (const zoom of [75, 50]) {
     test(`Gravity partial preview stays visible at ${zoom}% on ${device.width}x${device.height}`, async ({
       browser,
     }) => {

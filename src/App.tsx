@@ -1,5 +1,6 @@
 import { useGameplayZoom } from "./useGameplayZoom";
 import { usePathAssist } from "./pathAssist";
+import { useSoundPreference } from "./soundPreference";
 import { MAX_FLIGHT_SECONDS } from "./game/physics";
 import ModeChooser, { type OrbitMode } from "./ModeChooser";
 import GravityGame from "./gravity/GravityGame";
@@ -44,8 +45,8 @@ export function ZenGame({
     [help, setHelp] = useState(
       () => startTutorial || (!debug.enabled && !tutorialSeen("zen")),
     ),
-    [muted, setMuted] = useState(false),
     [hint, setHint] = useState(true);
+  const [muted, setMuted] = useSoundPreference();
   const pauseMusic = useAmbientMusic(!muted && !paused && !help);
   const [modeFeedback, setModeFeedback] = useState("");
   const pathAssist = usePathAssist(),

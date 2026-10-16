@@ -49,7 +49,7 @@ const authored: readonly AuthoredLevel[] = [
   { layout: "unequal-chain", title: "A chain of masses" },
   { layout: "concentric-shells", title: "A sky full of color", count: 12 },
   { layout: "triangle", title: "Three busy corners", count: 3 },
-  { layout: "elastic-pair", title: "Elastic neighborhoods" },
+  { layout: "elastic-pair", title: "Neighboring orbits" },
   { layout: "merging-swarm", title: "A growing family" },
   { layout: "self-gravitating-constellation", title: "Pulling together" },
   { layout: "elastic-pair", title: "Mutual company", count: 4 },

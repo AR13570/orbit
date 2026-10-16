@@ -96,6 +96,7 @@ for (const device of [
               x: (circle.x * transform.a + transform.e) / dpr,
               y: (circle.y * transform.d + transform.f) / dpr,
               radius: (circle.radius * transform.a) / dpr,
+              scale: transform.a / dpr,
               alpha: this.globalAlpha,
             };
           }
@@ -106,6 +107,7 @@ for (const device of [
       await page.clock.pauseAt(new Date("2026-10-15T00:00:01Z"));
       await page.goto("/?mode=gravity&seed=42");
       await page.clock.runFor(200);
+      expect(errors).toEqual([]);
       await page.evaluate(async (moduleUrl) => {
         const { GravityEngine } = await import(moduleUrl);
         const probe = window as any;
@@ -113,6 +115,7 @@ for (const device of [
         const launch = GravityEngine.prototype.launch;
         GravityEngine.prototype.launch = function () {
           probe.launchCount++;
+          probe.heldEngine = this;
           return launch.call(this);
         };
       }, engineModule);
@@ -163,7 +166,11 @@ for (const device of [
         ).not.toBeNull();
         expect(shooter.x).toBeCloseTo(start.x, 2);
         expect(shooter.y).toBeCloseTo(start.y, 2);
-        expect(shooter.radius).toBeGreaterThanOrEqual(4.99);
+        const radius = await page.evaluate(
+          () =>
+            (window as any).heldEngine.getRenderSnapshot().physics.planetRadius,
+        );
+        expect(shooter.radius).toBeCloseTo(radius * shooter.scale, 6);
         expect(shooter.alpha).toBe(1);
       };
       // Keep an actual planet moving while the next shot is held.
@@ -184,7 +191,7 @@ for (const device of [
       await expect(page.locator(".game-surface [role=status]")).toHaveText(
         "2 planets in motion",
       );
-      for (const zoom of [1, 0.25, 4]) {
+      for (const zoom of [1, 0.5, 4]) {
         await page.getByLabel("Gravity orbital field").focus();
         await page.keyboard.press("0");
         // Overshoot to reach the exact clamp, independent of wheel float precision.

@@ -2,6 +2,12 @@ import { segmentCircleIntersection } from "../game/physics";
 import type { Vec2 } from "../game/types";
 import type { GravityParticle, GravityState } from "./types";
 import { initialOrbits } from "./orbits";
+import {
+  contactKey,
+  separateSurfaces,
+  surfaceContacts,
+  supportSurfaces,
+} from "./surface-support";
 
 const ORIGIN = { x: 0, y: 0 };
 const CONTACT_EPSILON = 1e-9;
@@ -74,11 +80,18 @@ function resolvePlanet(
   const relative =
     (b.velocity.x - a.velocity.x) * nx + (b.velocity.y - a.velocity.y) * ny;
   if (relative < 0) {
-    const impulse = (-2 * relative) / (1 / a.mass + 1 / b.mass);
+    // Soft contacts transfer approaching normal momentum without rebound.
+    // Tangential motion remains free, so sliding and separation are possible.
+    const restitution = state.physics.planetCollisions === "soft" ? 0 : 1;
+    const impulse = (-(1 + restitution) * relative) / (1 / a.mass + 1 / b.mass);
     a.velocity.x -= (impulse * nx) / a.mass;
     a.velocity.y -= (impulse * ny) / a.mass;
     b.velocity.x += (impulse * nx) / b.mass;
     b.velocity.y += (impulse * ny) / b.mass;
+  }
+  if (state.physics.planetCollisions === "soft") {
+    separateSurfaces(a, b);
+    return;
   }
   const penetration = Math.max(0, a.radius + b.radius - length),
     mass = a.mass + b.mass;
@@ -98,6 +111,7 @@ export function driftWithContacts(
   particles: GravityParticle[],
   previousBodies: Map<string, Vec2>,
   dt: number,
+  supported: Set<string> = new Set(),
 ): void {
   let elapsed = 0;
   const wells = state.physics.bodyCollisions
@@ -151,6 +165,7 @@ export function driftWithContacts(
         for (let j = i + 1; j < particles.length; j++) {
           const other = particles[j];
           if (!other.alive) continue;
+          if (supported.has(contactKey(p, other))) continue;
           const time = planetContact(
             p,
             other,
@@ -169,6 +184,25 @@ export function driftWithContacts(
     elapsed += event.time;
     if (event.kind === "well") event.planet.alive = false;
     else resolvePlanet(state, event.a, event.b);
+    // A third-body impact changes the surface trajectory. Its neighbouring
+    // contacts must participate in the next sweep and propagate the impact.
+    const changed = event.kind === "well" ? [event.planet] : [event.a, event.b];
+    if (state.physics.planetCollisions === "soft") {
+      // A simultaneous impact is a contact-island problem. Resolving touching
+      // neighbours one pair at a time can create an endless sequence of zero
+      // time impacts, starving the entire world's drift. Propagate compression
+      // through all touching surfaces before the next continuous sweep.
+      const live = particles.filter((p) => p.alive);
+      const islandSupport = supportSurfaces(
+        surfaceContacts(state, live, supported, true),
+        Math.max(0, dt - elapsed),
+      );
+      supported.clear();
+      for (const key of islandSupport) supported.add(key);
+    } else {
+      for (const p of changed)
+        for (const other of particles) supported.delete(contactKey(p, other));
+    }
   }
   // Held planets cannot tunnel through one another after budget exhaustion,
   // but kinematic wells still sweep their remaining motion against that pose.

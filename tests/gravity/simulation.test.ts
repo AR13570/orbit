@@ -13,6 +13,8 @@ const level: GravityLevel = {
   family: "loop",
   bounds: { x: 0, y: 0, width: 900, height: 900 },
   launch: { x: 450, y: 650 },
+  // Objective and lifetime fixtures use independent, pass-through paths.
+  physics: { planetCollisions: "none" },
   bodies: [
     {
       id: "a",
@@ -53,6 +55,7 @@ describe("Gravity simulation", () => {
   it("allows later shots while earlier ones keep flying, with distinct colors", () => {
     const state = createState({
       ...level,
+      physics: { ...level.physics, planetGravity: false },
       objective: { kind: "crowd", count: 3, turns: 1, hold: 1 },
     });
     fire(state, aim);
@@ -88,8 +91,11 @@ describe("Gravity simulation", () => {
     expect(state.particles[0].alive).toBe(false);
     expect(goalProgress(state).current).toBe(0);
   });
-  it("keeps paths independent when mutual attraction is explicitly disabled", () => {
-    const isolated = { ...level, physics: { planetGravity: false } };
+  it("keeps paths independent when mutual attraction and contacts are explicitly disabled", () => {
+    const isolated = {
+      ...level,
+      physics: { planetGravity: false, planetCollisions: "none" as const },
+    };
     const solo = createState(isolated),
       together = createState(isolated);
     for (const state of [solo, together]) {
@@ -106,7 +112,10 @@ describe("Gravity simulation", () => {
     expect(together.particles[1].alive).toBe(true);
   });
   it("bounds projectile memory and expires trails by time even after impact", () => {
-    const state = createState({ ...level, physics: { trailSeconds: 3 } });
+    const state = createState({
+      ...level,
+      physics: { trailSeconds: 3, planetCollisions: "none" },
+    });
     for (let n = 0; n < 50; n++) fire(state, aim);
     expect(state.particles.filter((p) => p.alive)).toHaveLength(50);
     advance(state, 15);
@@ -161,7 +170,7 @@ it("does not confuse two shared orbits around a pair with separate local orbits"
   const binary = {
     ...level,
     family: "paired" as const,
-    physics: { planetGravity: false },
+    physics: { planetGravity: false, planetCollisions: "none" as const },
     launch: { x: 450, y: 630 },
     bodies: [
       { ...level.bodies[0], id: "a", position: { x: 410, y: 450 }, radius: 30 },

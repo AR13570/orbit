@@ -6,32 +6,37 @@ import {
   type RefObject,
   type PointerEvent,
 } from "react";
-import { clampGameplayZoom, PinchZoom } from "./zoom";
+import { clampGameplayZoom, MIN_GAMEPLAY_ZOOM, PinchZoom } from "./zoom";
 export function useGameplayZoom({
   canvas,
   blocked,
   cancel,
   apply,
+  minimum = MIN_GAMEPLAY_ZOOM,
 }: {
   canvas: RefObject<HTMLCanvasElement | null>;
   blocked: () => boolean;
   cancel: () => void;
   apply: (zoom: number) => void;
+  minimum?: number;
 }) {
   const [zoom, setZoom] = useState(1);
   const value = useRef(1),
-    pinch = useRef(new PinchZoom());
+    pinch = useRef(new PinchZoom(minimum));
   const callbacks = useRef({ blocked, cancel, apply });
   callbacks.current = { blocked, cancel, apply };
-  const change = useCallback((next: number) => {
-    if (callbacks.current.blocked()) return;
-    const clamped = clampGameplayZoom(next);
-    if (clamped === value.current) return;
-    callbacks.current.cancel();
-    value.current = clamped;
-    callbacks.current.apply(value.current);
-    setZoom(value.current);
-  }, []);
+  const change = useCallback(
+    (next: number) => {
+      if (callbacks.current.blocked()) return;
+      const clamped = clampGameplayZoom(next, minimum);
+      if (clamped === value.current) return;
+      callbacks.current.cancel();
+      value.current = clamped;
+      callbacks.current.apply(value.current);
+      setZoom(value.current);
+    },
+    [minimum],
+  );
   useEffect(() => {
     const element = canvas.current!;
     const wheel = (event: WheelEvent) => {

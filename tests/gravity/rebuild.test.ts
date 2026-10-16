@@ -42,7 +42,7 @@ describe("rebuilt Gravity physical core", () => {
     const state = createState({
       ...base,
       bodies: [],
-      physics: { planetGravity: false },
+      physics: { planetGravity: false, planetCollisions: "none" },
       objective: { kind: "none", count: 0, turns: 1, hold: 0 },
     });
     for (let n = 0; n < 128; n++)

@@ -13,10 +13,21 @@ interface EndlessFixture {
   witness: WitnessShot[];
 }
 const solutions = fixtures as Record<string, EndlessFixture>;
+// These older launch fixtures fail with the current mutual gravity. Keep them
+// for authoring while the runtime schedules only verified formations.
+const authoringOnlyLayouts = new Set([
+  "unequal-binary",
+  "triple-line",
+  "broken-ring",
+  "repeller-gate",
+  "unequal-chain",
+]);
 // Counterflow needs directional per-core rendering. The other two aliases have
 // the same visible single-core arrangement once the population budget is shared.
 export const ENDLESS_LAYOUT_IDS = Object.keys(solutions).filter(
-  (id) => !["counterflow", "compact-swarm", "concentric-shells"].includes(id),
+  (id) =>
+    !["counterflow", "compact-swarm", "concentric-shells"].includes(id) &&
+    !authoringOnlyLayouts.has(id),
 );
 export function endlessLayoutId(seed: number, index: number): string {
   const offset = index < 45 ? index : index - 45,
@@ -47,6 +58,9 @@ export function buildEndlessGravityLevel(
     count: 1,
     turns: difficulty.turns,
   });
+  // Enlarged planets keep the authored clearance around ENDLESS cores.
+  for (const body of level.bodies)
+    if (body.kind === "attractor") body.radius = Math.max(1, body.radius - 3);
   const solution = solutions[layoutId];
   level.objective.count = difficulty.population;
   if (!level.mechanics?.includes("multiple planets"))

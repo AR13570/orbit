@@ -1,20 +1,26 @@
 import type { Vec2 } from "./game/types";
 import type { Camera } from "./render/coordinates";
 export const MIN_GAMEPLAY_ZOOM = 0.25;
+export const MIN_GRAVITY_ZOOM = 0.5;
 export const MAX_GAMEPLAY_ZOOM = 4;
-export function clampGameplayZoom(value: number) {
+export function clampGameplayZoom(value: number, minimum = MIN_GAMEPLAY_ZOOM) {
   return Number.isFinite(value)
-    ? Math.max(MIN_GAMEPLAY_ZOOM, Math.min(MAX_GAMEPLAY_ZOOM, value))
+    ? Math.max(minimum, Math.min(MAX_GAMEPLAY_ZOOM, value))
     : 1;
 }
-export function zoomCamera(camera: Camera, factor: number): Camera {
+export function zoomCamera(
+  camera: Camera,
+  factor: number,
+  minimum = MIN_GAMEPLAY_ZOOM,
+): Camera {
   return {
     center: { ...camera.center },
-    scale: camera.scale * clampGameplayZoom(factor),
+    scale: camera.scale * clampGameplayZoom(factor, minimum),
   };
 }
 /** A pinch owns the whole touch session, including the last remaining finger. */
 export class PinchZoom {
+  constructor(private minimum = MIN_GAMEPLAY_ZOOM) {}
   private points = new Map<number, Vec2>();
   private pinching = false;
   private startDistance = 1;
@@ -29,7 +35,7 @@ export class PinchZoom {
     if (before < 2 && this.points.size >= 2) {
       this.pinching = true;
       this.startDistance = Math.max(1, this.distance());
-      this.startZoom = clampGameplayZoom(zoom);
+      this.startZoom = clampGameplayZoom(zoom, this.minimum);
       this.lastZoom = this.startZoom;
     }
     return this.pinching;
@@ -41,6 +47,7 @@ export class PinchZoom {
     if (this.points.size < 2) return { consumed: true };
     this.lastZoom = clampGameplayZoom(
       (this.startZoom * this.distance()) / this.startDistance,
+      this.minimum,
     );
     return { consumed: true, zoom: this.lastZoom };
   }

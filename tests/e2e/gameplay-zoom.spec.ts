@@ -62,7 +62,7 @@ for (const mode of ["zen", "gravity"] as const) {
     for (let i = 0; i < 40; i++) await page.keyboard.press("+");
     await expectRenderedZoom(page, baseline, 4);
     for (let i = 0; i < 40; i++) await page.keyboard.press("-");
-    await expectRenderedZoom(page, baseline, 0.25);
+    await expectRenderedZoom(page, baseline, mode === "gravity" ? 0.5 : 0.25);
     await page.mouse.move(350, 300);
     await page.mouse.down();
     await page.mouse.move(410, 300);
@@ -90,7 +90,7 @@ for (const mode of ["zen", "gravity"] as const) {
     await page.clock.runFor(32);
     await page.mouse.wheel(0, 10000);
     await page.clock.runFor(100);
-    await expectRenderedZoom(page, baseline, 0.25);
+    await expectRenderedZoom(page, baseline, mode === "gravity" ? 0.5 : 0.25);
     await resetZoom(page, fieldName(mode));
     await expectRenderedZoom(page, baseline, 1);
     await idle(page, mode);

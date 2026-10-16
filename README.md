@@ -30,17 +30,17 @@ In **Zen**, the shot launches from your ship's ring. Double-click or double-tap 
 
 ![Zen: aiming a curved route through attractors and repellers toward the blue checkpoint](docs/images/zen-flight.png)
 
-In **Gravity**, start a pull anywhere to launch from that spot. Launch again while earlier planets are still flying to build several orbits at once. The **Size** slider affects newly launched planets; larger planets pull others more strongly. Particle interaction is on by default and can be switched off under **Pause → Advanced → Particle Interaction**.
+In **Gravity**, start a pull anywhere to launch from that spot. Launch again while earlier planets are still flying to build several orbits at once. The **Size** slider affects newly launched planets; larger planets pull others more strongly. New planets are sized for the level's default view; manual zoom scales them with the scene, while resizing preserves existing planets' sizes and adapts the next launch. Particle interaction is on by default and can be switched off under **Pause → Advanced → Particle Interaction**.
 
 ![Gravity: two live planets tracing orbits around a core, with size and challenge controls](docs/images/gravity-orbits.png)
 
 ## Settle into your own pace
 
-- Pinch on touchscreens or scroll with a mouse to zoom the field.
+- Pinch on touchscreens or scroll with a mouse to zoom the field. Gravity supports 50% to 400% zoom; a planet leaves play once its whole disc passes beyond the outermost view, regardless of the current zoom.
 - Pause with the pause button, **Esc**, or **P**. Resume with the same keys, **Resume**, or a click outside the pause panel.
 - Press **R** or use the reset button to retry the current Zen shot or reset the current Gravity level. In Zen, **New seed** starts a fresh checkpoint journey.
 - Open **Pause → Advanced → Path assist** to switch between the default partial aiming preview and a full predicted path.
-- Both game modes share a warm ambient melody with soft keys and occasional quiet chimes, with sound on by default. Toggle sound in the pause menu, where you can also find **How to play**. Interactive guides appear on your first visit to each game mode.
+- Both game modes share a warm ambient melody with soft keys and occasional quiet chimes, with sound on by default. The sound toggle is remembered in this browser and shared across modes. Toggle sound in the pause menu, where you can also find **How to play**. Interactive guides appear on your first visit to each game mode.
 
 Zen checkpoints and Gravity level progress save in this browser for each seed. Returning to a run resumes its saved checkpoint or level, rather than an in-flight shot. Add `?seed=42` to the URL for a repeatable starting world. Browser storage does not sync across devices and can be lost if you clear site data.
 
@@ -51,6 +51,7 @@ Zen checkpoints and Gravity level progress save in this browser for each seed. R
 - Select a body and drag **Size** or **Gravity** to adjust them independently.
 - Tap its type in the selection bar to switch between attraction and repulsion. Duplicate or delete it from the same bar.
 - Pick a challenge, or keep **No challenge** for open-ended play. Adjust interactions, collisions, and trail length under **Physics**.
+- Planets transfer momentum on contact without rebounding by default, then slide or separate as forces carry them. Mutual gravity can gather them into a cluster while every planet keeps its size and color. Settled groups pick up a gentle rotation, while fast rotation can still carry planets apart.
 - Hit **Play** to experiment, then return to the editor to keep shaping your level.
 
 ![Gravity creator: an attractor, a selected repeller, and independent size and gravity handles](docs/images/gravity-creator.png)

@@ -46,7 +46,7 @@ export function newDraft(): CreatorLevel {
     objective: { kind: "none", count: 1, turns: 1, hold: 0 },
     physics: {
       planetGravity: true,
-      planetCollisions: "elastic",
+      planetCollisions: "soft",
       bodyCollisions: true,
       trailSeconds: 6,
     },
@@ -311,7 +311,11 @@ function parsePhysics(value: unknown): GravityPhysicsOptions {
     }
   }
   if (raw.planetCollisions !== undefined) {
-    if (!["none", "elastic", "merge"].includes(String(raw.planetCollisions)))
+    if (
+      !["none", "soft", "elastic", "merge"].includes(
+        String(raw.planetCollisions),
+      )
+    )
       throw new Error("Choose valid collisions.");
     result.planetCollisions =
       raw.planetCollisions as GravityPhysicsOptions["planetCollisions"];

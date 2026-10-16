@@ -105,9 +105,13 @@ describe("particle interaction engine override", () => {
     expect(engine.getSnapshot()).toEqual({
       ...before,
       physics: { ...before.physics, planetGravity: false },
+      groupSpin: { groups: {} },
     });
     engine.setParticleInteraction(true);
-    expect(engine.getSnapshot()).toEqual(before);
+    expect(engine.getSnapshot()).toEqual({
+      ...before,
+      groupSpin: { groups: {} },
+    });
   });
   it("persists only the explicit interaction override across retry and provider navigation", () => {
     const engine = new GravityEngine(1, undefined, (seed, index) => ({

@@ -21,8 +21,8 @@ export default function ProjectileSizeControl({
 }) {
   const id = useId();
   const description = `${id}-description`;
-  // Match the renderer's 4.5px minimum visible radius. Cap the UI baseline
-  // before scaling so even enormous custom planets retain the 1:2 comparison.
+  // Keep the UI illustrations readable independently of the world surface.
+  // Cap their baseline so custom planets retain the 1:2 comparison.
   const diameter = Math.min(18, Math.max(9, baseRadius * scale * 2));
   return (
     <div
