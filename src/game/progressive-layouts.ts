@@ -1,6 +1,6 @@
 import type { CertifiedLayout } from './certified-layouts';
 
-/** Offline screened courses. Regenerate with npm run verify:zen -- --write.
+/** Offline screened courses. Regenerate with npm run verify:odessey -- --write.
  * Runtime permits only exact reflection and translation. */
 export const PROGRESSIVE_LAYOUTS: readonly (readonly CertifiedLayout[])[] = [
  [

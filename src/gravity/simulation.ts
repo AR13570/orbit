@@ -13,9 +13,13 @@ import {
   gravityLaunchSpeed,
   physicsSettings,
   planetAccelerations,
-  wellPotential,
 } from "./physics";
-import type { GravityLevel, GravityParticle, GravityState } from "./types";
+import type {
+  GravityLevel,
+  GravityParticle,
+  GravityState,
+  WorldBounds,
+} from "./types";
 export { goalProgress, orbitFraction } from "./orbits";
 export const TRAIL_SECONDS = 24;
 /** Legacy export retained without enforcing an active planet cap. */
@@ -89,45 +93,17 @@ export function fire(state: GravityState, aim: Aim): boolean {
     y: Math.sin(aim.angle) * speed,
   });
 }
+function outsideView(p: GravityParticle, bounds: WorldBounds): boolean {
+  return (
+    p.position.x + p.radius < bounds.x ||
+    p.position.x - p.radius > bounds.x + bounds.width ||
+    p.position.y + p.radius < bounds.y ||
+    p.position.y - p.radius > bounds.y + bounds.height
+  );
+}
+/** Offscreen removal uses only the outermost permitted view, never escape estimates. */
 function escaped(state: GravityState, p: GravityParticle): boolean {
-  if (state.flightBounds) {
-    const bounds = state.flightBounds;
-    return (
-      p.position.x + p.radius < bounds.x ||
-      p.position.x - p.radius > bounds.x + bounds.width ||
-      p.position.y + p.radius < bounds.y ||
-      p.position.y - p.radius > bounds.y + bounds.height
-    );
-  }
-  const bounds = state.level.bounds,
-    center = {
-      x: bounds.x + bounds.width / 2,
-      y: bounds.y + bounds.height / 2,
-    };
-  const dx = p.position.x - center.x,
-    dy = p.position.y - center.y;
-  if (
-    Math.hypot(dx, dy) <
-      Math.max(bounds.width, bounds.height) + state.physics.escapeDistance ||
-    dx * p.velocity.x + dy * p.velocity.y <= 0
-  )
-    return false;
-  let energy =
-    0.5 * (p.velocity.x ** 2 + p.velocity.y ** 2) +
-    wellPotential(p.position, state.level.bodies);
-  if (state.physics.planetGravity)
-    for (const other of state.particles)
-      if (other.alive && other !== p)
-        energy -=
-          (state.physics.planetGravityStrength * other.mass) /
-          Math.max(
-            2,
-            Math.hypot(
-              p.position.x - other.position.x,
-              p.position.y - other.position.y,
-            ),
-          );
-  return energy >= 0;
+  return state.flightBounds ? outsideView(p, state.flightBounds) : false;
 }
 /** One physical step. Callers use the exported fixed step, not playback time. */
 export function step(state: GravityState, dt: number): void {

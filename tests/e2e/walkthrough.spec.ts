@@ -44,7 +44,7 @@ async function ready(page: Page, name = "Continue") {
     await page.clock.runFor(100);
   await expect(button).toBeEnabled();
 }
-async function introductions(page: Page, mode = "zen") {
+async function introductions(page: Page, mode = "odessey") {
   for (let n = 0; n < 4; n++) {
     await expect(page.locator(".practice-pull-guide")).toHaveCount(0);
     await expect(
@@ -59,13 +59,13 @@ async function introductions(page: Page, mode = "zen") {
   );
   await expect(
     page.getByRole("button", {
-      name: mode === "zen" ? "Continue" : "Start playing",
+      name: mode === "odessey" ? "Continue" : "Start playing",
       exact: true,
     }),
   ).toBeDisabled();
   await page.clock.runFor(1000);
   await expect(
-    page.getByLabel(`${mode === "zen" ? "Zen" : "Gravity"} practice field`),
+    page.getByLabel(`${mode === "odessey" ? "Odessey" : "Gravity"} practice field`),
   ).toHaveAttribute("aria-disabled", "false");
 }
 async function learn(
@@ -76,13 +76,13 @@ async function learn(
 ) {
   await introductions(page, mode);
   await expect(page.locator(".walkthrough-outline")).toHaveCount(0);
-  if (mode === "zen")
+  if (mode === "odessey")
     await expect(
       page.locator(".practice-solution-path").first(),
     ).toBeAttached();
   await page.clock.runFor(500);
   await drag(page, cdp, prefix && `${prefix}-launch-aim.png`);
-  if (mode === "zen") {
+  if (mode === "odessey") {
     await ready(page);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.clock.runFor(700);
@@ -96,7 +96,7 @@ async function learn(
     );
     await expect(page.locator(".practice-pull-guide")).toHaveCount(0);
     await expect(page.locator(".practice-solution-path")).toHaveCount(0);
-    const bounds = (await page.getByLabel("Zen practice field").boundingBox())!;
+    const bounds = (await page.getByLabel("Odessey practice field").boundingBox())!;
     const point = {
       x: bounds.x + bounds.width * 0.25,
       y: bounds.y + bounds.height * 0.28,
@@ -110,7 +110,7 @@ async function learn(
     await expect(page.locator(".practice-mode-indicator")).toContainText(
       "Split ready",
     );
-    await expect(page.getByLabel("Zen practice field")).toHaveAttribute(
+    await expect(page.getByLabel("Odessey practice field")).toHaveAttribute(
       "aria-disabled",
       "false",
     );
@@ -133,7 +133,7 @@ async function learn(
     .click();
   await page.clock.runFor(350);
 }
-for (const mode of ["zen"] as ("zen" | "gravity")[])
+for (const mode of ["odessey"] as ("odessey" | "gravity")[])
   for (const viewport of [
     { width: 390, height: 844 },
     { width: 844, height: 390 },
@@ -162,7 +162,7 @@ for (const mode of ["zen"] as ("zen" | "gravity")[])
           page.getByRole("button", { name: "Continue", exact: true }),
         ).toBeEnabled();
         const field = page.getByLabel(
-          `${mode === "zen" ? "Zen" : "Gravity"} practice field`,
+          `${mode === "odessey" ? "Odessey" : "Gravity"} practice field`,
         );
         await field.focus();
         await expect(field).toBeFocused();
@@ -206,16 +206,16 @@ test("passive introductions ignore accidental input before the capture lessons",
 }) => {
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await page.clock.runFor(200);
-  await page.getByLabel("Zen practice field").focus();
+  await page.getByLabel("Odessey practice field").focus();
   await page.keyboard.press("Space");
   await page.mouse.move(150, 200);
   await page.mouse.down();
   await page.mouse.move(220, 200);
   await page.mouse.up();
   await introductions(page);
-  await page.getByLabel("Zen practice field").focus();
+  await page.getByLabel("Odessey practice field").focus();
   await page.keyboard.press("Space");
   await page.clock.runFor(100);
   await ready(page);
@@ -237,7 +237,7 @@ test("background and resize cancel held input and practice resumes automatically
   try {
     await page.clock.install();
     await page.clock.pauseAt(new Date());
-    await page.goto("/?mode=zen&seed=42");
+    await page.goto("/?mode=odessey&seed=42");
     await page.clock.runFor(200);
     await introductions(page);
     let points = await guide(page);
@@ -276,7 +276,7 @@ test("background and resize cancel held input and practice resumes automatically
       page.getByRole("button", { name: "Continue", exact: true }),
     ).toBeDisabled();
     await drag(page, cdp);
-    await page.getByLabel("Zen practice field").focus();
+    await page.getByLabel("Odessey practice field").focus();
     await page.keyboard.press("p");
     await ready(page);
     await expect(
@@ -286,7 +286,7 @@ test("background and resize cancel held input and practice resumes automatically
     await context.close();
   }
 });
-for (const mode of ["zen"] as ("zen" | "gravity")[])
+for (const mode of ["odessey"] as ("odessey" | "gravity")[])
   test(`${mode} isolated practice preserves an existing live flight`, async ({
     browser,
   }) => {
@@ -296,7 +296,7 @@ for (const mode of ["zen"] as ("zen" | "gravity")[])
       isMobile: true,
     });
     await context.addInitScript(() => {
-      localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+      localStorage.setItem("orbit.walkthrough.odessey.v1", "complete");
       localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
     });
     const page = await context.newPage(),
@@ -312,7 +312,7 @@ for (const mode of ["zen"] as ("zen" | "gravity")[])
       await page.clock.runFor(800);
       const before = await page.getByRole("status").textContent();
       const countdown =
-        mode === "zen"
+        mode === "odessey"
           ? await page.locator(".offscreen-countdown").textContent()
           : null;
       await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -339,11 +339,11 @@ test("Skip survives a mode remount when storage reads work but writes fail", asy
       throw new DOMException("Quota", "QuotaExceededError");
     };
   });
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await page.getByRole("button", { name: "Skip", exact: true }).click();
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.getByRole("button", { name: "Choose mode", exact: true }).click();
-  await page.getByRole("button", { name: /Zen/ }).click();
+  await page.getByRole("button", { name: /Odessey/ }).click();
   await expect(page.getByRole("dialog", { name: /How to play/ })).toHaveCount(
     0,
   );
@@ -351,14 +351,14 @@ test("Skip survives a mode remount when storage reads work but writes fail", asy
 test("Escape saves dismissal independently for both modes", async ({
   page,
 }) => {
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await expect(
-    page.getByRole("dialog", { name: "How to play Zen" }),
+    page.getByRole("dialog", { name: "How to play Odessey" }),
   ).toBeVisible();
   await page.getByRole("heading", { name: "Your ship" }).focus();
   await page.keyboard.press("Escape");
   expect(
-    await page.evaluate(() => localStorage.getItem("orbit.walkthrough.zen.v1")),
+    await page.evaluate(() => localStorage.getItem("orbit.walkthrough.odessey.v1")),
   ).toBe("skipped");
   await page.goto("/?mode=gravity&seed=42");
   await expect(
@@ -403,7 +403,7 @@ test("force introduction keeps body cores uniform during emphasis", async ({
   page.on("pageerror", (error) => errors.push(error.message));
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await page.clock.runFor(900);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.clock.runFor(425);

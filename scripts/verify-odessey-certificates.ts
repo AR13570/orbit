@@ -1,8 +1,8 @@
-/** Run with npm run verify:zen. Pass --write to republish the immutable sources. */
+/** Run with npm run verify:odessey. Pass --write to republish the immutable sources. */
 import { writeFileSync } from 'node:fs';
-import SOURCES from './zen-multibend-sources.json';
+import SOURCES from './odessey-multibend-sources.json';
 import type { CertifiedLayout } from '../src/game/certified-layouts';
-import { ZEN_DIFFICULTIES } from '../src/game/difficulty';
+import { ODESSEY_DIFFICULTIES } from '../src/game/difficulty';
 import { matchesStructure } from '../src/game/structures';
 import { bodyStrength, distance } from '../src/game/physics';
 import { acceptsCoreChallenge, blocksStraightCorridor, captureChordBend, probeFlight } from '../src/game/challenge';
@@ -13,7 +13,7 @@ import { describeComposition, freshComposition } from '../src/game/composition';
 const pools=SOURCES as CertifiedLayout[][];
 const evidence=[];
 for(const [index,entries] of pools.entries()){
- const difficulty=ZEN_DIFFICULTIES[index+1],scale=difficulty.bodyScale;
+ const difficulty=ODESSEY_DIFFICULTIES[index+1],scale=difficulty.bodyScale;
  if(new Set(entries.map(entry=>entry.family)).size<7)throw new Error('Need seven distinct families for six-level history');
  const descriptors=[];
  for(const entry of entries){
@@ -46,6 +46,6 @@ for(const [index,entries] of pools.entries()){
   evidence.push(result);console.log(JSON.stringify(result));
  }
 }
-if(process.argv.includes('--write'))writeFileSync('src/game/progressive-layouts.ts',`import type { CertifiedLayout } from './certified-layouts';\n\n/** Offline screened courses. Regenerate with npm run verify:zen -- --write.\n * Runtime permits only exact reflection and translation. */\nexport const PROGRESSIVE_LAYOUTS: readonly (readonly CertifiedLayout[])[] = ${JSON.stringify(pools,null,1)};\n`);
-writeFileSync('/private/tmp/orbit-zen-certificate-verification.json',JSON.stringify({angles:252,powers:41,seconds:22,evidence},null,2));
+if(process.argv.includes('--write'))writeFileSync('src/game/progressive-layouts.ts',`import type { CertifiedLayout } from './certified-layouts';\n\n/** Offline screened courses. Regenerate with npm run verify:odessey -- --write.\n * Runtime permits only exact reflection and translation. */\nexport const PROGRESSIVE_LAYOUTS: readonly (readonly CertifiedLayout[])[] = ${JSON.stringify(pools,null,1)};\n`);
+writeFileSync('/private/tmp/orbit-odessey-certificate-verification.json',JSON.stringify({angles:252,powers:41,seconds:22,evidence},null,2));
 console.log(`Verified ${evidence.length} courses, ${evidence.length*252*41} finite-grid shots.`);

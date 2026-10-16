@@ -4,7 +4,7 @@ import { generateSector } from '../../src/game/generator';
 import { describeComposition, RECENT_LAYOUT_LIMIT } from '../../src/game/composition';
 import type { CompositionDescriptor } from '../../src/game/composition';
 
-describe('Zen debug level start', () => {
+describe('Odessey debug level start', () => {
   it('reconstructs the normal seed history at level fifteen and advances from its ring', () => {
     const recent: CompositionDescriptor[] = [];
     let field = generateSector(42);

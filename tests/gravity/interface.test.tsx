@@ -39,7 +39,7 @@ let frame: FrameRequestCallback;
 beforeEach(() => {
   window.history.replaceState({}, "", "/");
   localStorage.clear();
-  localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.odessey.v1", "complete");
   localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
   localStorage.setItem("orbit.walkthrough.gravity.v2", "complete");
   vi.stubGlobal(
@@ -98,15 +98,21 @@ describe("Gravity interface", () => {
       width: 1280,
       height: 800,
       pointerType: "mouse",
-      limit: 90,
+      limit: 153,
     },
-    { name: "phone", width: 390, height: 844, pointerType: "touch", limit: 48 },
+    {
+      name: "phone",
+      width: 390,
+      height: 844,
+      pointerType: "touch",
+      limit: 81.6,
+    },
     {
       name: "landscape",
       width: 844,
       height: 390,
       pointerType: "touch",
-      limit: 48,
+      limit: 81.6,
     },
   ])("$name launch response", ({ width, height, pointerType, limit }) => {
     it.each([24, 48, 80, "maximum", "over cap"] as const)(
@@ -145,8 +151,9 @@ describe("Gravity interface", () => {
         const state = (launch.mock.instances[0] as GravityEngine).getSnapshot();
         expect(state.aim.power).toBeCloseTo(expectedPower, 12);
         expect(state.particles[0].position).toEqual({ x: 300, y: 300 });
+        const boost = Math.max(0, Math.min(1, (expectedPower - 0.8) / 0.2));
         expect(state.particles[0].velocity.x).toBeCloseTo(
-          expectedPower === 1 ? 460 : 420 * expectedPower,
+          420 * expectedPower + 40 * boost ** 2 * (3 - 2 * boost),
           10,
         );
         expect(state.particles[0].velocity.y).toBeCloseTo(0);
@@ -158,7 +165,7 @@ describe("Gravity interface", () => {
       pointerType: "mouse",
       width: 1280,
       height: 800,
-      base: 90,
+      base: 153,
       zoom: 0.5,
       factor: Math.sqrt(0.5),
     },
@@ -166,7 +173,7 @@ describe("Gravity interface", () => {
       pointerType: "mouse",
       width: 1280,
       height: 800,
-      base: 90,
+      base: 153,
       zoom: 0.75,
       factor: Math.sqrt(0.75),
     },
@@ -174,7 +181,7 @@ describe("Gravity interface", () => {
       pointerType: "touch",
       width: 390,
       height: 844,
-      base: 48,
+      base: 81.6,
       zoom: 0.5,
       factor: Math.sqrt(0.5),
     },
@@ -182,7 +189,7 @@ describe("Gravity interface", () => {
       pointerType: "touch",
       width: 844,
       height: 390,
-      base: 48,
+      base: 81.6,
       zoom: 0.75,
       factor: Math.sqrt(0.75),
     },
@@ -195,7 +202,7 @@ describe("Gravity interface", () => {
       const setLaunch = vi.spyOn(GravityEngine.prototype, "setLaunch");
       render(<GravityGame onExit={() => {}} />);
       const canvas = field();
-      fireEvent.wheel(canvas, { deltaY: -Math.log(zoom) / 0.002 });
+      fireEvent.wheel(canvas, { deltaY: -Math.log(zoom) / 0.0012 });
       for (const [fraction, expectedPower, expectedSpeed] of [
         [0.5, 0.25, 105],
         [0.95, 0.9025, 399.79984375],
@@ -405,7 +412,7 @@ describe("Gravity interface", () => {
     expect(field()).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
-    fireEvent.click(screen.getByRole("button", { name: /^Zen/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Odessey/ }));
     expect(screen.getByLabelText("Slingshot flight field")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));

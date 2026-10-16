@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { markTutorialSeen } from "./tutorial-fixture";
-async function boot(page: Page, mode = "zen") {
+async function boot(page: Page, mode = "odessey") {
   await page.addInitScript(markTutorialSeen);
   await page.addInitScript(() => {
     const original = CanvasRenderingContext2D.prototype.arc,
@@ -96,9 +96,9 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
     };
   await choose(page, "Full");
   await held(page, start, end);
-  const zenFull = await dots(page);
+  const odesseyFull = await dots(page);
   await page.screenshot({
-    path: "/private/tmp/orbit-path-assist-zen-full.png",
+    path: "/private/tmp/orbit-path-assist-odessey-full.png",
   });
   await pauseHeld(page);
   await page
@@ -106,11 +106,11 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
     .uncheck();
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   await held(page, start, end);
-  const zenPartial = await dots(page);
+  const odesseyPartial = await dots(page);
   await page.screenshot({
-    path: "/private/tmp/orbit-path-assist-zen-partial.png",
+    path: "/private/tmp/orbit-path-assist-odessey-partial.png",
   });
-  expect(zenFull).toBeGreaterThan(zenPartial * 2);
+  expect(odesseyFull).toBeGreaterThan(odesseyPartial * 2);
   await pauseHeld(page);
   await page.getByRole("button", { name: "Choose mode", exact: true }).click();
   await page.getByRole("button", { name: /^Gravity\s*Build/ }).click();
@@ -180,8 +180,8 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
     "0 planets in motion",
   );
   console.log("Path assist visible dots", {
-    zenFull,
-    zenPartial,
+    odesseyFull,
+    odesseyPartial,
     gravityFull,
     gravityPartial,
   });

@@ -17,7 +17,7 @@ export function pullDistance(
 ) {
   return pointerType === "touch" || usesTouchLayout(width, height)
     ? MOBILE_PULL_DISTANCE
-    : 160;
+    : Math.min(160, Math.max(MOBILE_PULL_DISTANCE, width * 0.18 - 18));
 }
 export function runSeed(search: string) {
   const raw = new URLSearchParams(search).get("seed");

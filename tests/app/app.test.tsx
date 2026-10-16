@@ -6,7 +6,7 @@ import {
   cleanup,
   act,
 } from "@testing-library/react";
-import { ZenGame as App } from "../../src/App";
+import { OdesseyGame as App } from "../../src/App";
 import { OrbitEngine } from "../../src/game/engine";
 import { FeedbackClock } from "../../src/transitions";
 vi.mock("../../src/render/renderer", () => ({
@@ -35,7 +35,7 @@ vi.stubGlobal("matchMedia", () => ({ matches: false }));
 const originalURL = window.location.href;
 beforeEach(() => {
   localStorage.clear();
-  localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.odessey.v1", "complete");
   localStorage.setItem("orbit.walkthrough.gravity.v1", "complete");
 });
 afterEach(() => {
@@ -238,32 +238,30 @@ describe("minimal scene lifecycle", () => {
       return 1;
     });
     const { container } = render(<App />);
-    expect(screen.getByText("Offscreen · 5s")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Restart shot" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe(
-      "Offscreen. Six seconds to return.",
+      "Offscreen. Five seconds to return.",
     );
     expect(
-      container
-        .querySelector(".offscreen-countdown")
-        ?.getAttribute("aria-hidden"),
-    ).toBe("true");
+      screen.getByRole("button", { name: "Restart shot" }).textContent,
+    ).toBe("Restart");
     current = { ...current, particles: [piece(1, 1), piece(2, 3.1)] };
     act(() => nextFrame(100));
-    expect(screen.getByText("Offscreen · 4s")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Restart shot" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe(
-      "Offscreen. Six seconds to return.",
+      "Offscreen. Five seconds to return.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    expect(container.querySelector(".offscreen-countdown")).toBeNull();
+    expect(container.querySelector(".offscreen-restart")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    expect(screen.getByText("Offscreen · 4s")).toBeTruthy();
-    current = { ...current, particles: [piece(1, 1), piece(2)] };
+    expect(screen.getByRole("button", { name: "Restart shot" })).toBeTruthy();
+    current = { ...current, particles: [piece(1), piece(2)] };
     act(() => nextFrame(200));
-    expect(container.querySelector(".offscreen-countdown")).toBeNull();
+    expect(container.querySelector(".offscreen-restart")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("In flight");
     current = { ...current, particles: [piece(1, 0, false)] };
     act(() => nextFrame(300));
-    expect(container.querySelector(".offscreen-countdown")).toBeNull();
+    expect(container.querySelector(".offscreen-restart")).toBeNull();
   });
   it("predicts a stationary new pull with zero launch power", () => {
     const powers: number[] = [];
@@ -300,7 +298,7 @@ describe("minimal scene lifecycle", () => {
     render(<App />);
     expect(screen.queryByRole("slider")).toBeNull();
     expect(screen.getByLabelText("Journey status").textContent).toBe(
-      "ZenCheckpoint 0",
+      "OdesseyCheckpoint 0",
     );
     expect(screen.getByLabelText("Checkpoint 0")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Launch" })).toBeNull();
@@ -311,7 +309,7 @@ describe("minimal scene lifecycle", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "How to play" }));
     expect(
-      screen.getByRole("dialog", { name: "How to play Zen" }),
+      screen.getByRole("dialog", { name: "How to play Odessey" }),
     ).toBeTruthy();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(screen.getByRole("dialog", { name: "Paused" })).toBeTruthy();

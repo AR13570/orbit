@@ -15,7 +15,7 @@ for (const viewport of [
   { width: 768, height: 1024, seed: 42 },
   { width: 320, height: 568, seed: 17 },
 ])
-  for (const mode of ["zen"] as ("zen" | "gravity")[]) {
+  for (const mode of ["odessey"] as ("odessey" | "gravity")[]) {
     test(`${mode} mobile launcher has real full-power room and rotation preserves play ${viewport.width}`, async ({
       browser,
     }) => {
@@ -35,9 +35,9 @@ for (const viewport of [
         await page.goto(`/?mode=${mode}&seed=${viewport.seed}`);
         await page.clock.runFor(100);
         const canvas = page.getByLabel(
-          mode === "zen" ? "Slingshot flight field" : "Gravity orbital field",
+          mode === "odessey" ? "Slingshot flight field" : "Gravity orbital field",
         );
-        const zen = new OrbitEngine(viewport.seed).getSnapshot().sector;
+        const odessey = new OrbitEngine(viewport.seed).getSnapshot().sector;
         const gravity = new GravityEngine(viewport.seed).getSnapshot().level;
         function framing(width: number, height: number) {
           if (mode === "gravity") {
@@ -62,29 +62,29 @@ for (const viewport of [
             };
           }
           const bounds = contentBounds([
-            ...zen.bodies.map((body) => ({
+            ...odessey.bodies.map((body) => ({
               position: body.position,
               radius: body.radius + 24,
             })),
-            { position: zen.launch, radius: 0 },
+            { position: odessey.launch, radius: 0 },
             {
-              position: zen.checkpoint.position,
-              radius: zen.checkpoint.radius + 12,
+              position: odessey.checkpoint.position,
+              radius: odessey.checkpoint.radius + 12,
             },
           ]);
           const camera = fitFieldCamera(
             bounds,
-            zen.launch,
+            odessey.launch,
             width,
             height,
             undefined,
-            zen.checkpoint,
+            odessey.checkpoint,
             true,
           );
           return {
             camera,
             point: worldToClient(
-              zen.launch,
+              odessey.launch,
               { left: 0, top: 0, width, height },
               camera,
             ),
@@ -118,14 +118,14 @@ for (const viewport of [
         });
         await touch("touchEnd");
         await expect(page.getByRole("status")).toHaveText(
-          mode === "zen" ? "In flight" : "1 / 12 projectiles in flight",
+          mode === "odessey" ? "In flight" : "1 / 12 projectiles in flight",
         );
         const rotated = { width: viewport.height, height: viewport.width };
         await page.setViewportSize(rotated);
         await page.clock.runFor(16);
         await expect(canvas).toHaveJSProperty("width", rotated.width * 2);
         await expect(page.getByRole("status")).toHaveText(
-          mode === "zen" ? "In flight" : "1 / 12 projectiles in flight",
+          mode === "odessey" ? "In flight" : "1 / 12 projectiles in flight",
         );
         await page.getByRole("button", { name: "Reset level (R)" }).tap();
         await page.clock.runFor(750);
@@ -146,7 +146,7 @@ for (const viewport of [
         await page.clock.runFor(50);
         await touch("touchEnd");
         await expect(page.getByRole("status")).toHaveText(
-          mode === "zen" ? "Ready to pull" : "0 / 12 projectiles in flight",
+          mode === "odessey" ? "Ready to pull" : "0 / 12 projectiles in flight",
         );
         expect(errors).toEqual([]);
       } finally {

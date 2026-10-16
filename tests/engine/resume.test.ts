@@ -13,7 +13,7 @@ afterEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
 });
-describe("Zen checkpoint resume", () => {
+describe("Odessey checkpoint resume", () => {
   it("restores the exact current course in ready state and preserves subsequent composition", () => {
     const engine = new OrbitEngine(42, 25);
     const before = engine.getSnapshot().sector;

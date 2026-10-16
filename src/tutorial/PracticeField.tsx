@@ -321,7 +321,7 @@ export default function PracticeField({
             ),
           ),
         );
-        if (model.mode === "zen") {
+        if (model.mode === "odessey") {
           const {
             position: { x, y },
             radius,
@@ -391,7 +391,7 @@ export default function PracticeField({
         };
         for (const p of model.getParticles()) {
           ctx.globalAlpha =
-            model.mode === "zen" ? model.trailOpacity(p) : p.alive ? 0.5 : 0.12;
+            model.mode === "odessey" ? model.trailOpacity(p) : p.alive ? 0.5 : 0.12;
           ctx.strokeStyle = "#527c9a";
           ctx.lineWidth = 1.2 / camera.scale;
           ctx.beginPath();
@@ -492,7 +492,7 @@ export default function PracticeField({
         ref={canvas}
         className="practice-canvas"
         tabIndex={0}
-        aria-label={`${model.mode === "zen" ? "Zen" : "Gravity"} practice field`}
+        aria-label={`${model.mode === "odessey" ? "Odessey" : "Gravity"} practice field`}
         aria-describedby="practice-keyboard"
         aria-disabled={!model.interactive() || inputLocked.current}
         onPointerDown={(event) => {
@@ -623,7 +623,7 @@ export default function PracticeField({
           }
         }}
       />
-      {model.mode === "zen" && model.interactive() && hud?.stage === step && (
+      {model.mode === "odessey" && model.interactive() && hud?.stage === step && (
         <div
           className="practice-mode-indicator"
           data-mode={hud.mode}

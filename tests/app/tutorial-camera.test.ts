@@ -26,7 +26,7 @@ const options: TutorialCameraTargetOptions = {
   overview: { center: { x: 600, y: 300 }, scale: 0.5 },
   area: { width: 900, height: 500 },
   step: "intro",
-  mode: "zen",
+  mode: "odessey",
   launcher: { x: 120, y: 300 },
   bodies,
   checkpoint: { position: { x: 1100, y: 220 }, radius: 50 },

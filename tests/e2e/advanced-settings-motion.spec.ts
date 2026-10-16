@@ -30,7 +30,7 @@ async function settle(panel: Locator) {
   });
 }
 
-for (const mode of ["zen", "gravity"]) {
+for (const mode of ["odessey", "gravity"]) {
   test(`${mode} pause closes with Escape or backdrop mouse and touch clicks`, async ({
     browser,
   }) => {

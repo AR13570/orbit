@@ -1,6 +1,6 @@
 # Orbit engine contract
 
-This contract describes Zen generation, gravity, progression, debug navigation and flight behavior.
+This contract describes Odessey generation, gravity, progression, debug navigation and flight behavior.
 
 ## Off-screen flight and countdown contract
 
@@ -18,7 +18,7 @@ The slalom has three paired gates with alternating opening centers. Clusters hav
 
 `generateSector(seed,index=0,launch?,recent=[])` mixes the run seed and checkpoint index through a 32-bit PRNG. A seeded shuffle of all twenty grammars controls each twenty-field cycle. The selected family must have a fresh usable certificate before construction starts. Randomness changes group spacing, relative vertical span, goal relation, mass and eligible gravity polarities, with reflection as an additional variation rather than a new family. Recent family identity is explicitly excluded alongside geometric similarity. Reproduction uses the same seed, index and recent descriptors. Math.random is used only when OrbitEngine chooses a fresh run seed.
 
-Zen difficulty advances with completed checkpoints and reaches its maximum at level 15. `zenDifficulty(index)` uses zero-based sector indices; the profile is capped after index 14. `generation.difficulty` publishes the normalized factor (0, 1/3, 2/3 or 1). Retry keeps the field and its difficulty; restart begins at the opening stage.
+Odessey difficulty advances with completed checkpoints and reaches its maximum at level 15. `odesseyDifficulty(index)` uses zero-based sector indices; the profile is capped after index 14. `generation.difficulty` publishes the normalized factor (0, 1/3, 2/3 or 1). Retry keeps the field and its difficulty; restart begins at the opening stage.
 
 | Levels | Forward goal distance | Extra solids | Field size | Gravity scale | Body-driven bends | Aim tolerance |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -33,13 +33,13 @@ Generation continues indefinitely after level 15 with the capped profile. Extra 
 
 `analyzeGravityBends` groups actual trajectory heading changes into alternating turns. Each qualifying turn must exceed 0.16 radians and cover at least 40 times the gravity scale in distance. A body's perpendicular force must exceed the goal's contribution, and successive counted bends must be dominated by distinct bodies. Tiny oscillations and goal-only curves do not count. Every advanced witness also requires at least two distinct bend bodies whose individual gravity removal causes an actual collision while their solid surfaces and every other force remain active. An unresolved trajectory never counts as positive difficulty evidence.
 
-`screenGravityShortcuts` independently checks 252 angles around the full circle and 41 powers from 0 to 1, observing every shot for 22 seconds. Any captured trajectory with fewer than the required bends rejects a course. This is finite empirical screening, not a proof about every continuous angle and power. `npm run verify:zen` verifies the immutable inputs in `scripts/zen-multibend-sources.json`; adding `-- --write` republishes the runtime data only after all checks pass. The report is written to `/private/tmp/orbit-zen-certificate-verification.json`.
+`screenGravityShortcuts` independently checks 252 angles around the full circle and 41 powers from 0 to 1, observing every shot for 22 seconds. Any captured trajectory with fewer than the required bends rejects a course. This is finite empirical screening, not a proof about every continuous angle and power. `npm run verify:odessey` verifies the immutable inputs in `scripts/odessey-multibend-sources.json`; adding `-- --write` republishes the runtime data only after all checks pass. The report is written to `/private/tmp/orbit-odessey-certificate-verification.json`.
 
 Each stage has more than six pairwise fresh families. Runtime freshness still excludes the previous six families and similar silhouettes. Reflections may obscure only their own family's canonical certificate, preserving a future backup. A reflection is variation within a family and is never relabeled as a new structure.
 
 ## Debug level navigation and zoom
 
-Open `/?mode=zen&debug=1&level=15&seed=42` to start at level 15. `debug=true` is also accepted, and enabled debug opens Zen when mode is omitted. Explicit Gravity or Creator selection takes precedence. The level is one-based and must be a positive safe integer; malformed values return to one. A level parameter without enabled debug is ignored. Debug skips automatic first-time help, shows the active level, preserves that start level on New seed and permits normal progression beyond it.
+Open `/?mode=odessey&debug=1&level=15&seed=42` to start at level 15. `debug=true` is also accepted, and enabled debug opens Odessey when mode is omitted. Explicit Gravity or Creator selection takes precedence. The level is one-based and must be a positive safe integer; malformed values return to one. A level parameter without enabled debug is ignored. Debug skips automatic first-time help, shows the active level, preserves that start level on New seed and permits normal progression beyond it.
 
 `new OrbitEngine(seed?, startLevel=1)` and `restart(seed?, startLevel=1)` expose the same level jump. Starts through level 20 reconstruct ordinary seed history exactly. Higher debug jumps reconstruct only the six preceding fields, keeping the work bounded; they are deterministic but can differ from a complete journey with that seed. The checkpoint counter starts at level minus one. Retry retains the field.
 
@@ -95,6 +95,6 @@ Aiming-only setShotCount(1|3) and toggleShotCount select the mode; selection sur
 
 `setFlightBounds(bounds|null)` receives the renderer's actual visible world rectangle. Null restores canonical defaults; invalid/nonfinite or too-small rectangles are ignored. The engine copies the rectangle and preserves it across restart/advance. Visibility uses intersection of the physical circle and rectangle. Each live piece retains its continuous outside elapsed across bounds updates, resets on actual visibility re-entry and expires after six outside seconds. Prediction and live timeout positions agree. Camera framing, controls, pause, feedback timing, sound and persistence remain integration responsibilities.
 
-## Zen progression verification (2026-10-14)
+## Odessey progression verification (2026-10-14)
 
 Regression coverage includes three seeded 15-level engine journeys, exact prediction/live contact parity, increasing distance, two/three body-driven bends, force-removal collisions, deterministic retry/restart, high-index capped generation, full angle/power screening for every advanced course and fresh fallback histories. Browser coverage includes 15-level desktop and touch portrait journeys, debug jumps to levels 1/5/10/15/30, zoom overview/inspection and advancing from debug level 15 to 16.

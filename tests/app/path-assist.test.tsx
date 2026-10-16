@@ -6,7 +6,7 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, { ZenGame } from "../../src/App";
+import App, { OdesseyGame } from "../../src/App";
 import GravityGame from "../../src/gravity/GravityGame";
 import { GravityEngine } from "../../src/gravity/engine";
 import { OrbitEngine } from "../../src/game/engine";
@@ -16,7 +16,7 @@ import {
   setPathAssist,
 } from "../../src/pathAssist";
 const renders = vi.hoisted(() => ({
-  zen: vi.fn(),
+  odessey: vi.fn(),
   gravity: vi.fn(),
   gravityScale: 1,
 }));
@@ -25,7 +25,7 @@ vi.mock("../../src/render/renderer", () => ({
   createRenderer: () => ({
     resize() {},
     prepareFrame() {},
-    render: renders.zen,
+    render: renders.odessey,
     destroy() {},
     getVisibleBounds: () => ({ x: -100, y: -100, width: 2000, height: 1200 }),
     getViewport: () => ({ scale: 1, transitioning: false }),
@@ -48,7 +48,7 @@ beforeEach(() => {
   localStorage.clear();
   setPathAssist("partial");
   window.history.replaceState({}, "", "/");
-  localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.odessey.v1", "complete");
   localStorage.setItem("orbit.walkthrough.gravity.v2", "complete");
   vi.stubGlobal(
     "ResizeObserver",
@@ -63,7 +63,7 @@ beforeEach(() => {
     return 1;
   });
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
-  renders.zen.mockClear();
+  renders.odessey.mockClear();
   renders.gravity.mockClear();
   renders.gravityScale = 1;
 });
@@ -83,7 +83,7 @@ describe("shared path assist preference", () => {
     });
     setPathAssist("full");
     expect(readPathAssist()).toBe("full");
-    const view = render(<ZenGame />);
+    const view = render(<OdesseyGame />);
     fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
     fireEvent.click(
       screen.getByRole("button", { name: "Advanced", exact: true }),
@@ -106,10 +106,10 @@ describe("shared path assist preference", () => {
     ).toBe("true");
   });
   it("shares both settings across mode changes without launches and preserves dialog focus wrapping", () => {
-    const zen = vi.spyOn(OrbitEngine.prototype, "launch"),
+    const odessey = vi.spyOn(OrbitEngine.prototype, "launch"),
       gravity = vi.spyOn(GravityEngine.prototype, "launch");
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /^ZenFollow/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^OdesseyFollow/ }));
     fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
     fireEvent.click(
       screen.getByRole("button", { name: "Advanced", exact: true }),
@@ -146,7 +146,7 @@ describe("shared path assist preference", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("button", { name: "Resume", exact: true }),
     );
-    expect(zen).not.toHaveBeenCalled();
+    expect(odessey).not.toHaveBeenCalled();
     expect(gravity).not.toHaveBeenCalled();
   });
   it("collapses Advanced each pause opening and omits hidden switches from keyboard focus", () => {
@@ -180,7 +180,7 @@ describe("shared path assist preference", () => {
   });
   it("does not add settings controls to either tutorial", () => {
     localStorage.clear();
-    const view = render(<ZenGame startTutorial />);
+    const view = render(<OdesseyGame startTutorial />);
     expect(screen.queryByRole("switch", { name: "Path assist" })).toBeNull();
     view.unmount();
     render(<GravityGame onExit={() => {}} startTutorial />);
@@ -205,10 +205,10 @@ function aim(canvas: HTMLCanvasElement, type: string, x: number, y: number) {
   fireEvent(canvas, event);
 }
 describe("aim prediction setting behavior", () => {
-  it("requests the full Zen flight horizon and renders its longer path only while aiming", () => {
+  it("requests the full Odessey flight horizon and renders its longer path only while aiming", () => {
     setPathAssist("full");
     const predict = vi.spyOn(OrbitEngine.prototype, "predict");
-    render(<ZenGame />);
+    render(<OdesseyGame />);
     const canvas = screen.getByLabelText(
       "Slingshot flight field",
     ) as HTMLCanvasElement;
@@ -216,30 +216,30 @@ describe("aim prediction setting behavior", () => {
     aim(canvas, "pointermove", 220, 500);
     act(() => frame(100));
     expect(predict).toHaveBeenLastCalledWith(22);
-    expect(renders.zen.mock.calls.at(-1)?.[3].pathAssist).toBe("full");
+    expect(renders.odessey.mock.calls.at(-1)?.[3].pathAssist).toBe("full");
     aim(canvas, "pointercancel", 220, 500);
     act(() => frame(200));
-    expect(renders.zen.mock.calls.at(-1)?.[1]).toEqual([]);
+    expect(renders.odessey.mock.calls.at(-1)?.[1]).toEqual([]);
   });
-  it("clears a changed Full Zen aim inside the throttle window but retains an identical aim", () => {
+  it("clears a changed Full Odessey aim inside the throttle window but retains an identical aim", () => {
     setPathAssist("full");
-    render(<ZenGame />);
+    render(<OdesseyGame />);
     const canvas = screen.getByLabelText(
       "Slingshot flight field",
     ) as HTMLCanvasElement;
     aim(canvas, "pointerdown", 300, 500);
     aim(canvas, "pointermove", 220, 500);
     act(() => frame(100));
-    expect(renders.zen.mock.calls.at(-1)?.[1][0].length).toBeGreaterThan(0);
+    expect(renders.odessey.mock.calls.at(-1)?.[1][0].length).toBeGreaterThan(0);
     aim(canvas, "pointermove", 220, 400);
     act(() => frame(120));
-    expect(renders.zen.mock.calls.at(-1)?.[1]).toEqual([]);
+    expect(renders.odessey.mock.calls.at(-1)?.[1]).toEqual([]);
     act(() => frame(200));
-    const updated = renders.zen.mock.calls.at(-1)?.[1];
+    const updated = renders.odessey.mock.calls.at(-1)?.[1];
     expect(updated[0].length).toBeGreaterThan(0);
     aim(canvas, "pointermove", 220, 400);
     act(() => frame(220));
-    expect(renders.zen.mock.calls.at(-1)?.[1]).toEqual(updated);
+    expect(renders.odessey.mock.calls.at(-1)?.[1]).toEqual(updated);
   });
   it("uses a longer bounded Gravity job, refreshes a held-still sky, and cancels on pause or setting changes", () => {
     setPathAssist("full");
@@ -276,8 +276,9 @@ describe("aim prediction setting behavior", () => {
     aim(canvas, "pointerup", 20, 200);
     expect(screen.getByRole("status").textContent).toBe("0 planets in motion");
     aim(canvas, "pointerdown", 100, 200);
-    // A slower shot needs more physical time to cover the visible preview.
-    aim(canvas, "pointermove", 60, 200);
+    // Preserve the same normalized slow shot with the longer pull range.
+    // Leave room below the preview horizon cap to observe zoom extending it.
+    aim(canvas, "pointermove", 32, 200);
     act(() => frame(900));
     const partialSeconds = begin.mock.calls.at(-1)![0]!;
     expect(partialSeconds).toBeGreaterThan(1.4);

@@ -137,7 +137,7 @@ async function expectStopped(page: Page) {
   expect((await audit(page)).starts).toBe(paused.starts);
   return paused.starts;
 }
-for (const mode of ["zen", "gravity"] as const) {
+for (const mode of ["odessey", "gravity"] as const) {
   test(`${mode} default ambient music starts on first keyboard interaction and stops with pause, mute and exit`, async ({
     page,
   }) => {
@@ -188,7 +188,7 @@ for (const mode of ["zen", "gravity"] as const) {
     const selectMode = () =>
       page
         .getByRole("button", {
-          name: mode === "zen" ? /^Zen/ : /Gravity.*Build living/,
+          name: mode === "odessey" ? /^Odessey/ : /Gravity.*Build living/,
         })
         .click();
     await selectMode();

@@ -11,9 +11,9 @@ import {
 describe("gameplay camera zoom", () => {
   it("keeps zoom inside the supported range", () => {
     expect(MIN_GAMEPLAY_ZOOM).toBe(0.25);
-    expect(MAX_GAMEPLAY_ZOOM).toBe(4);
+    expect(MAX_GAMEPLAY_ZOOM).toBe(2);
     expect(clampGameplayZoom(0.2)).toBe(0.25);
-    expect(clampGameplayZoom(4)).toBe(4);
+    expect(clampGameplayZoom(4)).toBe(2);
     expect(clampGameplayZoom(1.25)).toBe(1.25);
   });
 
@@ -35,11 +35,10 @@ describe("pinch gesture ownership", () => {
     expect(pinch.down(1, { x: 100, y: 100 }, 1)).toBe(false);
     expect(pinch.move(1, { x: 110, y: 100 })).toEqual({ consumed: false });
     expect(pinch.down(2, { x: 210, y: 100 }, 1)).toBe(true);
-    expect(pinch.move(2, { x: 260, y: 100 })).toEqual({
-      consumed: true,
-      zoom: 1.5,
-    });
-    expect(pinch.move(2, { x: 510, y: 100 }).zoom).toBe(4);
+    const moved = pinch.move(2, { x: 260, y: 100 });
+    expect(moved.consumed).toBe(true);
+    expect(moved.zoom).toBeCloseTo(1.3015, 4);
+    expect(pinch.move(2, { x: 510, y: 100 }).zoom).toBe(2);
     expect(pinch.move(2, { x: 120, y: 100 }).zoom).toBe(0.25);
   });
 
@@ -49,9 +48,9 @@ describe("pinch gesture ownership", () => {
     pinch.down(2, { x: 200, y: 100 }, 1);
     expect(pinch.down(3, { x: 500, y: 500 }, 1)).toBe(true);
     expect(pinch.move(3, { x: 900, y: 900 }).consumed).toBe(true);
-    expect(pinch.move(2, { x: 250, y: 100 }).zoom).toBe(1.5);
+    expect(pinch.move(2, { x: 250, y: 100 }).zoom).toBeCloseTo(1.3015, 4);
     expect(pinch.up(3)).toBe(true);
-    expect(pinch.move(2, { x: 220, y: 100 }).zoom).toBeCloseTo(1.2);
+    expect(pinch.move(2, { x: 220, y: 100 }).zoom).toBeCloseTo(1.1258, 4);
   });
 
   it("consumes the remaining finger until all fingers lift", () => {
@@ -75,13 +74,13 @@ describe("pinch gesture ownership", () => {
     expect(pinch.pointerIds).toEqual([]);
     expect(pinch.down(3, { x: 100, y: 100 }, 1.2)).toBe(false);
     expect(pinch.down(4, { x: 200, y: 100 }, 1.2)).toBe(true);
-    expect(pinch.move(4, { x: 225, y: 100 }).zoom).toBeCloseTo(1.5);
+    expect(pinch.move(4, { x: 225, y: 100 }).zoom).toBeCloseTo(1.3873, 4);
   });
 });
 
 it("uses Gravity's tighter minimum for clamp, camera, and the complete pinch session", () => {
   expect(clampGameplayZoom(0.01, MIN_GRAVITY_ZOOM)).toBe(0.5);
-  expect(clampGameplayZoom(100, MIN_GRAVITY_ZOOM)).toBe(4);
+  expect(clampGameplayZoom(100, MIN_GRAVITY_ZOOM)).toBe(2);
   expect(
     zoomCamera({ center: { x: 0, y: 0 }, scale: 2 }, 0.01, MIN_GRAVITY_ZOOM)
       .scale,
@@ -90,5 +89,24 @@ it("uses Gravity's tighter minimum for clamp, camera, and the complete pinch ses
   pinch.down(1, { x: 0, y: 0 }, 1);
   pinch.down(2, { x: 100, y: 0 }, 1);
   expect(pinch.move(2, { x: 1, y: 0 }).zoom).toBe(0.5);
-  expect(pinch.move(2, { x: 500, y: 0 }).zoom).toBe(4);
+  expect(pinch.move(2, { x: 500, y: 0 }).zoom).toBe(2);
+});
+
+it("allows a Odessey two-finger translation at the same zoom and caps its pinch at 120%", () => {
+  const gesture = new PinchZoom(1 / 1.2, 1.2, true);
+  gesture.down(1, { x: 100, y: 100 }, 1);
+  gesture.down(2, { x: 200, y: 100 }, 1);
+  const first = gesture.move(1, { x: 130, y: 120 });
+  const second = gesture.move(2, { x: 230, y: 120 });
+  expect(second.zoom).toBeCloseTo(1);
+  expect(first.pan!.x + second.pan!.x).toBeCloseTo(30);
+  expect(first.pan!.y + second.pan!.y).toBeCloseTo(20);
+  expect(gesture.move(2, { x: 430, y: 120 }).zoom).toBe(1.2);
+});
+
+it("limits Odessey pinch zoom-out to a view only 20% wider than default", () => {
+  const gesture = new PinchZoom(1 / 1.2, 1.2, true);
+  gesture.down(1, { x: 100, y: 100 }, 1);
+  gesture.down(2, { x: 200, y: 100 }, 1);
+  expect(gesture.move(2, { x: 101, y: 100 }).zoom).toBeCloseTo(0.8333333333, 9);
 });

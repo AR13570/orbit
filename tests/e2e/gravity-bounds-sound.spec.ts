@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { markTutorialSeen } from "./tutorial-fixture";
 import { resetZoom, wheelZoom } from "./zoom-fixture";
 
-for (const initialMode of ["zen", "gravity"] as const) {
+for (const initialMode of ["odessey", "gravity"] as const) {
   test(`Sound off and on survive reload and mode changes starting in ${initialMode}`, async ({
     page,
   }) => {
@@ -41,10 +41,10 @@ for (const initialMode of ["zen", "gravity"] as const) {
     await page
       .getByRole("button", { name: "Choose mode", exact: true })
       .click();
-    const other = initialMode === "zen" ? "gravity" : "zen";
+    const other = initialMode === "odessey" ? "gravity" : "odessey";
     await page
       .getByRole("button", {
-        name: other === "gravity" ? /^Gravity\s*Build/ : /^Zen\s*Follow/,
+        name: other === "gravity" ? /^Gravity\s*Build/ : /^Odessey\s*Follow/,
       })
       .click();
     await pause();
@@ -66,7 +66,7 @@ for (const initialMode of ["zen", "gravity"] as const) {
       .click();
     await page
       .getByRole("button", {
-        name: initialMode === "gravity" ? /^Gravity\s*Build/ : /^Zen\s*Follow/,
+        name: initialMode === "gravity" ? /^Gravity\s*Build/ : /^Odessey\s*Follow/,
       })
       .click();
     await pause();
@@ -154,7 +154,29 @@ for (const viewport of [
           .particles.map((p: any) => p.alive),
       ),
     ).toEqual([true, true, false]);
+    await page.evaluate(() => {
+      const engine = (window as any).boundsEngine;
+      engine.retry();
+      const state = engine.getSnapshot(),
+        view = state.flightBounds;
+      const x = view.x + view.width * 0.8,
+        y = view.y + view.height / 2;
+      // Fast outward shots stay alive inside the outer view, even outside the default view.
+      engine.launchFrom({ x, y }, { x: 180, y: 0 });
+      // Returning and stationary shots use exactly the same outer boundary.
+      engine.launchFrom({ x, y: y + 40 }, { x: -40, y: 0 });
+      engine.launchFrom({ x, y: y - 40 }, { x: 0, y: 0 });
+    });
+    await page.clock.runFor(32);
+    expect(
+      await page.evaluate(() =>
+        (window as any).boundsEngine
+          .getSnapshot()
+          .particles.map((p: any) => p.alive),
+      ),
+    ).toEqual([true, true, true]);
     await resetZoom(page, "Gravity orbital field");
+
     expect(
       await page.evaluate(
         () =>
@@ -162,7 +184,7 @@ for (const viewport of [
             .getSnapshot()
             .particles.filter((p: any) => p.alive).length,
       ),
-    ).toBe(2);
+    ).toBe(3);
     await page.setViewportSize({
       width: viewport.height,
       height: viewport.width,
@@ -171,11 +193,14 @@ for (const viewport of [
     await expect
       .poll(async () => {
         await page.clock.runFor(32);
-        return page.evaluate(() => {
+        return page.evaluate((before) => {
           const live = (window as any).boundsEngine.getSnapshot().flightBounds;
           const stepped = (window as any).boundsBeforePhysics.at(-1).bounds;
-          return JSON.stringify(stepped) === JSON.stringify(live);
-        });
+          return (
+            JSON.stringify(live) !== JSON.stringify(before) &&
+            JSON.stringify(stepped) === JSON.stringify(live)
+          );
+        }, initialBounds);
       })
       .toBe(true);
     const resized = await page.evaluate(() => ({

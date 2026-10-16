@@ -10,7 +10,7 @@ import { buildEndlessGravityLevel } from "../../src/gravity/endless";
 import endlessFixtures from "../../src/gravity/endless-fixtures.json";
 
 describe("Gravity physical units", () => {
-  it("adds a modest full-pull boost without changing gentle shots or Zen", () => {
+  it("adds a modest full-pull boost without changing gentle shots or Odessey", () => {
     expect(launchSpeed(1)).toBe(420);
     expect(gravityLaunchSpeed(0.5)).toBeCloseTo(210);
     expect(gravityLaunchSpeed(0.8)).toBeCloseTo(336);

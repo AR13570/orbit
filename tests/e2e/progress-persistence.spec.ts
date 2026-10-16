@@ -44,7 +44,7 @@ async function reload(page: Page) {
 }
 for (const mobile of [false, true]) {
   const device = mobile ? "touch portrait" : "desktop";
-  test(`Zen checkpoint survives flight, dock, reset, mode switch and New seed reloads on ${device}`, async ({
+  test(`Odessey checkpoint survives flight, dock, reset, mode switch and New seed reloads on ${device}`, async ({
     browser,
   }) => {
     test.setTimeout(90000);
@@ -63,7 +63,7 @@ for (const mobile of [false, true]) {
     try {
       await page.clock.install();
       await page.clock.pauseAt(new Date());
-      await page.goto("/?mode=zen&seed=42");
+      await page.goto("/?mode=odessey&seed=42");
       await page.clock.runFor(800);
       const reference = new OrbitEngine(42),
         solution = reference.getSnapshot().sector.solution;
@@ -75,7 +75,7 @@ for (const mobile of [false, true]) {
           ? MOBILE_PULL_DISTANCE
           : pullDistance("mouse", viewport.width, viewport.height));
       console.log(
-        `Zen ${device}: angle=${solution.angle}, power=${solution.power}, drag (${x},${y}) -> (${x - Math.cos(solution.angle) * distance},${y - Math.sin(solution.angle) * distance})`,
+        `Odessey ${device}: angle=${solution.angle}, power=${solution.power}, drag (${x},${y}) -> (${x - Math.cos(solution.angle) * distance},${y - Math.sin(solution.angle) * distance})`,
       );
       const cdp = mobile ? await context.newCDPSession(page) : undefined;
       await drag(page, cdp, x, y, solution.angle, distance);
@@ -96,11 +96,11 @@ for (const mobile of [false, true]) {
       expect(
         await page.evaluate(
           () =>
-            JSON.parse(localStorage.getItem("orbit.zen.progress.v1:42")!)
+            JSON.parse(localStorage.getItem("orbit.odessey.progress.v1:42")!)
               .pendingAdvance,
         ),
       ).toBe(true);
-      await page.screenshot({ path: test.info().outputPath("zen-docked.png") });
+      await page.screenshot({ path: test.info().outputPath("odessey-docked.png") });
       reference.setAim(solution.angle, solution.power);
       reference.launch();
       for (
@@ -118,7 +118,7 @@ for (const mobile of [false, true]) {
       expect(
         await page.evaluate(
           () =>
-            JSON.parse(localStorage.getItem("orbit.zen.progress.v1:42")!)
+            JSON.parse(localStorage.getItem("orbit.odessey.progress.v1:42")!)
               .sector,
         ),
       ).toEqual(reference.getSnapshot().sector);
@@ -130,7 +130,7 @@ for (const mobile of [false, true]) {
         page.getByLabel("Checkpoint 1", { exact: true }),
       ).toBeVisible();
       await page.screenshot({
-        path: test.info().outputPath("zen-restored.png"),
+        path: test.info().outputPath("odessey-restored.png"),
       });
       await page.getByRole("button", { name: "Pause", exact: true }).click();
       await page
@@ -141,7 +141,7 @@ for (const mobile of [false, true]) {
       await page
         .getByRole("button", { name: "Choose mode", exact: true })
         .click();
-      await page.getByRole("button", { name: /^Zen Follow/ }).click();
+      await page.getByRole("button", { name: /^Odessey Follow/ }).click();
       await expect(
         page.getByLabel("Checkpoint 1", { exact: true }),
       ).toBeVisible();
@@ -153,7 +153,7 @@ for (const mobile of [false, true]) {
       await expect(
         page.getByLabel("Checkpoint 0", { exact: true }),
       ).toBeVisible();
-      await page.goto("/?mode=zen&seed=42");
+      await page.goto("/?mode=odessey&seed=42");
       await page.clock.runFor(800);
       await expect(
         page.getByLabel("Checkpoint 1", { exact: true }),

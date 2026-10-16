@@ -4,13 +4,13 @@ import { tutorialSteps } from "../../src/tutorial/steps";
 import { OrbitEngine } from "../../src/game/engine";
 import { GravityEngine } from "../../src/gravity/engine";
 describe("isolated tutorial practice", () => {
-  it.each(["zen", "gravity"] as const)(
+  it.each(["odessey", "gravity"] as const)(
     "%s introduces components before the authored practice levels",
     (mode) => {
       const model = new TutorialPractice(mode);
       const steps = tutorialSteps(mode);
       expect(steps.map((s) => s.id)).toEqual(
-        mode === "zen"
+        mode === "odessey"
           ? [
               "intro",
               "forces",
@@ -32,7 +32,7 @@ describe("isolated tutorial practice", () => {
       model.enterStage("launch");
       expect(model.ready()).toBe(false);
       expect(model.launch()).toBe(true);
-      if (mode === "zen") {
+      if (mode === "odessey") {
         expect(model.ready()).toBe(false);
         for (let i = 0; i < 4000 && !model.ready(); i++) model.update(1 / 60);
       }
@@ -50,7 +50,7 @@ describe("isolated tutorial practice", () => {
     expect(Math.atan2(velocity.y, velocity.x)).toBeCloseTo(model.aim.angle, 10);
   });
   it("Back preserves the practice flight and freezes it during explanations", () => {
-    const model = new TutorialPractice("zen");
+    const model = new TutorialPractice("odessey");
     model.enterStage("launch");
     model.launch();
     model.update(0.05);
@@ -61,22 +61,22 @@ describe("isolated tutorial practice", () => {
     expect(model.launch()).toBe(false);
   });
   it("never touches live engines during practice", () => {
-    const zen = new OrbitEngine(42),
+    const odessey = new OrbitEngine(42),
       gravity = new GravityEngine(42);
-    zen.launch();
+    odessey.launch();
     gravity.launch();
-    const before = [zen.getSnapshot(), gravity.getSnapshot()];
-    const model = new TutorialPractice("zen");
+    const before = [odessey.getSnapshot(), gravity.getSnapshot()];
+    const model = new TutorialPractice("odessey");
     model.enterStage("launch");
     model.launch();
     for (let i = 0; i < 200; i++) model.update(1 / 60);
-    expect([zen.getSnapshot(), gravity.getSnapshot()]).toEqual(before);
+    expect([odessey.getSnapshot(), gravity.getSnapshot()]).toEqual(before);
   });
 });
 
-describe("authored Zen lessons", () => {
+describe("authored Odessey lessons", () => {
   it("uses a thumb-sized magnet only near the split lesson's pull handle", () => {
-    const model = new TutorialPractice("zen");
+    const model = new TutorialPractice("odessey");
     model.enterStage("practice-split");
     const suggested = model.suggestedAim();
     for (const range of [72, 160]) {
@@ -90,7 +90,7 @@ describe("authored Zen lessons", () => {
     }
   });
   it("launches one ship and physically crashes when the player never branches", () => {
-    const model = new TutorialPractice("zen");
+    const model = new TutorialPractice("odessey");
     model.enterStage("practice-split");
     model.toggleMode();
     expect(model.launch()).toBe(true);
@@ -103,7 +103,7 @@ describe("authored Zen lessons", () => {
     expect(model.ready()).toBe(false);
   });
   it("accepts a genuine capture even when an alternative aim needs no split", () => {
-    const model = new TutorialPractice("zen");
+    const model = new TutorialPractice("odessey");
     model.enterStage("practice-split");
     model.toggleMode();
     model.setAim(33 * Math.PI / 180, .575);
@@ -114,7 +114,7 @@ describe("authored Zen lessons", () => {
     expect(model.ready()).toBe(true);
   });
   it("requires a real checkpoint capture for the normal lesson", () => {
-    const model = new TutorialPractice("zen");
+    const model = new TutorialPractice("odessey");
     model.enterStage("launch");
     expect(model.solution().paths[0].length).toBeGreaterThan(10);
     expect(model.ready()).toBe(false);
@@ -125,7 +125,7 @@ describe("authored Zen lessons", () => {
     expect(model.ready()).toBe(true);
   });
   it("requires a useful branch and captures using the supplied timing", () => {
-    const model = new TutorialPractice("zen");
+    const model = new TutorialPractice("odessey");
     model.enterStage("practice-split");
     expect(model.solution().paths.length).toBeGreaterThan(1);
     expect(model.solution().tapPoint).toBeDefined();

@@ -16,6 +16,7 @@ export default function Icon({
     | "drag"
     | "orbit"
     | "flag"
+    | "frame"
     | "reset"
     | "duplicate"
     | "swap"
@@ -64,6 +65,12 @@ export default function Icon({
       </>
     ),
     flag: <path d="M5 21V3m0 1h13l-3 4 3 4H5" />,
+    frame: (
+      <>
+        <path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" />
+        <circle cx="12" cy="12" r="2" />
+      </>
+    ),
     reset: <path d="M4 10a8 8 0 1 1 1.8 7M4 5v5h5" />,
     path: (
       <>

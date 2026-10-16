@@ -9,12 +9,12 @@ import {
 } from "./zoom-fixture";
 
 for (const device of [
-  { width: 1280, height: 800, touch: false, limit: 90 },
-  { width: 390, height: 844, touch: true, limit: 48 },
-  { width: 844, height: 390, touch: true, limit: 48 },
-  { width: 320, height: 568, touch: true, limit: 48 },
+  { width: 1280, height: 800, touch: false, limit: 153 },
+  { width: 390, height: 844, touch: true, limit: 81.6 },
+  { width: 844, height: 390, touch: true, limit: 81.6 },
+  { width: 320, height: 568, touch: true, limit: 81.6 },
 ]) {
-  for (const zoom of [0.25, 0.45, 1, 2, 4]) {
+  for (const zoom of [0.5, 0.75, 1, 2]) {
     test(`Gravity deliberate launch response at ${device.width}x${device.height}, zoom ${zoom}`, async ({
       browser,
     }) => {
@@ -88,8 +88,8 @@ for (const device of [
           device.limit * Math.max(0.65, Math.min(1.3, Math.sqrt(zoom)));
         const cdp = device.touch ? await context.newCDPSession(page) : null;
         const start = {
-          x: device.width === 320 ? 210 : Math.min(device.width - 30, 300),
-          y: device.height < 500 ? 250 : 330,
+          x: device.width === 320 ? 260 : Math.min(device.width - 30, 300),
+          y: device.width === 320 ? 180 : device.height < 500 ? 250 : 330,
         };
         for (const distance of [24, 48, 80, limit, limit * 1.08]) {
           const end = { x: start.x - distance, y: start.y };

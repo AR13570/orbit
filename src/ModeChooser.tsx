@@ -1,13 +1,13 @@
 import Icon from "./components/Icon";
 import Attribution from "./components/Attribution";
 
-export type OrbitMode = "zen" | "gravity" | "creator";
+export type OrbitMode = "odessey" | "gravity" | "creator";
 export default function ModeChooser({
   onSelect,
   onHelp,
 }: {
   onSelect: (mode: OrbitMode) => void;
-  onHelp: (mode: "zen" | "gravity") => void;
+  onHelp: (mode: "odessey" | "gravity") => void;
 }) {
   return (
     <main className="mode-chooser">
@@ -26,7 +26,7 @@ export default function ModeChooser({
       <div className="mode-selection">
         <div className="mode-options" aria-label="Choose a mode">
           <div className="mode-option">
-            <button className="mode-choice" onClick={() => onSelect("zen")}>
+            <button className="mode-choice" onClick={() => onSelect("odessey")}>
               <svg
                 className="mode-art"
                 viewBox="0 0 200 110"
@@ -42,7 +42,7 @@ export default function ModeChooser({
                 />
                 <circle cx="180" cy="42" r="5" fill="#527c9a" />
               </svg>
-              <span className="mode-name">Zen</span>
+              <span className="mode-name">Odessey</span>
               <span className="mode-description">
                 Follow the pull.
                 <br />
@@ -54,8 +54,8 @@ export default function ModeChooser({
             </button>
             <button
               className="mode-help"
-              aria-label="How to play Zen"
-              onClick={() => onHelp("zen")}
+              aria-label="How to play Odessey"
+              onClick={() => onHelp("odessey")}
             >
               <svg
                 viewBox="0 0 20 20"

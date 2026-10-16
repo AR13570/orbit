@@ -234,7 +234,7 @@ for (const device of [
         const baseline = await page.evaluate(
           () => (window as any).surfaceCircles[0].scale,
         );
-        for (const zoom of [0.5, 1, 2, 4]) {
+        for (const zoom of [0.5, 1, 2]) {
           await resetZoom(page, "Gravity orbital field");
           if (cdp && zoom !== 1) {
             const a = { id: 1, x: 120, y: device.height * 0.45 };

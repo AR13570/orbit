@@ -2,16 +2,16 @@ import type { Aim, Body, Particle, Vec2 } from "../game/types";
 import {
   bodyStrength,
   SHIP_RADIUS,
-  ZEN_FIXED_STEP,
-  zenLaunchSpeed,
-  stepZenParticle,
+  ODESSEY_FIXED_STEP,
+  odesseyLaunchSpeed,
+  stepOdesseyParticle,
   segmentCircleIntersection,
 } from "../game/physics";
 import { GravityEngine } from "../gravity/engine";
 import { gravityForceAt, gravityLaunchSpeed } from "../gravity/physics";
 import { orbitFraction } from "../gravity/simulation";
 import type { TutorialMode } from "./state";
-import { ZEN_TUTORIAL_LEVELS, traceZenTutorial } from "./levels";
+import { ODESSEY_TUTORIAL_LEVELS, traceOdesseyTutorial } from "./levels";
 export const PRACTICE_LAUNCH = { x: 140, y: 350 };
 export const PRACTICE_GOAL = { position: { x: 650, y: 330 }, radius: 72 };
 export const PRACTICE_BODIES: Body[] = [
@@ -70,19 +70,19 @@ export class TutorialPractice {
     this.gravity?.setAim(this.aim.angle, this.aim.power);
   }
   get level() {
-    return ZEN_TUTORIAL_LEVELS[this.stage === "practice-split" ? 1 : 0];
+    return ODESSEY_TUTORIAL_LEVELS[this.stage === "practice-split" ? 1 : 0];
   }
   get launcher() {
-    return this.mode === "zen" ? this.level.launch : PRACTICE_LAUNCH;
+    return this.mode === "odessey" ? this.level.launch : PRACTICE_LAUNCH;
   }
   get bodies() {
-    return this.mode === "zen" ? this.level.bodies : PRACTICE_BODIES;
+    return this.mode === "odessey" ? this.level.bodies : PRACTICE_BODIES;
   }
   get checkpoint() {
-    return this.mode === "zen" ? this.level.goal : PRACTICE_GOAL;
+    return this.mode === "odessey" ? this.level.goal : PRACTICE_GOAL;
   }
   get bounds() {
-    return this.mode === "zen" ? this.level.bounds : PRACTICE_BOUNDS;
+    return this.mode === "odessey" ? this.level.bounds : PRACTICE_BOUNDS;
   }
   get branchTime() {
     return this.level.splitAt ?? 0;
@@ -90,7 +90,7 @@ export class TutorialPractice {
   interactive() {
     return (
       this.stage === "launch" ||
-      (this.mode === "zen" && this.stage === "practice-split")
+      (this.mode === "odessey" && this.stage === "practice-split")
     );
   }
   launchAllowed() {
@@ -114,7 +114,7 @@ export class TutorialPractice {
     }
   }
   suggestedAim(): Aim {
-    if (this.mode === "zen") return { ...this.level.suggestedAim };
+    if (this.mode === "odessey") return { ...this.level.suggestedAim };
     const body = PRACTICE_BODIES[0],
       dx = body.position.x - PRACTICE_LAUNCH.x,
       dy = body.position.y - PRACTICE_LAUNCH.y;
@@ -131,10 +131,10 @@ export class TutorialPractice {
     };
   }
   solution(): { paths: Vec2[][]; capturedBy: number | null; tapPoint?: Vec2 } {
-    if (this.mode !== "zen") return { paths: [], capturedBy: null };
+    if (this.mode !== "odessey") return { paths: [], capturedBy: null };
     let solution = this.solutions.get(this.level.id);
     if (!solution) {
-      const witness = traceZenTutorial(this.level);
+      const witness = traceOdesseyTutorial(this.level);
       solution = {
         paths: witness.paths.map((path) => path.points),
         capturedBy: witness.capturedBy,
@@ -150,7 +150,7 @@ export class TutorialPractice {
   }
   /** A visible handle magnet makes this guided rehearsal usable with a thumb. */
   guidedAim(aim: Aim, fullPullDistance: number): Aim {
-    if (this.mode !== "zen" || this.stage !== "practice-split") return aim;
+    if (this.mode !== "odessey" || this.stage !== "practice-split") return aim;
     const suggested = this.suggestedAim();
     const error = Math.hypot(
       Math.cos(aim.angle) * aim.power - Math.cos(suggested.angle) * suggested.power,
@@ -164,7 +164,7 @@ export class TutorialPractice {
       if (!this.gravity.launch()) return false;
     } else {
       this.retireShots();
-      const speed = zenLaunchSpeed(this.aim.power);
+      const speed = odesseyLaunchSpeed(this.aim.power);
       this.particles.push({
         id: this.nextId++,
         position: { ...this.launcher },
@@ -279,18 +279,18 @@ export class TutorialPractice {
   preview(): Vec2[] {
     if (this.gravity) return this.gravity.predict();
     let position = { ...this.launcher };
-    const speed = zenLaunchSpeed(this.aim.power);
+    const speed = odesseyLaunchSpeed(this.aim.power);
     let velocity = {
       x: Math.cos(this.aim.angle) * speed,
       y: Math.sin(this.aim.angle) * speed,
     };
     const path = [position];
-    for (let i = 0; i < 4 / ZEN_FIXED_STEP; i++) {
-      const next = stepZenParticle(
+    for (let i = 0; i < 4 / ODESSEY_FIXED_STEP; i++) {
+      const next = stepOdesseyParticle(
         position,
         velocity,
         this.bodies,
-        ZEN_FIXED_STEP,
+        ODESSEY_FIXED_STEP,
         this.checkpoint,
       );
       const { fraction } = this.contact(position, next.position);
@@ -326,17 +326,17 @@ export class TutorialPractice {
       return;
     }
     this.accumulator += elapsed;
-    while (this.accumulator >= ZEN_FIXED_STEP) {
-      this.accumulator -= ZEN_FIXED_STEP;
+    while (this.accumulator >= ODESSEY_FIXED_STEP) {
+      this.accumulator -= ODESSEY_FIXED_STEP;
       if (this.particles.some((p) => p.alive))
-        this.flightElapsed += ZEN_FIXED_STEP;
+        this.flightElapsed += ODESSEY_FIXED_STEP;
       for (const p of this.particles) {
         if (!p.alive) continue;
-        const next = stepZenParticle(
+        const next = stepOdesseyParticle(
           p.position,
           p.velocity,
           this.bodies,
-          ZEN_FIXED_STEP,
+          ODESSEY_FIXED_STEP,
           this.checkpoint,
         );
         const { fraction, dock } = this.contact(p.position, next.position);
@@ -403,7 +403,7 @@ export class TutorialPractice {
   feedback() {
     if (!this.interactive()) return "";
     if (this.ready())
-      return this.mode === "zen" ? "Checkpoint reached." : "Ready to play.";
+      return this.mode === "odessey" ? "Checkpoint reached." : "Ready to play.";
     if (this.mode === "gravity") return "Pull back. Release.";
     const flying = this.getParticles().some((p) => p.alive);
     if (this.stage === "practice-split") {

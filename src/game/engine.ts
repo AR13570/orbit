@@ -1,8 +1,8 @@
 import { generateSector } from './generator';
-import { validZenCheckpoint, type ZenCheckpoint } from './progress';
+import { validOdesseyCheckpoint, type OdesseyCheckpoint } from './progress';
 import { describeComposition,RECENT_LAYOUT_LIMIT } from './composition';
 import type { CompositionDescriptor } from './composition';
-import { distance,ZEN_FIXED_STEP as FIXED_STEP,zenLaunchSpeed as launchSpeed,MAX_FLIGHT_SECONDS,OFFSCREEN_TIMEOUT_SECONDS,segmentCircleIntersection,SHIP_RADIUS,stepZenParticle as stepParticle } from './physics';
+import { distance,ODESSEY_FIXED_STEP as FIXED_STEP,odesseyLaunchSpeed as launchSpeed,MAX_FLIGHT_SECONDS,OFFSCREEN_TIMEOUT_SECONDS,segmentCircleIntersection,SHIP_RADIUS,stepOdesseyParticle as stepParticle } from './physics';
 import type { DeepReadonly,EngineEventKind,GameSnapshot,Particle,Sector,ShotCount,StaticSector,Vec2,WorldBounds } from './types';
 
 type EngineState=Omit<GameSnapshot,'sector'|'canBranch'>&{sector:Sector};
@@ -100,11 +100,11 @@ export class OrbitEngine {
   return {...this.state,trailElapsed:this.trailElapsed,canBranch:this.branchIsAvailable(),sector:this.cachedStaticSector,aim:{...this.state.aim},particles:this.state.particles.map(p=>({...p,position:{...p.position},velocity:{...p.velocity},trail:p.trail.map(point=>({...point}))})),event:this.state.event?{...this.state.event}:null};
  }
  /** Capture static checkpoint state without retaining live projectiles or camera bounds. */
- getCheckpoint():ZenCheckpoint {
+ getCheckpoint():OdesseyCheckpoint {
   return structuredClone({version:1,seed:this.runSeed,checkpointCount:this.state.checkpointCount,pendingAdvance:this.state.status==='docked',sector:this.state.sector,recentLayouts:this.recentLayouts});
  }
- restoreCheckpoint(checkpoint:ZenCheckpoint):void {
-  if(!validZenCheckpoint(checkpoint,this.runSeed))return;
+ restoreCheckpoint(checkpoint:OdesseyCheckpoint):void {
+  if(!validOdesseyCheckpoint(checkpoint,this.runSeed))return;
   const saved=structuredClone(checkpoint);
   this.recentLayouts=saved.recentLayouts;
   this.state={status:saved.pendingAdvance?'docked':'aiming',sector:saved.sector,aim:{angle:0,power:0.5},shotCount:this.state.shotCount,particles:[],checkpointCount:saved.checkpointCount,message:'Pull back and release.',elapsed:0,event:null};
@@ -139,7 +139,7 @@ export class OrbitEngine {
    return {id:index+1,position,velocity:{x:center.velocity.x*cosine-center.velocity.y*sine,y:center.velocity.x*sine+center.velocity.y*cosine},alive:true,trail:[{...position,time:this.state.elapsed}]};
   });
   this.state.particles.push(...sides);
-  for(const side of sides){const copy={bounds:{...boundary.bounds},outsideElapsed:boundary.outsideElapsed};this.boundaries.set(side.id,copy);publishOutside(side,copy);}
+  for(const side of sides){const copy={...boundary,bounds:{...boundary.bounds}};this.boundaries.set(side.id,copy);publishOutside(side,copy);}
   this.branched=true;
  }
  update(deltaSeconds:number):void {

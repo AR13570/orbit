@@ -1,4 +1,9 @@
-import { clampGameplayZoom, MIN_GRAVITY_ZOOM, zoomCamera } from "../zoom";
+import {
+  clampGameplayZoom,
+  MIN_GRAVITY_ZOOM,
+  zoomCamera,
+  type ZoomFocus,
+} from "../zoom";
 import { createGravitySurface } from "../render/gravity-surface";
 import { FORCE_PALETTE } from "../render/force-palette";
 import { drawBody, drawGravitySurface } from "../render/renderer";
@@ -237,12 +242,33 @@ export function createGravityRenderer(
   let lastLevel: GravityLevel | null = null;
   let levelKey = "";
   let gameplayZoom = 1;
+  let viewOffset = { x: 0, y: 0 };
   let walkthroughFocus: WalkthroughFocus | null = null;
-  const displayCamera = () =>
-    walkthroughFocus
-      ? walkthroughCamera(camera, walkthroughFocus, width, height)
-      : zoomCamera(camera, gameplayZoom, MIN_GRAVITY_ZOOM);
+  const displayCamera = () => {
+    if (walkthroughFocus)
+      return walkthroughCamera(camera, walkthroughFocus, width, height);
+    const displayed = zoomCamera(camera, gameplayZoom, MIN_GRAVITY_ZOOM);
+    displayed.center.x += viewOffset.x;
+    displayed.center.y += viewOffset.y;
+    return displayed;
+  };
+  const clientPoint = (point: Vec2) => {
+    const rect = canvas.getBoundingClientRect();
+    const viewport = walkthroughFocus ? { x: 0, y: 0, width, height } : area;
+    return clientToWorld(
+      point.x,
+      point.y,
+      {
+        left: rect.left + viewport.x,
+        top: rect.top + viewport.y,
+        width: viewport.width,
+        height: viewport.height,
+      },
+      displayCamera(),
+    );
+  };
   function frame(level: GravityLevel) {
+    viewOffset = { x: 0, y: 0 };
     if (options.compact) {
       area = {
         x: 12,
@@ -288,12 +314,30 @@ export function createGravityRenderer(
   }
   return {
     prepareFrame,
-    setZoom(value: number) {
+    setZoom(value: number, focus?: ZoomFocus) {
+      const selected =
+        focus && !walkthroughFocus ? clientPoint(focus.from) : undefined;
       gameplayZoom = clampGameplayZoom(value, MIN_GRAVITY_ZOOM);
+      if (
+        focus &&
+        selected &&
+        Number.isFinite(selected.x) &&
+        Number.isFinite(selected.y)
+      ) {
+        const after = clientPoint(focus.to);
+        if (Number.isFinite(after.x) && Number.isFinite(after.y)) {
+          viewOffset.x += selected.x - after.x;
+          viewOffset.y += selected.y - after.y;
+        }
+      }
       return gameplayZoom;
     },
     getZoom() {
       return gameplayZoom;
+    },
+    resetPan(fraction = 1) {
+      const remaining = 1 - Math.max(0, Math.min(1, fraction));
+      viewOffset = { x: viewOffset.x * remaining, y: viewOffset.y * remaining };
     },
     screenToWorld(x: number, y: number) {
       const rect = canvas.getBoundingClientRect();

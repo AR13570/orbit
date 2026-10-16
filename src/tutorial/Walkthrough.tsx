@@ -23,7 +23,7 @@ export default function Walkthrough({
   clearFocus,
   onFinish,
 }: {
-  mode: "zen" | "gravity";
+  mode: "odessey" | "gravity";
   steps: TutorialStep[];
   readTarget: (id: string, area: FocusArea) => Highlight | null;
   clearFocus: () => void;
@@ -100,7 +100,7 @@ export default function Walkthrough({
       data-mode={mode}
       role="dialog"
       aria-modal="true"
-      aria-label={mode === "zen" ? "How to play Zen" : "How to play Gravity"}
+      aria-label={mode === "odessey" ? "How to play Odessey" : "How to play Gravity"}
       aria-describedby="walkthrough-description"
       onKeyDown={(event) => {
         event.stopPropagation();

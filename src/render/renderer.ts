@@ -1,6 +1,11 @@
-import { clampGameplayZoom, zoomCamera } from "../zoom";
+import {
+  clampGameplayZoom,
+  MIN_ODESSEY_ZOOM,
+  MAX_ODESSEY_ZOOM,
+  type ZoomFocus,
+  zoomCamera,
+} from "../zoom";
 import type { Body, GameSnapshot, Vec2 } from "../game/types";
-import { usesTouchLayout } from "../controls";
 import { createGravitySurface, drawGravitySurface } from "./gravity-surface";
 import { FORCE_PALETTE } from "./force-palette";
 import type { WaveRenderer } from "gravity-wave";
@@ -9,11 +14,12 @@ import {
   clientToWorld,
   fitCamera,
   contentBounds,
-  fitFieldCamera,
+  fitOdesseyCamera,
   interpolateCamera,
   worldToClient,
   visibleWorldBounds,
   visiblePullPoint,
+  rotateVector,
   type Camera,
   type FieldBounds,
   walkthroughCamera,
@@ -48,7 +54,7 @@ export interface RenderOptions {
   slingshot?: SlingshotVisual | null;
 }
 export interface OrbitRenderer {
-  setZoom(value: number): number;
+  setZoom(value: number, focus?: ZoomFocus): number;
   getZoom(): number;
   setWalkthroughFocus(focus: WalkthroughFocus | null): void;
   resize(width: number, height: number, dpr?: number): void;
@@ -58,6 +64,8 @@ export interface OrbitRenderer {
     options?: RenderOptions,
   ): void;
   getVisibleBounds(): FieldBounds;
+  panBy(x: number, y: number): void;
+  resetPan(fraction?: number): void;
   render(
     snapshot: GameSnapshot,
     preview: Vec2[][],
@@ -103,22 +111,20 @@ function line(
 }
 function fieldBounds(
   sector: Sector,
-  width: number,
-  height: number,
+  _width: number,
+  _height: number,
 ): FieldBounds {
-  if (usesTouchLayout(width, height))
-    return contentBounds([
-      ...sector.bodies.map((body) => ({
-        position: body.position,
-        radius: body.radius + 24,
-      })),
-      { position: sector.launch, radius: 0 },
-      {
-        position: sector.checkpoint.position,
-        radius: sector.checkpoint.radius + 12,
-      },
-    ]);
-  return sector.bounds;
+  return contentBounds([
+    ...sector.bodies.map((body) => ({
+      position: body.position,
+      radius: body.radius + 24,
+    })),
+    { position: sector.launch, radius: 0 },
+    {
+      position: sector.checkpoint.position,
+      radius: sector.checkpoint.radius + 12,
+    },
+  ]);
 }
 
 function drawGravityFields(
@@ -224,6 +230,7 @@ function drawDock(
   ctx: CanvasRenderingContext2D,
   snapshot: GameSnapshot,
   scale: number,
+  rotation = 0,
 ) {
   const {
     position: { x, y },
@@ -241,6 +248,9 @@ function drawDock(
   ctx.stroke();
   ctx.globalAlpha = 0.9;
   // A small flag identifies a checkpoint without suggesting another force-bearing solid.
+  ctx.translate(x, y);
+  ctx.rotate(-rotation);
+  ctx.translate(-x, -y);
   const flagHeight = Math.min(10 / scale, radius * 0.52);
   const poleX = x - flagHeight * 0.22;
   const top = y - flagHeight * 0.5;
@@ -496,10 +506,18 @@ function drawCheckpointEdge(
     camera,
   );
   const captureExtent = snapshot.sector.checkpoint.radius * camera.scale + 1.4;
-  if (point.x + captureExtent >= 0 && point.x - captureExtent <= width) return;
-  const direction = point.x < 0 ? -1 : 1,
-    x = direction < 0 ? 20 : width - 20,
-    y = Math.min(height - 60, Math.max(60, point.y));
+  if (
+    point.x + captureExtent >= 0 &&
+    point.x - captureExtent <= width &&
+    point.y + captureExtent >= 0 &&
+    point.y - captureExtent <= height
+  )
+    return;
+  const x = Math.min(width - 20, Math.max(20, point.x));
+  const y = Math.min(height - 60, Math.max(60, point.y));
+  const angle = Math.atan2(point.y - y, point.x - x);
+  const dx = Math.cos(angle),
+    dy = Math.sin(angle);
   ctx.save();
   ctx.fillStyle = COLOR.ground;
   circle(ctx, x, y, 10);
@@ -509,9 +527,9 @@ function drawCheckpointEdge(
   circle(ctx, x, y, 6);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x + direction * 8, y - 3);
-  ctx.lineTo(x + direction * 11, y);
-  ctx.lineTo(x + direction * 8, y + 3);
+  ctx.moveTo(x + dx * 8 + dy * 3, y + dy * 8 - dx * 3);
+  ctx.lineTo(x + dx * 11, y + dy * 11);
+  ctx.lineTo(x + dx * 8 - dy * 3, y + dy * 8 + dx * 3);
   ctx.stroke();
   ctx.fillStyle = COLOR.checkpoint;
   circle(ctx, x, y, 1);
@@ -542,11 +560,32 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     targetCamera = camera,
     progress = 1;
   let gameplayZoom = 1;
+  let pan = { x: 0, y: 0 },
+    follow = { x: 0, y: 0 },
+    manualPan = false;
   let walkthroughFocus: WalkthroughFocus | null = null;
-  const displayCamera = () =>
-    walkthroughFocus
-      ? walkthroughCamera(camera, walkthroughFocus, width, height)
-      : zoomCamera(camera, gameplayZoom);
+  const displayCamera = (): Camera => {
+    if (walkthroughFocus)
+      return walkthroughCamera(camera, walkthroughFocus, width, height);
+    const displayed = zoomCamera(
+      camera,
+      gameplayZoom,
+      MIN_ODESSEY_ZOOM,
+      MAX_ODESSEY_ZOOM,
+    );
+    const anchor = currentSector?.launch;
+    if (anchor) {
+      displayed.center.x =
+        anchor.x -
+        ((anchor.x - camera.center.x) * camera.scale) / displayed.scale;
+      displayed.center.y =
+        anchor.y -
+        ((anchor.y - camera.center.y) * camera.scale) / displayed.scale;
+    }
+    displayed.center.x += pan.x + follow.x;
+    displayed.center.y += pan.y + follow.y;
+    return displayed;
+  };
   let currentSector: Sector | null = null,
     previousSector: Sector | null = null;
   let lastSnapshot: GameSnapshot | null = null;
@@ -581,20 +620,19 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
   }
   function snap() {
     if (!currentSector) return;
-    const lead =
-      lastSnapshot?.status === "flying"
-        ? lastSnapshot.particles.find((p) => p.alive)
-        : undefined;
-    camera = fitFieldCamera(
+    camera = fitOdesseyCamera(
       fieldBounds(currentSector, width, height),
       currentSector.launch,
       width,
       height,
-      lead?.position.x,
+      undefined,
       currentSector.checkpoint,
     );
     fromCamera = camera;
     targetCamera = camera;
+    pan = { x: 0, y: 0 };
+    follow = { x: 0, y: 0 };
+    manualPan = false;
     progress = 1;
     previousSector = null;
   }
@@ -624,12 +662,15 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       snapshot.event.id !== lastCameraEvent;
     if (snapshot.event) lastCameraEvent = snapshot.event.id;
     if (key !== sectorKey || restarted) {
+      pan = { x: 0, y: 0 };
+      follow = { x: 0, y: 0 };
+      manualPan = false;
       const first = currentSector === null,
         reset = snapshot.event?.kind === "restart";
       previousSector = !first && !reset ? currentSector : null;
       currentSector = snapshot.sector;
       sectorKey = key;
-      targetCamera = fitFieldCamera(
+      targetCamera = fitOdesseyCamera(
         fieldBounds(snapshot.sector, width, height),
         snapshot.sector.launch,
         width,
@@ -647,12 +688,14 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     } else {
       currentSector = snapshot.sector;
       if (
-        width < height &&
         snapshot.status === "aiming" &&
         (previousStatus === "failed" || previousStatus === "flying")
       ) {
+        pan = { x: 0, y: 0 };
+        follow = { x: 0, y: 0 };
+        manualPan = false;
         fromCamera = camera;
-        targetCamera = fitFieldCamera(
+        targetCamera = fitOdesseyCamera(
           fieldBounds(snapshot.sector, width, height),
           snapshot.sector.launch,
           width,
@@ -667,6 +710,12 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
         if (progress === 1) camera = targetCamera;
       }
     }
+    if (snapshot.status === "flying" && previousStatus !== "flying") {
+      follow.x += pan.x;
+      follow.y += pan.y;
+      pan = { x: 0, y: 0 };
+      manualPan = false;
+    }
     if (reduced && progress < 1) snap();
     if (
       progress < 1 &&
@@ -680,31 +729,66 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     }
     if (
       fresh &&
-      width < height &&
       progress === 1 &&
       snapshot.status === "flying" &&
+      !manualPan &&
       !options.paused &&
       !options.cameraLocked &&
       !options.slingshot
     ) {
-      const lead = snapshot.particles.find((p) => p.alive);
+      const bounds = snapshot.sector.bounds;
+      const lead = snapshot.particles.find(
+        (p) =>
+          p.alive &&
+          p.position.x >= bounds.x &&
+          p.position.x <= bounds.x + bounds.width &&
+          p.position.y >= bounds.y &&
+          p.position.y <= bounds.y + bounds.height,
+      );
       if (lead) {
-        const desired = fitFieldCamera(
-          fieldBounds(snapshot.sector, width, height),
-          snapshot.sector.launch,
-          width,
-          height,
-          lead.position.x,
-          snapshot.sector.checkpoint,
+        const view = displayCamera();
+        const screen = worldToClient(
+          lead.position,
+          { left: 0, top: 0, width, height },
+          view,
         );
-        const blend = reduced ? 1 : 1 - Math.exp(-dt * 4);
-        camera = {
-          center: {
-            x: camera.center.x + (desired.center.x - camera.center.x) * blend,
-            y: desired.center.y,
-          },
-          scale: desired.scale,
+        const base = {
+          x: view.center.x - follow.x,
+          y: view.center.y - follow.y,
         };
+        const visible = visibleWorldBounds(view, width, height);
+        const halfX = visible.width / 2,
+          halfY = visible.height / 2;
+        const minX = Math.min(
+          base.x,
+          bounds.x + Math.min(halfX, bounds.width / 2),
+        );
+        const maxX = Math.max(
+          base.x,
+          bounds.x + Math.max(bounds.width - halfX, bounds.width / 2),
+        );
+        const minY = Math.min(
+          base.y,
+          bounds.y + Math.min(halfY, bounds.height / 2),
+        );
+        const maxY = Math.max(
+          base.y,
+          bounds.y + Math.max(bounds.height - halfY, bounds.height / 2),
+        );
+        const dx =
+          screen.x < width * 0.2 || screen.x > width * 0.7
+            ? (screen.x - width * 0.45) / view.scale
+            : 0;
+        const dy =
+          screen.y < height * 0.25 || screen.y > height * 0.72
+            ? (screen.y - height * 0.52) / view.scale
+            : 0;
+        const delta = rotateVector({ x: dx, y: dy }, -(view.rotation ?? 0));
+        const x = view.center.x + delta.x,
+          y = view.center.y + delta.y;
+        const blend = reduced ? 1 : 1 - Math.exp(-dt * 4);
+        follow.x += (Math.max(minX, Math.min(maxX, x)) - view.center.x) * blend;
+        follow.y += (Math.max(minY, Math.min(maxY, y)) - view.center.y) * blend;
       }
     }
   }
@@ -717,8 +801,31 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     );
   }
   return {
-    setZoom(value) {
-      gameplayZoom = clampGameplayZoom(value);
+    setZoom(value, focus) {
+      const rect = canvas.getBoundingClientRect();
+      const selected =
+        focus && !walkthroughFocus
+          ? clientToWorld(focus.from.x, focus.from.y, rect, displayCamera())
+          : undefined;
+      gameplayZoom = clampGameplayZoom(value, MIN_ODESSEY_ZOOM, MAX_ODESSEY_ZOOM);
+      if (
+        focus &&
+        selected &&
+        Number.isFinite(selected.x) &&
+        Number.isFinite(selected.y)
+      ) {
+        const after = clientToWorld(
+          focus.to.x,
+          focus.to.y,
+          rect,
+          displayCamera(),
+        );
+        if (Number.isFinite(after.x) && Number.isFinite(after.y)) {
+          pan.x += selected.x - after.x;
+          pan.y += selected.y - after.y;
+          manualPan = true;
+        }
+      }
       return gameplayZoom;
     },
     getZoom() {
@@ -726,6 +833,41 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     },
     prepareFrame,
     getVisibleBounds: visibleBounds,
+    panBy(x, y) {
+      if (
+        walkthroughFocus ||
+        !currentSector ||
+        !Number.isFinite(x) ||
+        !Number.isFinite(y)
+      )
+        return;
+      manualPan = true;
+      const view = displayCamera(),
+        bounds = currentSector.bounds;
+      const visible = visibleWorldBounds(view, width, height);
+      const limitX = visible.width / 2,
+        limitY = visible.height / 2;
+      const delta = rotateVector(
+        { x: x / view.scale, y: y / view.scale },
+        -(view.rotation ?? 0),
+      );
+      const nextX = Math.max(
+        bounds.x - limitX,
+        Math.min(bounds.x + bounds.width + limitX, view.center.x - delta.x),
+      );
+      const nextY = Math.max(
+        bounds.y - limitY,
+        Math.min(bounds.y + bounds.height + limitY, view.center.y - delta.y),
+      );
+      pan.x += nextX - view.center.x;
+      pan.y += nextY - view.center.y;
+    },
+    resetPan(fraction = 1) {
+      const remaining = 1 - Math.max(0, Math.min(1, fraction));
+      pan = { x: pan.x * remaining, y: pan.y * remaining };
+      follow = { x: follow.x * remaining, y: follow.y * remaining };
+      manualPan = remaining > 0;
+    },
     resize(nextWidth, nextHeight, nextDpr = window.devicePixelRatio || 1) {
       if (destroyed) return;
       width = Number.isFinite(nextWidth) ? Math.max(1, nextWidth) : 1;
@@ -774,6 +916,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       ctx.save();
       ctx.translate(width / 2, height / 2);
       ctx.scale(renderCamera.scale, renderCamera.scale);
+      if (renderCamera.rotation) ctx.rotate(renderCamera.rotation);
       ctx.translate(-renderCamera.center.x, -renderCamera.center.y);
       if (previousSector)
         drawGravityFields(
@@ -801,7 +944,7 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
       if (previousSector)
         drawGeometry(ctx, previousSector, renderCamera.scale, 1 - progress);
       drawGeometry(ctx, snapshot.sector, renderCamera.scale);
-      drawDock(ctx, snapshot, renderCamera.scale);
+      drawDock(ctx, snapshot, renderCamera.scale, renderCamera.rotation);
       drawLauncher(
         ctx,
         snapshot,
@@ -861,6 +1004,9 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
     getViewport() {
       const displayed = displayCamera();
       return {
+        ...(displayed.rotation !== undefined
+          ? { rotation: displayed.rotation }
+          : {}),
         center: { ...displayed.center },
         scale: displayed.scale,
         transitioning: progress < 1,

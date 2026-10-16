@@ -15,22 +15,22 @@ describe("walkthrough storage", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("quota");
     });
-    state.finishTutorial("zen", "skipped");
-    expect(localStorage.getItem(tutorialKeys.zen)).toBeNull();
-    expect(state.tutorialSeen("zen")).toBe(true);
+    state.finishTutorial("odessey", "skipped");
+    expect(localStorage.getItem(tutorialKeys.odessey)).toBeNull();
+    expect(state.tutorialSeen("odessey")).toBe(true);
   });
   it("stores completion and skip independently for each versioned mode", () => {
-    expect(tutorialSeen("zen")).toBe(false);
-    finishTutorial("zen", "complete");
-    expect(localStorage.getItem(tutorialKeys.zen)).toBe("complete");
-    expect(tutorialSeen("zen")).toBe(true);
+    expect(tutorialSeen("odessey")).toBe(false);
+    finishTutorial("odessey", "complete");
+    expect(localStorage.getItem(tutorialKeys.odessey)).toBe("complete");
+    expect(tutorialSeen("odessey")).toBe(true);
     expect(tutorialSeen("gravity")).toBe(false);
     finishTutorial("gravity", "skipped");
     expect(tutorialSeen("gravity")).toBe(true);
   });
   it("ignores malformed stored values", () => {
-    localStorage.setItem(tutorialKeys.zen, "false");
-    expect(tutorialSeen("zen")).toBe(false);
+    localStorage.setItem(tutorialKeys.odessey, "false");
+    expect(tutorialSeen("odessey")).toBe(false);
   });
   it("keeps the guide usable when browser storage is denied", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {

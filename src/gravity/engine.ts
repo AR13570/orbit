@@ -83,14 +83,11 @@ export class GravityEngine {
   }
   /** The outermost allowed camera view, independent of the player's current zoom. */
   setFlightBounds(bounds: WorldBounds): void {
-    if (
-      ![bounds.x, bounds.y, bounds.width, bounds.height].every(
-        Number.isFinite,
-      ) ||
-      bounds.width <= 0 ||
-      bounds.height <= 0
-    )
-      return;
+    const valid = (rect: WorldBounds) =>
+      [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) &&
+      rect.width > 0 &&
+      rect.height > 0;
+    if (!valid(bounds)) return;
     this.flightBounds = { ...bounds };
     this.state.flightBounds = { ...bounds };
   }

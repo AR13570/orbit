@@ -1,5 +1,9 @@
 import type { Vec2 } from "../game/types";
-import { MOBILE_PULL_DISTANCE, usesTouchLayout } from "../controls";
+import {
+  MOBILE_PULL_DISTANCE,
+  pullDistance,
+  usesTouchLayout,
+} from "../controls";
 
 export interface FieldBounds {
   x: number;
@@ -10,6 +14,13 @@ export interface FieldBounds {
 export interface Camera {
   center: Vec2;
   scale: number;
+  /** Rotation of the world into screen space, in radians. */
+  rotation?: number;
+}
+export function rotateVector(point: Vec2, rotation = 0): Vec2 {
+  const c = Math.cos(rotation),
+    s = Math.sin(rotation);
+  return { x: point.x * c - point.y * s, y: point.x * s + point.y * c };
 }
 export interface FocusArea {
   left: number;
@@ -39,11 +50,19 @@ export function walkthroughCamera(
       Math.max(1, area.height - 40) / Math.max(1, focus.radius * 2),
     ),
   );
+  const offset = rotateVector(
+    {
+      x: (area.left + area.width / 2 - width / 2) / scale,
+      y: (area.top + area.height / 2 - height / 2) / scale,
+    },
+    -(camera.rotation ?? 0),
+  );
   return {
+    ...(camera.rotation !== undefined ? { rotation: camera.rotation } : {}),
     scale,
     center: {
-      x: focus.position.x - (area.left + area.width / 2 - width / 2) / scale,
-      y: focus.position.y - (area.top + area.height / 2 - height / 2) / scale,
+      x: focus.position.x - offset.x,
+      y: focus.position.y - offset.y,
     },
   };
 }
@@ -196,6 +215,67 @@ export function fitFieldCamera(
   };
 }
 
+/** Match the course's long axis to the viewport, preserving room for a full pull. */
+export function fitOdesseyCamera(
+  bounds: FieldBounds,
+  launch: Vec2,
+  width: number,
+  height: number,
+  _leadX?: number,
+  checkpoint?: { position: Vec2; radius: number },
+): Camera {
+  const portrait = width < height;
+  const viewWidth = portrait ? height : width;
+  const viewHeight = portrait ? width : height;
+  const reach = pullDistance("mouse", width, height);
+  const left = Math.min(viewWidth / 2, reach + (portrait ? 80 : 24));
+  const y = portrait
+    ? viewHeight / 2
+    : Math.max(reach + 24, Math.min(height - reach - 24, height * 0.55));
+  const edges = {
+    left: Math.min(
+      bounds.x,
+      launch.x,
+      checkpoint ? checkpoint.position.x - checkpoint.radius : launch.x,
+    ),
+    right: Math.max(
+      bounds.x + bounds.width,
+      launch.x,
+      checkpoint ? checkpoint.position.x + checkpoint.radius : launch.x,
+    ),
+    top: Math.min(
+      bounds.y,
+      launch.y,
+      checkpoint ? checkpoint.position.y - checkpoint.radius : launch.y,
+    ),
+    bottom: Math.max(
+      bounds.y + bounds.height,
+      launch.y,
+      checkpoint ? checkpoint.position.y + checkpoint.radius : launch.y,
+    ),
+  };
+  // Solve all four edge constraints at the fixed launch anchor. This is the
+  // closest possible default view with the complete playable content visible.
+  let scale = Infinity;
+  for (const [space, extent] of [
+    [left - 24, launch.x - edges.left],
+    [viewWidth - left - (portrait ? 100 : 24), edges.right - launch.x],
+    [y - (portrait ? 24 : 80), launch.y - edges.top],
+    [viewHeight - y - (portrait ? 24 : 60), edges.bottom - launch.y],
+  ]) {
+    if (extent > 0) scale = Math.min(scale, Math.max(1, space) / extent);
+  }
+  scale = Number.isFinite(scale) ? Math.max(0.001, scale) : 1;
+  return {
+    ...(portrait ? { rotation: -Math.PI / 2 } : {}),
+    center: {
+      x: launch.x + (viewWidth / 2 - left) / scale,
+      y: launch.y + (viewHeight / 2 - y) / scale,
+    },
+    scale,
+  };
+}
+
 export function interpolateCamera(
   from: Camera,
   to: Camera,
@@ -203,6 +283,7 @@ export function interpolateCamera(
 ): Camera {
   const t = 1 - (1 - Math.min(1, Math.max(0, progress))) ** 3;
   return {
+    ...(to.rotation !== undefined ? { rotation: to.rotation } : {}),
     center: {
       x: from.center.x + (to.center.x - from.center.x) * t,
       y: from.center.y + (to.center.y - from.center.y) * t,
@@ -219,10 +300,14 @@ export function clientToWorld(
 ): Vec2 {
   if (!(camera.scale > 0) || !(rect.width > 0) || !(rect.height > 0))
     return { x: NaN, y: NaN };
-  return {
-    x: camera.center.x + (clientX - rect.left - rect.width / 2) / camera.scale,
-    y: camera.center.y + (clientY - rect.top - rect.height / 2) / camera.scale,
-  };
+  const offset = rotateVector(
+    {
+      x: (clientX - rect.left - rect.width / 2) / camera.scale,
+      y: (clientY - rect.top - rect.height / 2) / camera.scale,
+    },
+    -(camera.rotation ?? 0),
+  );
+  return { x: camera.center.x + offset.x, y: camera.center.y + offset.y };
 }
 
 export function worldToClient(
@@ -230,9 +315,13 @@ export function worldToClient(
   rect: DisplayRect,
   camera: Camera,
 ): Vec2 {
+  const offset = rotateVector(
+    { x: point.x - camera.center.x, y: point.y - camera.center.y },
+    camera.rotation,
+  );
   return {
-    x: rect.left + rect.width / 2 + (point.x - camera.center.x) * camera.scale,
-    y: rect.top + rect.height / 2 + (point.y - camera.center.y) * camera.scale,
+    x: rect.left + rect.width / 2 + offset.x * camera.scale,
+    y: rect.top + rect.height / 2 + offset.y * camera.scale,
   };
 }
 
@@ -241,11 +330,15 @@ export function visibleWorldBounds(
   width: number,
   height: number,
 ): FieldBounds {
+  const c = Math.abs(Math.cos(camera.rotation ?? 0));
+  const s = Math.abs(Math.sin(camera.rotation ?? 0));
+  const worldWidth = (width * c + height * s) / camera.scale;
+  const worldHeight = (height * c + width * s) / camera.scale;
   return {
-    x: camera.center.x - width / (2 * camera.scale),
-    y: camera.center.y - height / (2 * camera.scale),
-    width: width / camera.scale,
-    height: height / camera.scale,
+    x: camera.center.x - worldWidth / 2,
+    y: camera.center.y - worldHeight / 2,
+    width: worldWidth,
+    height: worldHeight,
   };
 }
 
@@ -262,8 +355,12 @@ export function visiblePullPoint(
     { left: 0, top: 0, width, height },
     camera,
   );
-  const dx = (pull.x - anchor.x) * camera.scale,
-    dy = (pull.y - anchor.y) * camera.scale;
+  const delta = rotateVector(
+    { x: pull.x - anchor.x, y: pull.y - anchor.y },
+    camera.rotation,
+  );
+  const dx = delta.x * camera.scale,
+    dy = delta.y * camera.scale;
   let fraction = Math.min(1, 85 / Math.max(0.001, Math.hypot(dx, dy)));
   const inset = 14;
   if (dx > 0) fraction = Math.min(fraction, (width - inset - screen.x) / dx);

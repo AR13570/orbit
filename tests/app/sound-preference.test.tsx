@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ZenGame } from "../../src/App";
+import { OdesseyGame } from "../../src/App";
 import GravityGame from "../../src/gravity/GravityGame";
 import { setSoundMuted } from "../../src/soundPreference";
 const soundtrack = vi.hoisted(() => ({ states: [] as boolean[] }));
@@ -37,7 +37,7 @@ const KEY = "orbit.sound-muted.v1";
 beforeEach(() => {
   localStorage.clear();
   window.history.replaceState({}, "", "/");
-  localStorage.setItem("orbit.walkthrough.zen.v1", "complete");
+  localStorage.setItem("orbit.walkthrough.odessey.v1", "complete");
   localStorage.setItem("orbit.walkthrough.gravity.v2", "complete");
   vi.stubGlobal(
     "ResizeObserver",
@@ -58,11 +58,11 @@ afterEach(() => {
 const openPause = () =>
   fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
 describe("shared remembered sound", () => {
-  it.each(["zen", "gravity"])(
+  it.each(["odessey", "gravity"])(
     "starts %s muted before soundtrack startup when Sound off was saved",
     (mode) => {
       localStorage.setItem(KEY, "true");
-      render(mode === "zen" ? <ZenGame /> : <GravityGame onExit={() => {}} />);
+      render(mode === "odessey" ? <OdesseyGame /> : <GravityGame onExit={() => {}} />);
       expect(soundtrack.states[0]).toBe(false);
       openPause();
       expect(
@@ -73,7 +73,7 @@ describe("shared remembered sound", () => {
     },
   );
   it("saves both choices immediately and shares them across mode remounts", () => {
-    let view = render(<ZenGame />);
+    let view = render(<OdesseyGame />);
     openPause();
     fireEvent.click(
       screen.getByRole("button", { name: "Sound on", exact: true }),
@@ -87,7 +87,7 @@ describe("shared remembered sound", () => {
     );
     expect(localStorage.getItem(KEY)).toBe("false");
     view.unmount();
-    render(<ZenGame />);
+    render(<OdesseyGame />);
     openPause();
     expect(
       screen
@@ -118,7 +118,7 @@ it("shares a muted session across mode remounts when storage writes fail", () =>
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
     throw new Error("blocked");
   });
-  const view = render(<ZenGame />);
+  const view = render(<OdesseyGame />);
   openPause();
   fireEvent.click(
     screen.getByRole("button", { name: "Sound on", exact: true }),

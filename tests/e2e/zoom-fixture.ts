@@ -3,7 +3,10 @@ import { expect, type Page } from "@playwright/test";
 /** Observe a real body's CSS-pixel radius from the rendered canvas, with no app state changes. */
 export async function installZoomProbe(page: Page) {
   await page.addInitScript(() => {
-    const probe = window as typeof window & { renderedBodyRadius?: number };
+    const probe = window as typeof window & {
+      renderedBodyRadius?: number;
+      renderedBodyCenter?: { x: number; y: number };
+    };
     let captured = false;
     const fillRect = CanvasRenderingContext2D.prototype.fillRect;
     CanvasRenderingContext2D.prototype.fillRect = function (x, y, w, h) {
@@ -30,6 +33,15 @@ export async function installZoomProbe(page: Page) {
           this.canvas.width / this.canvas.getBoundingClientRect().width;
         probe.renderedBodyRadius =
           (r * Math.hypot(transform.a, transform.b)) / pixelRatio;
+        const rect = this.canvas.getBoundingClientRect();
+        probe.renderedBodyCenter = {
+          x:
+            rect.left +
+            (transform.a * x + transform.c * y + transform.e) / pixelRatio,
+          y:
+            rect.top +
+            (transform.b * x + transform.d * y + transform.f) / pixelRatio,
+        };
         captured = true;
       }
       return arc.call(this, x, y, r, start, end, anti);
@@ -67,7 +79,7 @@ export async function expectNoZoomControls(page: Page) {
 export async function resetZoom(page: Page, fieldName: string) {
   await page.getByLabel(fieldName).focus();
   await page.keyboard.press("0");
-  await page.clock.runFor(32);
+  await page.clock.runFor(350);
 }
 
 export async function wheelZoom(
@@ -77,7 +89,7 @@ export async function wheelZoom(
 ) {
   await page.mouse.move(point.x, point.y);
   // The game caps each wheel event at 1000 units, so split larger ratios.
-  const delta = -Math.log(factor) / 0.002;
+  const delta = -Math.log(factor) / 0.0012;
   const steps = Math.max(1, Math.ceil(Math.abs(delta) / 900));
   for (let step = 0; step < steps; step++) {
     await page.mouse.wheel(0, delta / steps);

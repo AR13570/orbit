@@ -8,10 +8,10 @@ import {
   resetZoom,
 } from "./zoom-fixture";
 
-type Mode = "zen" | "gravity";
+type Mode = "odessey" | "gravity";
 type Point = { x: number; y: number; id: number };
 const fieldName = (mode: Mode) =>
-  mode === "zen" ? "Slingshot flight field" : "Gravity orbital field";
+  mode === "odessey" ? "Slingshot flight field" : "Gravity orbital field";
 
 async function boot(page: Page, mode: Mode, seen = true) {
   if (seen) await page.addInitScript(markTutorialSeen);
@@ -26,12 +26,14 @@ async function touch(cdp: CDPSession, type: string, points: Point[]) {
 }
 async function idle(page: Page, mode: Mode) {
   await expect(page.locator(".game-surface [role=status]")).toHaveText(
-    mode === "zen" ? "Ready to pull" : "0 planets in motion",
+    mode === "odessey" ? "Ready to pull" : "0 planets in motion",
   );
 }
 
-for (const mode of ["zen", "gravity"] as const) {
-  test(`${mode} horizontal trackpad scrolling preserves a held launch`, async ({ page }) => {
+for (const mode of ["odessey", "gravity"] as const) {
+  test(`${mode} horizontal trackpad scrolling preserves a held launch`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1200, height: 800 });
     await boot(page, mode);
     await page.mouse.move(350, 500);
@@ -42,7 +44,7 @@ for (const mode of ["zen", "gravity"] as const) {
     await page.mouse.up();
     await page.clock.runFor(32);
     await expect(page.locator(".game-surface [role=status]")).toHaveText(
-      mode === "zen" ? /In flight|Offscreen/ : "1 planet in motion",
+      mode === "odessey" ? /In flight|Offscreen/ : "1 planet in motion",
     );
   });
 
@@ -55,14 +57,22 @@ for (const mode of ["zen", "gravity"] as const) {
     let baseline = await bodyRadius(page);
     const field = page.getByLabel(fieldName(mode));
     await field.focus();
+    await page.mouse.move(350, 300);
+    await page.mouse.wheel(0, -100);
+    await expectRenderedZoom(page, baseline, 1.1274968516);
+    await resetZoom(page, fieldName(mode));
     await page.keyboard.press("+");
     await expectRenderedZoom(page, baseline, 1.15);
     await page.keyboard.press("-");
     await expectRenderedZoom(page, baseline, 1);
     for (let i = 0; i < 40; i++) await page.keyboard.press("+");
-    await expectRenderedZoom(page, baseline, 4);
+    await expectRenderedZoom(page, baseline, mode === "odessey" ? 1.2 : 2);
     for (let i = 0; i < 40; i++) await page.keyboard.press("-");
-    await expectRenderedZoom(page, baseline, mode === "gravity" ? 0.5 : 0.25);
+    await expectRenderedZoom(
+      page,
+      baseline,
+      mode === "gravity" ? 0.5 : 1 / 1.2,
+    );
     await page.mouse.move(350, 300);
     await page.mouse.down();
     await page.mouse.move(410, 300);
@@ -72,25 +82,32 @@ for (const mode of ["zen", "gravity"] as const) {
     await page.clock.runFor(100);
     await page.mouse.up();
     await idle(page, mode);
-    await expectRenderedZoom(page, baseline, 4);
+    await expectRenderedZoom(page, baseline, mode === "odessey" ? 1.2 : 2);
     await page.setViewportSize({ width: 1000, height: 700 });
     await page.clock.runFor(100);
     const resizedZoomedRadius = await bodyRadius(page);
     await resetZoom(page, fieldName(mode));
     baseline = await bodyRadius(page);
-    expect(resizedZoomedRadius / baseline).toBeCloseTo(4, 3);
+    expect(resizedZoomedRadius / baseline).toBeCloseTo(
+      mode === "odessey" ? 1.2 : 2,
+      3,
+    );
     await expectRenderedZoom(page, baseline, 1);
     await page.mouse.move(350, 300);
     await page.mouse.wheel(0, -10000);
     await page.clock.runFor(32);
     await page.mouse.wheel(0, -10000);
     await page.clock.runFor(100);
-    await expectRenderedZoom(page, baseline, 4);
+    await expectRenderedZoom(page, baseline, mode === "odessey" ? 1.2 : 2);
     await page.mouse.wheel(0, 10000);
     await page.clock.runFor(32);
     await page.mouse.wheel(0, 10000);
     await page.clock.runFor(100);
-    await expectRenderedZoom(page, baseline, mode === "gravity" ? 0.5 : 0.25);
+    await expectRenderedZoom(
+      page,
+      baseline,
+      mode === "gravity" ? 0.5 : 1 / 1.2,
+    );
     await resetZoom(page, fieldName(mode));
     await expectRenderedZoom(page, baseline, 1);
     await idle(page, mode);
@@ -133,13 +150,21 @@ for (const mode of ["zen", "gravity"] as const) {
         const spread = { ...b, x: 260 };
         await touch(cdp, "touchMove", [a, spread]);
         await page.clock.runFor(50);
-        await expectRenderedZoom(page, baseline, 1.5);
+        await expectRenderedZoom(
+          page,
+          baseline,
+          mode === "odessey" ? 1.2 : 1.3015145067,
+        );
         await touch(cdp, "touchEnd", [a]);
         await touch(cdp, "touchMove", [{ ...a, x: a.x + 72 }]);
         await touch(cdp, "touchEnd", []);
         await page.clock.runFor(50);
         await idle(page, mode);
-        await expectRenderedZoom(page, baseline, 1.5);
+        await expectRenderedZoom(
+          page,
+          baseline,
+          mode === "odessey" ? 1.2 : 1.3015145067,
+        );
         await page.setViewportSize({
           width: viewport.height,
           height: viewport.width,
@@ -151,7 +176,10 @@ for (const mode of ["zen", "gravity"] as const) {
         });
         await resetZoom(page, fieldName(mode));
         baseline = await bodyRadius(page);
-        expect(resizedPinchedRadius / baseline).toBeCloseTo(1.5, 3);
+        expect(resizedPinchedRadius / baseline).toBeCloseTo(
+          mode === "odessey" ? 1.2 : 1.3015145067,
+          3,
+        );
         await expectRenderedZoom(page, baseline, 1);
         // A new native pinch can zoom out after the first touch session is over.
         const c = { id: 4, x: 140, y: Math.min(220, viewport.width * 0.45) };
@@ -160,7 +188,11 @@ for (const mode of ["zen", "gravity"] as const) {
         await touch(cdp, "touchStart", [c, d]);
         await touch(cdp, "touchMove", [c, { ...d, x: 200 }]);
         await touch(cdp, "touchEnd", []);
-        await expectRenderedZoom(page, baseline, 0.5);
+        await expectRenderedZoom(
+          page,
+          baseline,
+          mode === "odessey" ? 1 / 1.2 : 0.6372803137,
+        );
         await idle(page, mode);
         await resetZoom(page, fieldName(mode));
         await expectRenderedZoom(page, baseline, 1);
@@ -174,7 +206,7 @@ for (const mode of ["zen", "gravity"] as const) {
         await touch(cdp, "touchEnd", []);
         await page.clock.runFor(32);
         await expect(page.locator(".game-surface [role=status]")).toHaveText(
-          mode === "zen" ? /In flight|Offscreen/ : "1 planet in motion",
+          mode === "odessey" ? /In flight|Offscreen/ : "1 planet in motion",
         );
         expect(errors).toEqual([]);
       } finally {
@@ -190,7 +222,7 @@ for (const mode of ["zen", "gravity"] as const) {
     await boot(page, mode, false);
     await expect(
       page.getByRole("dialog", {
-        name: `How to play ${mode === "zen" ? "Zen" : "Gravity"}`,
+        name: `How to play ${mode === "odessey" ? "Odessey" : "Gravity"}`,
       }),
     ).toBeVisible();
     await expect(
@@ -232,7 +264,7 @@ for (const mode of ["zen", "gravity"] as const) {
   });
 }
 
-test("Zen pinch cancels a pending flight tap without branching", async ({
+test("Odessey pinch cancels a pending flight tap without branching", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -243,7 +275,7 @@ test("Zen pinch cancels a pending flight tap without branching", async ({
   const page = await context.newPage(),
     cdp = await context.newCDPSession(page);
   try {
-    await boot(page, "zen");
+    await boot(page, "odessey");
     const point = { id: 1, x: 150, y: 300 };
     for (let i = 0; i < 2; i++) {
       await touch(cdp, "touchStart", [point]);
@@ -269,7 +301,7 @@ test("Zen pinch cancels a pending flight tap without branching", async ({
     await touch(cdp, "touchEnd", [a]);
     await touch(cdp, "touchEnd", []);
     await page.clock.runFor(32);
-    await expectRenderedZoom(page, baseline, 1.5);
+    await expectRenderedZoom(page, baseline, 1.2);
     await expect(page.locator('.game-surface [aria-live="polite"]')).toHaveText(
       "Split mode",
     );

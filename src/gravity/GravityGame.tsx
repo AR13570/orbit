@@ -13,6 +13,7 @@ import { gravityAimPredictionSeconds } from "./aim-preview";
 import { gravityLaunchSpeed } from "./physics";
 import Icon from "../components/Icon";
 import GameHeader from "../components/GameHeader";
+import ResetViewControl from "../components/ResetViewControl";
 import { resolveGravitySeed } from "./seed";
 import { useAmbientMusic } from "../audio/useAmbientMusic";
 import {
@@ -167,9 +168,10 @@ export default function GravityGame({
   const zoom = useGameplayZoom({
     canvas,
     minimum: MIN_GRAVITY_ZOOM,
+    restoreView: (fraction) => renderer.current?.resetPan?.(fraction),
     blocked: () => helpRef.current || pause.current || document.hidden,
     cancel,
-    apply: (value) => renderer.current?.setZoom(value),
+    apply: (value, focus) => renderer.current?.setZoom(value, focus),
   });
   const openPause = useCallback(() => {
     pauseMusic();
@@ -536,6 +538,9 @@ export default function GravityGame({
             Start anywhere. Pull back and release. Keep adding planets.
           </p>
         </div>
+        {!paused && !help && (
+          <ResetViewControl zoom={zoom.zoom} onReset={zoom.reset} />
+        )}
       </div>
       {help ? (
         <GravityGuide onFinish={closeGuide} />

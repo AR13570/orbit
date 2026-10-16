@@ -8,11 +8,11 @@
 
 Pull back, release, and let gravity take over. Orbit is a quiet browser game about finding a path, building living orbits, and making little worlds of your own. No lives, high scores, or time pressure. Just one more launch.
 
-![Orbit's mode picker with Zen, Gravity, and Gravity creator](docs/images/mode-picker.png)
+![Orbit's mode picker with Odessey, Gravity, and Gravity creator](docs/images/mode-picker.png)
 
 ## Three ways to play
 
-**Zen** · Curve past attractors and repellers to reach the blue checkpoint ring. Each checkpoint opens a new field. Missed shots give you another try, with your checkpoint progress intact.
+**Odessey** · Curve past attractors and repellers to reach the blue checkpoint ring. Each checkpoint opens a new field. Missed shots give you another try, with your checkpoint progress intact.
 
 **Gravity** · Keep colourful projectiles orbiting to satisfy each field's challenge. Complete a revolution, gather several planets around a core, orbit in opposite directions, or circle two bodies together. Play 45 authored levels, then continue into endless procedural skies. Skip a level whenever you like, or use **Choose a level** in the pause menu to revisit unlocked fields.
 
@@ -26,9 +26,9 @@ Pull back, release, and let gravity take over. Orbit is a quiet browser game abo
 
 Attractors pull you closer. Repellers push you away. Give solid bodies room as you pass, and watch your trail trace the journey.
 
-In **Zen**, the shot launches from your ship's ring. Double-click or double-tap to switch between single and split mode. Select Split, launch, then tap during flight to branch into three ships.
+In **Odessey**, the shot launches from your ship's ring. Portrait levels run from bottom to top; wider views run from left to right. The starting camera fits the playable objects as closely as possible with edge padding and room to pull. Double-click or double-tap to switch between single and split mode. Select Split, launch, then tap during flight to branch into three ships.
 
-![Zen: aiming a curved route through attractors and repellers toward the blue checkpoint](docs/images/zen-flight.png)
+![Odessey: a portrait course through attractors and repellers toward the blue checkpoint](docs/images/odessey-flight.png)
 
 In **Gravity**, start a pull anywhere to launch from that spot. Launch again while earlier planets are still flying to build several orbits at once. The **Size** slider affects newly launched planets; larger planets pull others more strongly. New planets are sized for the level's default view; manual zoom scales them with the scene, while resizing preserves existing planets' sizes and adapts the next launch. Particle interaction is on by default and can be switched off under **Pause → Advanced → Particle Interaction**.
 
@@ -36,13 +36,13 @@ In **Gravity**, start a pull anywhere to launch from that spot. Launch again whi
 
 ## Settle into your own pace
 
-- Pinch on touchscreens or scroll with a mouse to zoom the field. Gravity supports 50% to 400% zoom; a planet leaves play once its whole disc passes beyond the outermost view, regardless of the current zoom.
+- Pinch on touchscreens or scroll with a mouse to zoom the field around your fingers or cursor. Odessey supports roughly 83% to 120% zoom and Gravity supports 50% to 200%. In Odessey, drag with two fingers or hold Space and drag to pan without launching. The camera follows flights within the level; manual panning takes over until the next shot. An offscreen Odessey ship gets five seconds to return, with a Restart control available immediately. Bringing it back into view resets the timer. Gravity removes a planet only on contact with a fixed obstacle or once its whole disc leaves the outermost view.
 - Pause with the pause button, **Esc**, or **P**. Resume with the same keys, **Resume**, or a click outside the pause panel.
-- Press **R** or use the reset button to retry the current Zen shot or reset the current Gravity level. In Zen, **New seed** starts a fresh checkpoint journey.
+- Press **R** or use the reset button to retry the current Odessey shot or reset the current Gravity level. In Odessey, **New seed** starts a fresh checkpoint journey.
 - Open **Pause → Advanced → Path assist** to switch between the default partial aiming preview and a full predicted path.
 - Both game modes share a warm ambient melody with soft keys and occasional quiet chimes, with sound on by default. The sound toggle is remembered in this browser and shared across modes. Toggle sound in the pause menu, where you can also find **How to play**. Interactive guides appear on your first visit to each game mode.
 
-Zen checkpoints and Gravity level progress save in this browser for each seed. Returning to a run resumes its saved checkpoint or level, rather than an in-flight shot. Add `?seed=42` to the URL for a repeatable starting world. Browser storage does not sync across devices and can be lost if you clear site data.
+Odessey checkpoints and Gravity level progress save in this browser for each seed. Returning to a run resumes its saved checkpoint or level, rather than an in-flight shot. Add `?seed=42` to the URL for a repeatable starting world. Existing Zen links and browser saves continue to work and migrate to Odessey automatically. Browser storage does not sync across devices and can be lost if you clear site data.
 
 ## Build your own sky
 

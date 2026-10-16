@@ -5,6 +5,10 @@ import {
 } from "../../src/gravity/renderer";
 import { worldToClient } from "../../src/render/coordinates";
 import { getGravityLevel } from "../../src/gravity/campaign";
+import {
+  buildEndlessGravityLevel,
+  ENDLESS_LAYOUT_IDS,
+} from "../../src/gravity/endless";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
 function fixture() {
@@ -139,9 +143,9 @@ describe("Gravity rendering", () => {
       expect(aim.circle[2]).toBe(6 * size);
     },
   );
-  it.each([0.3, 0.5, 1, 2])(
-    "draws touching unequal planets edge to edge at effective camera scale %f",
-    (scale) => {
+  it.each([0.5, 0.75, 1, 2])(
+    "draws touching unequal planets edge to edge at relative zoom %f",
+    (zoom) => {
       const { renderer, fillRecords } = fixture();
       const engine = new GravityEngine(42, getGravityLevel(42, 14));
       engine.setPhysics({ planetRadius: 3 });
@@ -152,7 +156,8 @@ describe("Gravity rendering", () => {
       const snapshot = engine.getSnapshot();
       renderer.resize(390, 844);
       renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
-      renderer.setZoom(scale / renderer.getScale());
+      const scale = renderer.getDefaultScale() * zoom;
+      renderer.setZoom(zoom);
       fillRecords.length = 0;
       renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
       expect(renderer.getScale()).toBeCloseTo(scale);
@@ -581,7 +586,7 @@ it("exposes the fitted default scale independently of player zoom and tutorial f
   renderer.prepareFrame(level);
   expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
   renderer.setZoom(4);
-  expect(renderer.getScale()).toBeCloseTo(5.962962962962963, 10);
+  expect(renderer.getScale()).toBeCloseTo(2.9814814814814814, 10);
   expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
   renderer.setWalkthroughFocus({
     position: { x: 450, y: 450 },
@@ -593,3 +598,32 @@ it("exposes the fitted default scale independently of player zoom and tutorial f
   renderer.resize(844, 390);
   expect(renderer.getDefaultScale()).toBeCloseTo(1.4722222222222223, 10);
 });
+
+it.each([
+  [1280, 800],
+  [390, 844],
+  [844, 390],
+])(
+  "caps every campaign and endless formation at twice its fitted default on %sx%s",
+  (width, height) => {
+    const { renderer } = fixture();
+    renderer.resize(width, height);
+    const levels = [
+      ...Array.from({ length: 45 }, (_, index) => getGravityLevel(42, index)),
+      ...ENDLESS_LAYOUT_IDS.map((id) =>
+        buildEndlessGravityLevel(42, 45, id, 0),
+      ),
+    ];
+    for (const level of levels) {
+      renderer.prepareFrame(level);
+      const baseline = renderer.getDefaultScale();
+      const outerView = renderer.getFlightBounds();
+      expect(Number.isFinite(baseline), level.family).toBe(true);
+      expect(baseline, level.family).toBeGreaterThan(0);
+      expect(renderer.setZoom(100), level.family).toBe(2);
+      expect(renderer.getScale(), level.family).toBeCloseTo(2 * baseline, 10);
+      expect(renderer.getFlightBounds(), level.family).toEqual(outerView);
+    }
+    renderer.destroy();
+  },
+);

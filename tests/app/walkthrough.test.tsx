@@ -6,7 +6,7 @@ import {
   screen,
   act,
 } from "@testing-library/react";
-import App, { ZenGame } from "../../src/App";
+import App, { OdesseyGame } from "../../src/App";
 import GravityGame from "../../src/gravity/GravityGame";
 import { GRAVITY_GUIDE_KEY } from "../../src/gravity/GravityGuide";
 import { tutorialKeys } from "../../src/tutorial/state";
@@ -53,7 +53,7 @@ afterEach(() => {
 function tick(ms: number) {
   act(() => vi.advanceTimersByTime(ms));
 }
-function practiceKey(key: string, mode: "Zen" | "Gravity" = "Zen") {
+function practiceKey(key: string, mode: "Odessey" | "Gravity" = "Odessey") {
   const field = screen.getByLabelText(`${mode} practice field`);
   field.focus();
   fireEvent.keyDown(field, { key });
@@ -66,7 +66,7 @@ function continuePractice() {
   fireEvent.click(button);
   tick(300);
 }
-function completeZenPractice() {
+function completeOdesseyPractice() {
   for (let i = 0; i < 4; i++) continuePractice();
   const continueButton = () =>
     screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
@@ -97,25 +97,25 @@ function completeZenPractice() {
   fireEvent.click(finish());
 }
 describe("guided mode visits", () => {
-  it("starts on the first Zen visit and saves Skip for future visits", () => {
-    const view = render(<ZenGame />);
+  it("starts on the first Odessey visit and saves Skip for future visits", () => {
+    const view = render(<OdesseyGame />);
     expect(
-      screen.getByRole("dialog", { name: "How to play Zen" }),
+      screen.getByRole("dialog", { name: "How to play Odessey" }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "Reset level (R)" }),
     ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-    expect(localStorage.getItem(tutorialKeys.zen)).toBe("skipped");
+    expect(localStorage.getItem(tutorialKeys.odessey)).toBe("skipped");
     view.unmount();
-    render(<ZenGame />);
+    render(<OdesseyGame />);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
   it("completes all steps and supports replay without another first-visit tour", () => {
     vi.useFakeTimers();
-    render(<ZenGame />);
-    completeZenPractice();
-    expect(localStorage.getItem(tutorialKeys.zen)).toBe("complete");
+    render(<OdesseyGame />);
+    completeOdesseyPractice();
+    expect(localStorage.getItem(tutorialKeys.odessey)).toBe("complete");
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "How to play" }));
     expect(screen.getByText("Your ship")).toBeTruthy();
@@ -143,7 +143,7 @@ describe("guided mode visits", () => {
     ).toBeTruthy();
   });
   it("onboards Gravity separately and excludes Creator playtests", () => {
-    localStorage.setItem(tutorialKeys.zen, "complete");
+    localStorage.setItem(tutorialKeys.odessey, "complete");
     const view = render(<GravityGame onExit={() => {}} />);
     expect(
       screen.getByRole("dialog", { name: "How to play Gravity" }),
@@ -163,13 +163,13 @@ describe("guided mode visits", () => {
 });
 
 describe("walkthrough input and flight preservation", () => {
-  it("freezes and preserves a Zen flight on replay, including capture-phase reset", async () => {
+  it("freezes and preserves a Odessey flight on replay, including capture-phase reset", async () => {
     const { OrbitEngine } = await import("../../src/game/engine");
     const launch = vi.spyOn(OrbitEngine.prototype, "launch");
-    localStorage.setItem(tutorialKeys.zen, "complete");
+    localStorage.setItem(tutorialKeys.odessey, "complete");
     vi.useFakeTimers();
     try {
-      const { container } = render(<ZenGame />);
+      const { container } = render(<OdesseyGame />);
       const canvas = screen.getByLabelText(
         "Slingshot flight field",
       ) as HTMLCanvasElement;
@@ -213,7 +213,7 @@ describe("walkthrough input and flight preservation", () => {
       expect(retry).not.toHaveBeenCalled();
       expect(bounds).not.toHaveBeenCalled();
       expect(engine.getSnapshot().particles).toEqual(before.particles);
-      completeZenPractice();
+      completeOdesseyPractice();
       expect(engine.getSnapshot().status).toBe("flying");
       expect(engine.getSnapshot().particles).toEqual(before.particles);
       expect(document.activeElement).toBe(canvas);
@@ -223,7 +223,7 @@ describe("walkthrough input and flight preservation", () => {
   });
   it("keeps practice keyboard-accessible, gates the final launch and saves Escape dismissal", () => {
     vi.useFakeTimers();
-    render(<ZenGame />);
+    render(<OdesseyGame />);
     expect(
       (screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement)
         .disabled,
@@ -235,19 +235,19 @@ describe("walkthrough input and flight preservation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     tick(300);
     expect(screen.getByText("Your ship")).toBeTruthy();
-    const field = screen.getByLabelText("Zen practice field");
+    const field = screen.getByLabelText("Odessey practice field");
     field.focus();
     expect(document.activeElement).toBe(field);
     fireEvent.keyDown(field, { key: "Escape" });
-    expect(localStorage.getItem(tutorialKeys.zen)).toBe("skipped");
+    expect(localStorage.getItem(tutorialKeys.odessey)).toBe("skipped");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
 describe("mode chooser tutorial entry", () => {
   it.each([
-    ["zen", "Zen", "complete"],
-    ["zen", "Zen", "skipped"],
+    ["odessey", "Odessey", "complete"],
+    ["odessey", "Odessey", "skipped"],
     ["gravity", "Gravity", "complete"],
     ["gravity", "Gravity", "skipped"],
   ] as const)(
@@ -255,7 +255,7 @@ describe("mode chooser tutorial entry", () => {
     (mode, label, result) => {
       window.history.replaceState({}, "", "/");
       localStorage.setItem(
-        mode === "gravity" ? GRAVITY_GUIDE_KEY : tutorialKeys.zen,
+        mode === "gravity" ? GRAVITY_GUIDE_KEY : tutorialKeys.odessey,
         result,
       );
       render(<App />);
@@ -265,19 +265,19 @@ describe("mode chooser tutorial entry", () => {
       expect(
         screen.getByRole("dialog", { name: `How to play ${label}` }),
       ).toBeTruthy();
-      if (mode === "zen")
+      if (mode === "odessey")
         expect(
           document.querySelector(".walkthrough")?.getAttribute("data-step"),
         ).toBe("intro");
       expect(
         screen.getByText(
-          mode === "zen" ? "Your ship" : "Make your first planet",
+          mode === "odessey" ? "Your ship" : "Make your first planet",
         ),
       ).toBeTruthy();
       // Opening help must not remove or rewrite the player's saved visit.
       expect(
         localStorage.getItem(
-          mode === "gravity" ? GRAVITY_GUIDE_KEY : tutorialKeys.zen,
+          mode === "gravity" ? GRAVITY_GUIDE_KEY : tutorialKeys.odessey,
         ),
       ).toBe(result);
       fireEvent.click(screen.getByRole("button", { name: "Skip" }));
@@ -297,13 +297,13 @@ describe("mode chooser tutorial entry", () => {
       );
       expect(
         screen.getByText(
-          mode === "zen" ? "Your ship" : "Make your first planet",
+          mode === "odessey" ? "Your ship" : "Make your first planet",
         ),
       ).toBeTruthy();
       window.history.replaceState({}, "", "/");
     },
   );
-  it.each(["Zen", "Gravity"])(
+  it.each(["Odessey", "Gravity"])(
     "keeps the first visit tutorial on normal %s entry",
     (label) => {
       window.history.replaceState({}, "", "/");

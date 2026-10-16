@@ -11,7 +11,7 @@ it("keeps all campaign witness powers reachable by a deliberate drag above the t
   for (let index = 0; index < 45; index++) {
     const level = getGravityLevel(42, index);
     for (const shot of level.witness) {
-      for (const limit of [90, 48]) {
+      for (const limit of [153, 81.6]) {
         const distance = limit * Math.sqrt(shot.power);
         expect(distance).toBeGreaterThanOrEqual(8);
         expect(distance).toBeLessThanOrEqual(limit);
@@ -26,15 +26,15 @@ it("keeps all campaign witness powers reachable by a deliberate drag above the t
   }
 });
 it("uses reachable Gravity-only full-pull limits for mouse and touch layouts", () => {
-  expect(gravityPullDistance("mouse", 1280, 800)).toBe(90);
-  expect(gravityPullDistance("touch", 1280, 800)).toBe(48);
-  expect(gravityPullDistance("mouse", 390, 844)).toBe(48);
-  expect(gravityPullDistance("touch", 844, 390)).toBe(48);
+  expect(gravityPullDistance("mouse", 1280, 800)).toBe(153);
+  expect(gravityPullDistance("touch", 1280, 800)).toBe(81.6);
+  expect(gravityPullDistance("mouse", 390, 844)).toBe(81.6);
+  expect(gravityPullDistance("touch", 844, 390)).toBe(81.6);
 });
 it("shortens zoomed-out pulls gently and bounds the adjustment at extreme zoom", () => {
   for (const [pointer, width, height, base] of [
-    ["mouse", 1280, 800, 90],
-    ["touch", 390, 844, 48],
+    ["mouse", 1280, 800, 153],
+    ["touch", 390, 844, 81.6],
   ] as const) {
     const reduced = gravityPullDistance(pointer, width, height, 0.45);
     expect(reduced).toBeCloseTo(base * Math.sqrt(0.45), 10);
@@ -71,7 +71,7 @@ it("requires physical clearance for the selected size and honors disabled core c
     gravityLaunchIsClear({ ...boundary, x: boundary.x + 0.001 }, doubled),
   ).toBe(true);
   engine.setPhysics({ bodyCollisions: false });
-  expect(
-    gravityLaunchIsClear(core.position, engine.getRenderSnapshot()),
-  ).toBe(true);
+  expect(gravityLaunchIsClear(core.position, engine.getRenderSnapshot())).toBe(
+    true,
+  );
 });

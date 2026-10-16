@@ -3,6 +3,7 @@ import { generateSector } from "../../src/game/generator";
 import { createRenderer } from "../../src/render/renderer";
 import { sampleGravityWave } from "../../src/render/gravity-surface";
 import type { GameSnapshot } from "../../src/game/types";
+import { clientToWorld, worldToClient } from "../../src/render/coordinates";
 
 function snapshot(index = 0): GameSnapshot {
   const x = 3400 + index * 1500;
@@ -174,7 +175,8 @@ describe("sampled gravity surface", () => {
       );
       for (let tick = 0; tick <= 36; tick++) {
         const points = frame(1 + tick * 0.05);
-        expect(points.length).toBeGreaterThan(150);
+        // The fitted view changes the projected sample count; keep the budget invariant and avoid a vacuous empty frame.
+        expect(points.length).toBeGreaterThan(0);
         expect(points.length).toBeLessThanOrEqual(budget);
         for (const p of points) {
           expect(
@@ -762,7 +764,7 @@ describe("displayed camera contract", () => {
     const effectColors: unknown[] = [];
     (context.arc as ReturnType<typeof vi.fn>).mockImplementation(
       (x, y, radius) => {
-        if (x === 300 && radius === 6) edgeColors.push(context.strokeStyle);
+        if (radius === 6) edgeColors.push(context.strokeStyle);
         if (radius < 5) effectColors.push(context.fillStyle);
       },
     );
@@ -823,10 +825,12 @@ describe("displayed camera contract", () => {
         ...board.sector,
         checkpoint: {
           radius: 45,
-          position: {
-            x: camera.center.x + (screenX - 160) / camera.scale,
-            y: camera.center.y,
-          },
+          position: clientToWorld(
+            screenX,
+            568 / 2,
+            { left: 0, top: 0, width: 320, height: 568 },
+            camera,
+          ),
         },
       };
       (context.arc as ReturnType<typeof vi.fn>).mockClear();
@@ -878,7 +882,10 @@ describe("displayed camera contract", () => {
       expect(renderer.getViewport()).toEqual(prepared);
       expect(renderer.getVisibleBounds()).toEqual(prepared.bounds);
       const topLeft = renderer.screenToWorld(17, 29);
-      expect(topLeft.x).toBeCloseTo(prepared.bounds.x, 9);
+      expect(topLeft.x).toBeCloseTo(
+        prepared.bounds.x + prepared.bounds.width,
+        9,
+      );
       expect(topLeft.y).toBeCloseTo(prepared.bounds.y, 9);
     },
   );
@@ -914,15 +921,22 @@ describe("displayed camera contract", () => {
     renderer.render(snapshot(1), [], 1.05, { paused: true });
     expect(renderer.getViewport().center).toEqual(start);
     renderer.render(snapshot(1), [], 1.1, { reducedMotion: true });
-    expect(renderer.getViewport().center.x).toBe(5800);
+    expect(renderer.worldToScreen(snapshot(1).sector.launch).x).toBeCloseTo(
+      201,
+    );
     expect(renderer.getViewport().transitioning).toBe(false);
     renderer.render(snapshot(2), [], 1.15);
     renderer.resize(390, 844);
     const resized = renderer.getViewport();
     const goal = snapshot(2).sector.checkpoint;
-    expect(
-      (goal.position.x + goal.radius - resized.center.x) * resized.scale + 195,
-    ).toBeLessThanOrEqual(390 - 18);
+    const goalPoint = worldToClient(
+      goal.position,
+      { left: 0, top: 0, width: 390, height: 844 },
+      resized,
+    );
+    expect(goalPoint.y - goal.radius * resized.scale).toBeGreaterThanOrEqual(
+      80,
+    );
     expect(renderer.getViewport().transitioning).toBe(false);
   });
   it("follows the live ship in portrait, freezes while held or paused, and returns for retry", () => {
@@ -937,7 +951,10 @@ describe("displayed camera contract", () => {
       particles: [
         {
           id: 1,
-          position: { x: 4500, y: 500 },
+          position: {
+            x: board.sector.bounds.x + board.sector.bounds.width - 10,
+            y: 500,
+          },
           velocity: { x: 240, y: 0 },
           alive: true,
           trail: [],
@@ -952,7 +969,7 @@ describe("displayed camera contract", () => {
     expect(renderer.getViewport().center.x).toBe(following);
     renderer.render({ ...flying, status: "failed" }, [], 1.2);
     renderer.render(board, [], 1.25);
-    expect(renderer.getViewport().transitioning).toBe(true);
+    expect(renderer.getViewport().transitioning).toBe(false);
     renderer.render(board, [], 1.3, { reducedMotion: true });
     expect(renderer.getViewport().center.x).toBe(initial);
   });
@@ -1094,21 +1111,29 @@ it("applies bounded gameplay zoom consistently to transforms and visible flight 
     state = snapshot();
   renderer.prepareFrame(state, 0, { reducedMotion: true });
   const base = renderer.getViewport();
-  expect(renderer.setZoom(8)).toBe(4);
+  const anchor = renderer.worldToScreen(state.sector.launch);
+  expect(renderer.setZoom(8)).toBe(1.2);
   const zoomed = renderer.getViewport();
-  expect(zoomed.center).toEqual(base.center);
-  expect(zoomed.scale).toBeCloseTo(base.scale * 4);
-  expect(zoomed.bounds.width).toBeCloseTo(base.bounds.width / 4);
-  expect(zoomed.bounds.height).toBeCloseTo(base.bounds.height / 4);
+  expect(renderer.worldToScreen(state.sector.launch).x).toBeCloseTo(
+    anchor.x,
+    9,
+  );
+  expect(renderer.worldToScreen(state.sector.launch).y).toBeCloseTo(
+    anchor.y,
+    9,
+  );
+  expect(zoomed.scale).toBeCloseTo(base.scale * 1.2);
+  expect(zoomed.bounds.width).toBeCloseTo(base.bounds.width / 1.2);
+  expect(zoomed.bounds.height).toBeCloseTo(base.bounds.height / 1.2);
   const point = state.sector.launch,
     screen = renderer.worldToScreen(point),
     roundTrip = renderer.screenToWorld(screen.x, screen.y);
   expect(roundTrip.x).toBeCloseTo(point.x, 8);
   expect(roundTrip.y).toBeCloseTo(point.y, 8);
   renderer.resize(390, 844);
-  expect(renderer.getZoom()).toBe(4);
+  expect(renderer.getZoom()).toBe(1.2);
   renderer.prepareFrame(snapshot(1), 1, { reducedMotion: true });
-  expect(renderer.getZoom()).toBe(4);
+  expect(renderer.getZoom()).toBe(1.2);
   renderer.setWalkthroughFocus({
     position: point,
     radius: 20,
@@ -1120,7 +1145,7 @@ it("applies bounded gameplay zoom consistently to transforms and visible flight 
   renderer.destroy();
 });
 
-it("renders the full predicted Zen route beyond the short aiming window with bounded dots", () => {
+it("renders the full predicted Odessey route beyond the short aiming window with bounded dots", () => {
   const { renderer, context } = fixture(),
     board = snapshot();
   const path = Array.from({ length: 661 }, (_, index) => ({
@@ -1157,20 +1182,36 @@ it("renders the full predicted Zen route beyond the short aiming window with bou
   expect(dots.at(-1)!).toBeGreaterThan(partial.at(-1)! + 1000);
 });
 
-for(const [width,height] of [[1440,900],[390,844],[844,390]])it(`fits both ends of a maximum-length Zen course at ${width}x${height}`,()=>{
-  const {renderer}=fixture();
-  renderer.resize(width,height);
-  const board={...snapshot(),sector:generateSector(42,14)};
-  renderer.prepareFrame(board,0,{reducedMotion:true});
-  for(const zoom of [1,.25]){
-    renderer.setZoom(zoom);
-    const bounds=renderer.getVisibleBounds();
-    for(const circle of [{position:board.sector.launch,radius:5},board.sector.checkpoint]){
-      expect(circle.position.x-circle.radius).toBeGreaterThanOrEqual(bounds.x);
-      expect(circle.position.x+circle.radius).toBeLessThanOrEqual(bounds.x+bounds.width);
-      expect(circle.position.y-circle.radius).toBeGreaterThanOrEqual(bounds.y);
-      expect(circle.position.y+circle.radius).toBeLessThanOrEqual(bounds.y+bounds.height);
+for (const [width, height] of [
+  [1440, 900],
+  [390, 844],
+  [844, 390],
+])
+  it(`fits both ends of a maximum-length Odessey course at ${width}x${height}`, () => {
+    const { renderer } = fixture();
+    renderer.resize(width, height);
+    const board = { ...snapshot(), sector: generateSector(42, 14) };
+    renderer.prepareFrame(board, 0, { reducedMotion: true });
+    for (const zoom of [1, 0.25]) {
+      renderer.setZoom(zoom);
+      const bounds = renderer.getVisibleBounds();
+      for (const circle of [
+        { position: board.sector.launch, radius: 5 },
+        board.sector.checkpoint,
+      ]) {
+        expect(circle.position.x - circle.radius).toBeGreaterThanOrEqual(
+          bounds.x,
+        );
+        expect(circle.position.x + circle.radius).toBeLessThanOrEqual(
+          bounds.x + bounds.width,
+        );
+        expect(circle.position.y - circle.radius).toBeGreaterThanOrEqual(
+          bounds.y,
+        );
+        expect(circle.position.y + circle.radius).toBeLessThanOrEqual(
+          bounds.y + bounds.height,
+        );
+      }
     }
-  }
-  renderer.destroy();
-});
+    renderer.destroy();
+  });

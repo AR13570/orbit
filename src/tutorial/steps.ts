@@ -15,7 +15,7 @@ export function tutorialSteps(
       tone: "warm",
       title: "Your ship",
       text:
-        mode === "zen"
+        mode === "odessey"
           ? "Pull anywhere to aim, then release from this ring. While playing, pinch to zoom; scroll on desktop."
           : "Pull anywhere to aim, then release to launch from this ring.",
     },
@@ -25,7 +25,7 @@ export function tutorialSteps(
       title: "Gravity bends your flight",
       text: "Inward chevrons pull you closer; outward chevrons push you away.",
     },
-    ...(mode === "zen"
+    ...(mode === "odessey"
       ? [
           {
             id: "checkpoint",
@@ -55,13 +55,13 @@ export function tutorialSteps(
     {
       id: "launch",
       tone: "warm",
-      title: mode === "zen" ? "Follow the curve" : "Try a launch",
+      title: mode === "odessey" ? "Follow the curve" : "Try a launch",
       text:
-        mode === "zen"
+        mode === "odessey"
           ? "Pull to the small handle; release to follow the purple route."
           : "Pull to the handle, then release to try your first flight.",
     },
-    ...(mode === "zen"
+    ...(mode === "odessey"
       ? [
           {
             id: "practice-split",

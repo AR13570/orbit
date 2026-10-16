@@ -11,7 +11,7 @@ import {
 } from "./zoom-fixture";
 
 for (const touch of [false, true]) {
-  test(`Zen reaches and completes maximum difficulty at level 15 on ${touch ? "touch portrait" : "desktop"}`, async ({
+  test(`Odessey reaches and completes maximum difficulty at level 15 on ${touch ? "touch portrait" : "desktop"}`, async ({
     browser,
   }) => {
     test.setTimeout(120000);
@@ -34,7 +34,7 @@ for (const touch of [false, true]) {
       await installZoomProbe(page);
       await page.clock.install();
       await page.clock.pauseAt(new Date());
-      await page.goto("/?mode=zen&seed=42");
+      await page.goto("/?mode=odessey&seed=42");
       await page.clock.runFor(800);
       await expectNoZoomControls(page);
       const reference = new OrbitEngine(42);
@@ -140,7 +140,7 @@ for (const touch of [false, true]) {
 }
 
 for (const level of [1, 5, 10, 15, 30])
-  test(`Zen debug URL jumps to level ${level}`, async ({ page }) => {
+  test(`Odessey debug URL jumps to level ${level}`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await installZoomProbe(page);
@@ -155,7 +155,7 @@ for (const level of [1, 5, 10, 15, 30])
       page.getByLabel(`Checkpoint ${level - 1}`, { exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("status")).toHaveText("Ready to pull");
-    expect(new URL(page.url()).searchParams.get("mode")).toBe("zen");
+    expect(new URL(page.url()).searchParams.get("mode")).toBe("odessey");
     await expectNoZoomControls(page);
     if (level === 15) {
       const baseline = await bodyRadius(page);

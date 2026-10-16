@@ -4,7 +4,7 @@ import { STRUCTURES } from "./structures";
 import type { Sector, Vec2 } from "./types";
 
 /** Static course state only. A dock resumes at the following launcher once. */
-export interface ZenCheckpoint {
+export interface OdesseyCheckpoint {
   version: 1;
   seed: number;
   checkpointCount: number;
@@ -12,9 +12,12 @@ export interface ZenCheckpoint {
   sector: Sector;
   recentLayouts: CompositionDescriptor[];
 }
-const DEFAULT_SEED_KEY = "orbit.zen.default-seed.v1";
+const DEFAULT_SEED_KEY = "orbit.odessey.default-seed.v1";
+const LEGACY_DEFAULT_SEED_KEY = "orbit.zen.default-seed.v1";
 const MAX_RECORD_LENGTH = 1_000_000;
-const storageKey = (seed: number) => `orbit.zen.progress.v1:${seed >>> 0}`;
+const storageKey = (seed: number) => `orbit.odessey.progress.v1:${seed >>> 0}`;
+const legacyStorageKey = (seed: number) =>
+  `orbit.zen.progress.v1:${seed >>> 0}`;
 let sessionSeed: number | undefined;
 const finite = (n: unknown): n is number =>
   typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= 1e12;
@@ -26,12 +29,12 @@ const kind = (value: unknown) => value === "attractor" || value === "repellent";
 const scale = (value: unknown) => value === undefined || positive(value);
 
 /** Storage is untrusted; validate bounded geometry before handing it to physics. */
-export function validZenCheckpoint(
+export function validOdesseyCheckpoint(
   value: unknown,
   seed: number,
-): value is ZenCheckpoint {
+): value is OdesseyCheckpoint {
   try {
-    const p = value as ZenCheckpoint,
+    const p = value as OdesseyCheckpoint,
       s = p.sector;
     return (
       p.version === 1 &&
@@ -102,19 +105,28 @@ export function validZenCheckpoint(
     return false;
   }
 }
-export function loadZenCheckpoint(seed: number): ZenCheckpoint | null {
+export function loadOdesseyCheckpoint(seed: number): OdesseyCheckpoint | null {
   try {
-    const raw = localStorage.getItem(storageKey(seed));
+    const current = localStorage.getItem(storageKey(seed));
+    const raw = current ?? localStorage.getItem(legacyStorageKey(seed));
     if (!raw || raw.length > MAX_RECORD_LENGTH) return null;
     const parsed: unknown = JSON.parse(raw);
-    return validZenCheckpoint(parsed, seed) ? parsed : null;
+    if (!validOdesseyCheckpoint(parsed, seed)) return null;
+    if (current === null) {
+      try {
+        localStorage.setItem(storageKey(seed), raw);
+      } catch {
+        /* A full browser store must not prevent loading existing progress. */
+      }
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
-export function saveZenCheckpoint(checkpoint: ZenCheckpoint): void {
+export function saveOdesseyCheckpoint(checkpoint: OdesseyCheckpoint): void {
   try {
-    if (!validZenCheckpoint(checkpoint, checkpoint.seed)) return;
+    if (!validOdesseyCheckpoint(checkpoint, checkpoint.seed)) return;
     const raw = JSON.stringify(checkpoint);
     if (raw.length <= MAX_RECORD_LENGTH)
       localStorage.setItem(storageKey(checkpoint.seed), raw);
@@ -122,14 +134,23 @@ export function saveZenCheckpoint(checkpoint: ZenCheckpoint): void {
     /* Browser storage can be disabled or full. */
   }
 }
-export function resolveZenSeed(search: string): number {
+export function resolveOdesseySeed(search: string): number {
   const explicit = runSeed(search);
   if (explicit !== undefined) return explicit >>> 0;
   try {
-    const stored = localStorage.getItem(DEFAULT_SEED_KEY),
+    const current = localStorage.getItem(DEFAULT_SEED_KEY);
+    const stored = current ?? localStorage.getItem(LEGACY_DEFAULT_SEED_KEY),
       value = stored === null ? NaN : Number(stored);
-    if (Number.isInteger(value) && value >= 0 && value <= 0xffffffff)
+    if (Number.isInteger(value) && value >= 0 && value <= 0xffffffff) {
+      if (current === null) {
+        try {
+          localStorage.setItem(DEFAULT_SEED_KEY, String(value));
+        } catch {
+          /* Retain the existing seed even if migration cannot be written. */
+        }
+      }
       return value;
+    }
   } catch {
     /* Keep the same seed during this page visit. */
   }
@@ -143,7 +164,7 @@ export function resolveZenSeed(search: string): number {
 }
 
 /** Only ordinary unseeded journeys update this pointer; explicit links stay independent. */
-export function rememberZenSeed(seed: number): void {
+export function rememberOdesseySeed(seed: number): void {
   sessionSeed = seed >>> 0;
   try {
     localStorage.setItem(DEFAULT_SEED_KEY, String(sessionSeed));

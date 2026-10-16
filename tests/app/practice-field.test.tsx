@@ -49,7 +49,7 @@ describe("visible practice guide", () => {
         matches: pointerType === "touch" && query === "(any-pointer: coarse)",
       }));
       try {
-        const model = new TutorialPractice("zen");
+        const model = new TutorialPractice("odessey");
         model.enterStage(stage);
         if (stage === "practice-split") model.toggleMode();
         let frame: PracticeFrame | undefined;
@@ -65,7 +65,7 @@ describe("visible practice guide", () => {
         act(() => vi.advanceTimersByTime(1000));
         expect(frame).toBeDefined();
         const field = screen.getByLabelText(
-          "Zen practice field",
+          "Odessey practice field",
         ) as HTMLCanvasElement;
         field.setPointerCapture = () => {};
         field.hasPointerCapture = () => false;
@@ -112,10 +112,10 @@ describe("visible practice guide", () => {
 });
 
 it("P does not pause tutorial physics and hidden pages resume automatically", () => {
-  const model = new TutorialPractice("zen");
+  const model = new TutorialPractice("odessey");
   model.enterStage("launch");
   render(<PracticeField model={model} step="launch" onFrame={() => {}} />);
-  const field = screen.getByLabelText("Zen practice field");
+  const field = screen.getByLabelText("Odessey practice field");
   expect(screen.queryByRole("button", { name: /pause|resume/i })).toBeNull();
   act(() => vi.advanceTimersByTime(1000));
   fireEvent.keyDown(field, { key: " " });
@@ -139,7 +139,7 @@ it.each([false, true])(
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: reducedMotion && query === "(prefers-reduced-motion: reduce)",
     }));
-    const model = new TutorialPractice("zen");
+    const model = new TutorialPractice("odessey");
     const frames: PracticeFrame[] = [];
     const onFrame = (frame: PracticeFrame) => frames.push(frame);
     const view = render(
@@ -173,12 +173,12 @@ it.each([false, true])(
 );
 
 it("blocks split launching until the player selects split mode", () => {
-  const model = new TutorialPractice("zen");
+  const model = new TutorialPractice("odessey");
   model.enterStage("practice-split");
   render(
     <PracticeField model={model} step="practice-split" onFrame={() => {}} />,
   );
-  const field = screen.getByLabelText("Zen practice field");
+  const field = screen.getByLabelText("Odessey practice field");
   act(() => vi.advanceTimersByTime(1000));
   expect(screen.getByText("Single")).toBeTruthy();
   const canvas = field as HTMLCanvasElement;

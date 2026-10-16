@@ -101,20 +101,22 @@ export default function Help({ onClose }: { onClose: () => void }) {
               <strong>Keep exploring</strong>
               <p>
                 Gravity keeps acting outside the visible field. Each ship has
-                six seconds to return; coming back resets its timer. Pause
-                freezes the countdown. When every ship is lost, the same shot
-                resets after brief feedback. Retry as often as you like. Your
-                checkpoint progress stays with you.
+                five seconds to return after leaving view. Pan to follow it, or
+                choose Restart to try again. Pause freezes the timer. When every
+                ship is lost, the same shot resets after brief feedback. Retry
+                as often as you like. Your checkpoint progress stays with you.
               </p>
             </div>
           </div>
         </div>
         <p className="help-controls">
-          Pinch to zoom, or scroll on desktop. Escape or P pauses and cancels a
-          held pull. R or the top reset icon resets your current shot without
-          losing checkpoint progress. Rotating, resizing, or switching apps
-          cancels safely. Sound, New seed, and a free shot reset are in the
-          pause menu.
+          Portrait levels launch from bottom to top; wider views run left to
+          right. Pinch to zoom around your fingers. Drag with two fingers to
+          pan, or hold Space and drag on desktop. Scroll to zoom around your
+          cursor. Escape or P pauses and cancels a held pull. R or the top reset
+          icon resets your current shot without losing checkpoint progress.
+          Rotating, resizing, or switching apps cancels safely. Sound, New seed,
+          and a free shot reset are in the pause menu.
         </p>
         <div className="dialog-actions">
           <button className="button-primary" onClick={onClose}>

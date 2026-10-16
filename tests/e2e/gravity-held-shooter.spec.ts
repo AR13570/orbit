@@ -191,11 +191,11 @@ for (const device of [
       await expect(page.locator(".game-surface [role=status]")).toHaveText(
         "2 planets in motion",
       );
-      for (const zoom of [1, 0.5, 4]) {
+      for (const zoom of [1, 0.5, 2]) {
         await page.getByLabel("Gravity orbital field").focus();
         await page.keyboard.press("0");
         // Overshoot to reach the exact clamp, independent of wheel float precision.
-        if (zoom !== 1) await wheelZoom(page, zoom === 4 ? 5 : 0.2, start);
+        if (zoom !== 1) await wheelZoom(page, zoom === 2 ? 5 : 0.2, start);
         await down();
         for (const point of [
           start,
@@ -213,11 +213,11 @@ for (const device of [
         await wheel(80, 0);
         await expectShooter();
         if (zoom !== 1) {
-          await wheel(0, zoom === 4 ? -80 : 80);
+          await wheel(0, zoom === 2 ? -80 : 80);
           await expectShooter(`clamped wheel at zoom ${zoom}`);
         }
         // A real zoom still cancels the held shot and its preview.
-        await wheel(0, zoom === 4 ? 80 : -80);
+        await wheel(0, zoom === 2 ? 80 : -80);
         await page.clock.runFor(32);
         expect(
           await page.evaluate(() => (window as any).heldShooter),

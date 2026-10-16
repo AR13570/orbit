@@ -1,10 +1,10 @@
-import { bodyStrength,distance,FIXED_STEP,launchSpeed,segmentCircleIntersection,SHIP_RADIUS,stepParticle,stepZenParticle,zenLaunchSpeed,ZEN_FIXED_STEP,WORLD_SIZE,WORLD_WIDTH } from './physics';
+import { bodyStrength,distance,FIXED_STEP,launchSpeed,segmentCircleIntersection,SHIP_RADIUS,stepParticle,stepOdesseyParticle,odesseyLaunchSpeed,ODESSEY_FIXED_STEP,WORLD_SIZE,WORLD_WIDTH } from './physics';
 import type { Body,Checkpoint,Sector,SectorFamily,ValidatedSolution,Vec2,WorldBounds } from './types';
 import { matchesStructure,STRUCTURES } from './structures';
 import type { StructureGrammar } from './structures';
 import { CERTIFIED_LAYOUTS } from './certified-layouts';
 import { PROGRESSIVE_LAYOUTS } from './progressive-layouts';
-import { zenDifficulty,ZEN_DIFFICULTIES } from './difficulty';
+import { odesseyDifficulty,ODESSEY_DIFFICULTIES } from './difficulty';
 import { SAMPLED_ANCHORS } from './sampled-anchors';
 import { describeComposition,freshComposition,preservesFallbackCoverage } from './composition';
 import type { CompositionDescriptor } from './composition';
@@ -20,7 +20,7 @@ function randomSource(seed:number):()=>number {let value=seed>>>0;return ()=>{va
 function mixSeed(seed:number,index:number,salt:number):number {let value=(seed^Math.imul(index+1,0x9e3779b1)^salt)>>>0;value=Math.imul(value^value>>>16,0x85ebca6b);value=Math.imul(value^value>>>13,0xc2b2ae35);return (value^value>>>16)>>>0;}
 function makeBody(id:number,x:number,y:number,radius:number,kind:Body['kind'],gravityScale=1):Body {return {id:`body-${id}`,position:{x,y},radius,kind,strength:bodyStrength(radius),gravityScale};}
 function validationFor(layout:Layout){return STRUCTURES.find(g=>g.id===layout.family)!.validation??'geometric';}
-function layoutDifficulty(layout:Layout){return ZEN_DIFFICULTIES[layout.stage??0];}
+function layoutDifficulty(layout:Layout){return ODESSEY_DIFFICULTIES[layout.stage??0];}
 function layoutBounds(layout:Layout):WorldBounds{const difficulty=layoutDifficulty(layout);return {x:-100,y:-difficulty.height/2,width:difficulty.width,height:difficulty.height};}
 function clearLayout(layout:Layout):boolean {
  if(!matchesStructure(layout.family,layout.bodies,LOCAL_LAUNCH,layout.checkpoint))return false;
@@ -42,7 +42,7 @@ function sampleStructure(grammar:StructureGrammar,random:()=>number):Layout|null
 }
 function captureRoute(layout:Layout,angle:number,power:number,launch:Vec2=LOCAL_LAUNCH,bounds:WorldBounds=LOCAL_BOUNDS,budget?:SearchBudget,playback=false):ValidatedSolution|null {
  if(angle<-Math.PI||angle>Math.PI)angle=Math.atan2(Math.sin(angle),Math.cos(angle));
- const speed=(playback?zenLaunchSpeed:launchSpeed)(power),dt=playback?ZEN_FIXED_STEP:FIXED_STEP,advance=playback?stepZenParticle:stepParticle,{bodies,checkpoint}=layout;
+ const speed=(playback?odesseyLaunchSpeed:launchSpeed)(power),dt=playback?ODESSEY_FIXED_STEP:FIXED_STEP,advance=playback?stepOdesseyParticle:stepParticle,{bodies,checkpoint}=layout;
  let position={...launch},velocity={x:Math.cos(angle)*speed,y:Math.sin(angle)*speed};
  const path:Vec2[]=[{...launch}];
  for(let step=0;step<MAX_ROUTE_STEPS;step++){
@@ -81,7 +81,7 @@ function findRoute(layout:Layout,random:()=>number,budget?:SearchBudget):Validat
  }finally {if(budget)budget.remaining-=initialBudget-searchBudget.remaining;}
 }
 function populate(seed:number,index:number,origin:Vec2,layout:Layout,route:ValidatedSolution,fallback:boolean):Sector {
- const difficulty=zenDifficulty(index),launch={...origin},bounds={x:origin.x-100,y:origin.y-difficulty.height/2,width:difficulty.width,height:difficulty.height};
+ const difficulty=odesseyDifficulty(index),launch={...origin},bounds={x:origin.x-100,y:origin.y-difficulty.height/2,width:difficulty.width,height:difficulty.height};
  const translated:Layout={family:layout.family,bodies:layout.bodies.map(body=>({...body,position:{x:origin.x+body.position.x,y:origin.y+body.position.y}})),checkpoint:{radius:45,gravityScale:layout.checkpoint.gravityScale??difficulty.bodyScale,position:{x:origin.x+layout.checkpoint.position.x,y:origin.y+layout.checkpoint.position.y}}};
  const solution=captureRoute(translated,route.angle,route.power,launch,bounds,undefined,true);if(!solution)throw new Error('Validated route lost during translation');
  return {index,seed,width:difficulty.width,height:difficulty.height,bounds,launch,bodies:translated.bodies,checkpoint:translated.checkpoint,solution,generation:{family:layout.family,fallback,validation:validationFor(layout),difficulty:difficulty.factor}};
@@ -90,11 +90,11 @@ function normalized(seed:number,index:number):[number,number] {return [Number.is
 function familyOrder(seed:number,cycle:number):SectorFamily[] {const random=randomSource(mixSeed(seed,cycle,0x749ef23)),order=STRUCTURES.map(g=>g.id);for(let i=order.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}return order;}
 function descriptorOf(layout:Layout):CompositionDescriptor {return describeComposition({launch:LOCAL_LAUNCH,...layout,generation:{family:layout.family,fallback:false}});}
 function entryLayout(entry:(typeof CERTIFIED_LAYOUTS)[number],index=0):Layout {
- const difficulty=zenDifficulty(index),gravityScale=difficulty.bodyScale;
+ const difficulty=odesseyDifficulty(index),gravityScale=difficulty.bodyScale;
  return {stage:difficulty.stage,family:entry.family,checkpoint:{position:{x:entry.goal[0],y:entry.goal[1]},radius:45,gravityScale},bodies:entry.bodies.map(([x,y,radius,kind],id)=>makeBody(id,x,y,radius,kind,gravityScale))};
 }
-function certificateFor(family:SectorFamily,index=0):(typeof CERTIFIED_LAYOUTS)[number] {const stage=zenDifficulty(index).stage,entry=(stage===0?CERTIFIED_LAYOUTS:PROGRESSIVE_LAYOUTS[stage-1]).find(e=>e.family===family);if(!entry)throw new Error(`No certified structural backup for ${family}`);return entry;}
-function certificateAvailable(family:SectorFamily,recent:readonly CompositionDescriptor[],index:number):boolean {const stage=zenDifficulty(index).stage;if(stage>0&&!PROGRESSIVE_LAYOUTS[stage-1].some(entry=>entry.family===family))return false;const descriptor=descriptorOf(entryLayout(certificateFor(family,index),index));return freshComposition(descriptor,recent)&&preservesFallbackCoverage(descriptor,recent,stage);}
+function certificateFor(family:SectorFamily,index=0):(typeof CERTIFIED_LAYOUTS)[number] {const stage=odesseyDifficulty(index).stage,entry=(stage===0?CERTIFIED_LAYOUTS:PROGRESSIVE_LAYOUTS[stage-1]).find(e=>e.family===family);if(!entry)throw new Error(`No certified structural backup for ${family}`);return entry;}
+function certificateAvailable(family:SectorFamily,recent:readonly CompositionDescriptor[],index:number):boolean {const stage=odesseyDifficulty(index).stage;if(stage>0&&!PROGRESSIVE_LAYOUTS[stage-1].some(entry=>entry.family===family))return false;const descriptor=descriptorOf(entryLayout(certificateFor(family,index),index));return freshComposition(descriptor,recent)&&preservesFallbackCoverage(descriptor,recent,stage);}
 function selectFamily(seed:number,index:number,recent:readonly CompositionDescriptor[]):SectorFamily {
  const order=familyOrder(seed,Math.floor(index/STRUCTURES.length)),start=index%STRUCTURES.length;
  for(let offset=0;offset<order.length;offset++){const family=order[(start+offset)%order.length];if(certificateAvailable(family,recent,index))return family;}
@@ -102,7 +102,7 @@ function selectFamily(seed:number,index:number,recent:readonly CompositionDescri
 }
 /** Change group spacing, aperture relation, mass and optional well polarity within a grammar. */
 function sampleCertifiedVariant(entry:(typeof CERTIFIED_LAYOUTS)[number],random:()=>number):Layout|null {
- const difficulty=ZEN_DIFFICULTIES[0],minGoal=660,maxGoal=820;
+ const difficulty=ODESSEY_DIFFICULTIES[0],minGoal=660,maxGoal=820;
  if(entry.validation==='sampled'){
   const mirror=random()<.5?-1:1,scale=.94+random()*.08,span=.94+random()*.1;
   const checkpoint={position:{x:Math.min(maxGoal,Math.max(minGoal,entry.goal[0]*scale)),y:mirror*(entry.goal[1]+(random()-.5)*30)},radius:45,gravityScale:difficulty.bodyScale},grammar=STRUCTURES.find(g=>g.id===entry.family)!;
@@ -127,7 +127,7 @@ function variantRoute(layout:Layout,entry:(typeof CERTIFIED_LAYOUTS)[number],bud
 }
 function fallbackFamily(seed:number,index:number,family:SectorFamily,origin:Vec2,recent:readonly CompositionDescriptor[],budget:SearchBudget):Sector {
  const entry=certificateFor(family,index),random=randomSource(mixSeed(seed,index,0x4f1bbcdc)^STRUCTURES.findIndex(g=>g.id===family));
- if(zenDifficulty(index).stage>0){
+ if(odesseyDifficulty(index).stage>0){
   // Advanced fields are screened offline. Only rigid reflection and translation
   // are allowed at runtime so random jitter cannot reopen a single-bend bypass.
   let layout=entryLayout(entry,index),angle=entry.angle;
@@ -141,12 +141,12 @@ function fallbackFamily(seed:number,index:number,family:SectorFamily,origin:Vec2
   return populate(seed,index,origin,layout,route,true);
  }
  for(let attempt=0;attempt<(entry.validation==='sampled'?4:20)&&budget.remaining>0;attempt++){
-  const layout=sampleCertifiedVariant(entry,random);if(!layout)continue;const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,zenDifficulty(index).stage))continue;
+  const layout=sampleCertifiedVariant(entry,random);if(!layout)continue;const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,odesseyDifficulty(index).stage))continue;
   const route=variantRoute(layout,entry,budget);if(route)return populate(seed,index,origin,layout,route,true);
  }
  let layout=entryLayout(entry,index),angle=entry.angle;
 
- const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,zenDifficulty(index).stage))throw new Error(`Unavailable structural backup for ${family}`);
+ const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,odesseyDifficulty(index).stage))throw new Error(`Unavailable structural backup for ${family}`);
  const route=neighborhood(layout,angle,entry.power);
  // Exact sampled anchors were exhaustively screened over the documented finite grid
  // offline. Recheck geometry, five on-screen routes and positive collision evidence.
@@ -157,21 +157,21 @@ function fallbackFamily(seed:number,index:number,family:SectorFamily,origin:Vec2
 export function generateFamilySector(seed:number,index:number,family:SectorFamily,origin:Vec2={x:120,y:500},recent:readonly CompositionDescriptor[]=[]):Sector {
  [seed,index]=normalized(seed,index);const grammar=STRUCTURES.find(g=>g.id===family);if(!grammar)throw new Error('Unknown structural family');
  if(!certificateAvailable(family,recent,index))throw new Error(`Unavailable structural family ${family}`);
- const difficulty=zenDifficulty(index);
+ const difficulty=odesseyDifficulty(index);
  if(difficulty.stage>0)return fallbackFamily(seed,index,family,origin,recent,{remaining:18000});
  const random=randomSource(mixSeed(seed,index,0xa511e9b3)^STRUCTURES.indexOf(grammar)),budget={remaining:grammar.validation==='sampled'?900000:60000};
  if(grammar.validation==='sampled'){
   const anchors=SAMPLED_ANCHORS.filter(e=>e.family===family),start=Math.floor(random()*anchors.length);
   for(let attempt=0;attempt<6&&budget.remaining>0;attempt++){
    const entry=anchors[(start+attempt)%anchors.length],layout=sampleCertifiedVariant(entry,random);if(!layout)continue;
-   const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,zenDifficulty(index).stage))continue;
+   const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,odesseyDifficulty(index).stage))continue;
    const route=variantRoute(layout,entry,budget);if(route)return populate(seed,index,origin,layout,route,false);
   }
   return fallbackFamily(seed,index,family,origin,recent,{remaining:500000});
  }
  for(let attempt=0;attempt<36&&budget.remaining>0;attempt++){
   const layout=sampleStructure(grammar,random);if(!layout)continue;
-  const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,zenDifficulty(index).stage))continue;
+  const descriptor=descriptorOf(layout);if(!freshComposition(descriptor,recent)||!preservesFallbackCoverage(descriptor,recent,odesseyDifficulty(index).stage))continue;
   const route=findRoute(layout,random,budget);if(route)return populate(seed,index,origin,layout,route,false);
  }
  return fallbackFamily(seed,index,family,origin,recent,{remaining:30000});
@@ -186,5 +186,5 @@ export function generateGuaranteedFallbackSector(seed:number,index=0,origin:Vec2
  [seed,index]=normalized(seed,index);const family=selectFamily(seed,index,recent);
  // Opening backups keep their proposal budget. Advanced backups use their
  // exact offline certificate and bounded 22-second route replays.
- return fallbackFamily(seed,index,family,origin,recent,{remaining:STRUCTURES.find(g=>g.id===family)?.validation==='sampled'?300000:Math.ceil(8000*zenDifficulty(index).bodyScale)});
+ return fallbackFamily(seed,index,family,origin,recent,{remaining:STRUCTURES.find(g=>g.id===family)?.validation==='sampled'?300000:Math.ceil(8000*odesseyDifficulty(index).bodyScale)});
 }

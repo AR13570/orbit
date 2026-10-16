@@ -34,7 +34,7 @@ describe("portable Gravity skies", () => {
       trailSeconds: 30,
     };
     const url = new URL(
-      levelShareUrl(sky, "https://orbit.example/?mode=zen&seed=17#old"),
+      levelShareUrl(sky, "https://orbit.example/?mode=odessey&seed=17#old"),
     );
     expect(url.searchParams.get("mode")).toBe("creator");
     expect(url.searchParams.has("seed")).toBe(false);

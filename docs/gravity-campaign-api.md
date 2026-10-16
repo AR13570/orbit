@@ -6,7 +6,7 @@ The campaign contains 45 newly authored, reference-inspired levels. It is not a 
 
 `getGravityLevel(seed, index)` in `src/gravity/campaign.ts` supplies the fixed authored campaign for indices 0 through 44, followed by seeded endless levels. The global index is preserved, including indices beyond 10000. `CAMPAIGN_LEVEL_COUNT` is 45. `getCampaignCatalog()` returns independent `{ index, title, family, mechanics }` entries for a selector. Catalog `family` is the structural layout identifier; `GravityLevel.family` remains the legacy objective adapter.
 
-Inject `getGravityLevel` into `new GravityEngine(seed, undefined, getGravityLevel)` and navigate using `engine.goTo(index)`. Creator and Zen callers can continue supplying their own levels and providers.
+Inject `getGravityLevel` into `new GravityEngine(seed, undefined, getGravityLevel)` and navigate using `engine.goTo(index)`. Creator and Odessey callers can continue supplying their own levels and providers.
 
 `generateGravityLevel(seed, index)` remains a standalone endless generator, including when called with an index below 45. Inputs normalize unsigned seeds and finite, nonnegative integer indices. A seeded coprime traversal visits 29 distinct eligible structural families from the first endless level, without repeating a family during a complete traversal. Orientation varies by seed; physical force and playback speed do not increase with difficulty. A failed orientation retries the verified orientation of the same family with exactly the same population and revolution demands. Validation has a strict two-candidate bound and a 30 physical second replay horizon. Generated cache size is limited to 96, and returned objects are cloned to prevent mutation of cached levels.
 
@@ -47,4 +47,4 @@ Hidden `witness` shots are authoring evidence. Each contains an arbitrary world 
 - `recordGravityCompletion(progress, index)`: immutable update recording completion, selecting the next global level and unlocking it.
 - `setGravityCurrentIndex(progress, index)`: immutable navigation update. Skipping unlocks the selected index without recording a completion or imposing a penalty.
 
-Storage uses `orbit.gravity.progress.v1:<unsigned seed>`. Campaign completion and endless completion share global indices. Creator and Zen play must not save campaign progress. There are no competitive scores or launch penalties.
+Storage uses `orbit.gravity.progress.v1:<unsigned seed>`. Campaign completion and endless completion share global indices. Creator and Odessey play must not save campaign progress. There are no competitive scores or launch penalties.

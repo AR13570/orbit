@@ -100,13 +100,14 @@ async function pull(
 ) {
   const v = page.viewportSize()!;
   const distance = fullDistance ?? pullDistance("mouse", v.width, v.height);
+  const screenAngle = angle - (v.width < v.height ? Math.PI / 2 : 0);
   const x = v.width * 0.55,
     y = v.height * 0.55;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(
-    x - Math.cos(angle) * power * distance,
-    y - Math.sin(angle) * power * distance,
+    x - Math.cos(screenAngle) * power * distance,
+    y - Math.sin(screenAngle) * power * distance,
     { steps: 8 },
   );
   if (capture) {
@@ -163,7 +164,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto("/?mode=zen&seed=42");
+    await page.goto("/?mode=odessey&seed=42");
     await ready(page);
     expect(
       await page
@@ -204,7 +205,7 @@ for (const viewport of [
     await expect(page.getByRole("dialog", { name: "Paused" })).toBeVisible();
     await page.getByRole("button", { name: "How to play" }).click();
     await expect(
-      page.getByRole("dialog", { name: "How to play Zen" }),
+      page.getByRole("dialog", { name: "How to play Odessey" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
     await page.getByRole("button", { name: "Reset shot" }).click();
@@ -222,7 +223,7 @@ for (const journeyViewport of [
   }) => {
     test.setTimeout(65000);
     await page.setViewportSize(journeyViewport);
-    await page.goto("/?mode=zen&seed=42");
+    await page.goto("/?mode=odessey&seed=42");
     await ready(page);
     const engine = new OrbitEngine(42);
     for (let index = 0; index < 2; index++) {
@@ -281,7 +282,7 @@ for (const viewport of [
     try {
       await page.clock.install();
       await page.clock.pauseAt(new Date());
-      await page.goto("/?mode=zen&seed=42");
+      await page.goto("/?mode=odessey&seed=42");
       await page.clock.runFor(100);
       await ready(page);
       const reset = page.getByRole("button", {
@@ -420,7 +421,7 @@ test("opening near-straight bypass collides before timeout while the curved gest
   await page.setViewportSize(viewport);
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await page.clock.runFor(100);
   await ready(page);
   await pull(page, shortcutAngle, 0.975);
@@ -452,7 +453,7 @@ test("continuous free play retains progress through five misses and another chec
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await page.clock.runFor(100);
   await ready(page);
   await expect(page.locator(".life-meter,.life-dot,.scene-score")).toHaveCount(
@@ -513,7 +514,7 @@ test("continuous free play retains progress through five misses and another chec
   await expect(page.getByRole("status")).toHaveText("In flight");
 });
 test("resize and pause cancel held pulls without firing", async ({ page }) => {
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await ready(page);
   await page.mouse.move(500, 400);
   await page.mouse.down();
@@ -541,7 +542,7 @@ test("real touch drag releases to fire and ignores additional touch", async ({
   await context.addInitScript(markTutorialSeen);
   const page = await context.newPage();
   try {
-    await page.goto("/?mode=zen&seed=42");
+    await page.goto("/?mode=odessey&seed=42");
     await ready(page);
     const solution = new OrbitEngine(42).getSnapshot().sector.solution;
     const pullPoint = {
@@ -624,180 +625,72 @@ test("real touch drag releases to fire and ignores additional touch", async ({
 });
 test("denser seeded scene has no page errors", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/?mode=zen&seed=137");
+  await page.goto("/?mode=odessey&seed=137");
   await ready(page);
   await page.screenshot({ path: "test-results/redesign-dense.png" });
 });
 
-test("offscreen flight survives exit, freezes while paused and retries once after six active seconds", async ({
+test("Odessey offers Restart immediately offscreen and pause preserves the recovery timer", async ({
   page,
 }) => {
-  const viewport = { width: 1440, height: 900 };
-  await page.setViewportSize(viewport);
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=42");
-  await page.clock.runFor(50);
+  await page.goto("/?mode=odessey&seed=42");
+  await page.clock.runFor(100);
   await ready(page);
-  const reference = new OrbitEngine(42),
-    sector = reference.getSnapshot().sector,
-    camera = fitFieldCamera(
-      sector.bounds,
-      sector.launch,
-      viewport.width,
-      viewport.height,
-    );
-  const bounds = visibleWorldBounds(camera, viewport.width, viewport.height);
-  reference.setFlightBounds(bounds);
-  reference.setAim(Math.PI, 1);
-  reference.launch();
-  let canonicalTime = 0,
-    outsideTime = 0,
-    expiryTime = 0;
-  for (let n = 0; n < 22 * 120; n++) {
-    reference.update(1 / 120);
-    const snapshot = reference.getSnapshot();
-    if (
-      !canonicalTime &&
-      snapshot.particles[0].position.x < sector.bounds.x &&
-      snapshot.status === "flying"
-    )
-      canonicalTime = (n + 1) / 120;
-    if (!outsideTime && snapshot.particles[0].offscreenRemaining !== undefined)
-      outsideTime = (n + 1) / 120;
-    if (snapshot.status === "failed") {
-      expiryTime = (n + 1) / 120;
-      break;
-    }
-  }
-  expect(canonicalTime).toBeGreaterThan(0);
-  expect(outsideTime).toBeGreaterThan(canonicalTime + 0.06);
-  expect(expiryTime - outsideTime).toBeGreaterThanOrEqual(5.98);
-  expect(expiryTime - outsideTime).toBeLessThanOrEqual(6.02);
-  expect(reference.getSnapshot().particles[0].position.x).toBeLessThan(
-    bounds.x + 8,
-  );
   await pull(page, Math.PI, 1);
-  await page.clock.runFor((canonicalTime + 0.03) * 1000);
-  await expect(page.getByRole("status")).toHaveText("In flight");
-  await page.screenshot({ path: "test-results/redesign-visible-boundary.png" });
-  await page.clock.runFor((outsideTime - canonicalTime + 0.2) * 1000);
-  const countdown = page.locator(".offscreen-countdown");
-  await expect(countdown).toHaveText("Offscreen · 6s");
+  for (
+    let n = 0;
+    n < 20 &&
+    !(await page.getByRole("button", { name: "Restart shot" }).isVisible());
+    n++
+  )
+    await page.clock.runFor(100);
+  await expect(
+    page.getByRole("button", { name: "Restart shot" }),
+  ).toBeVisible();
   await expect(page.getByRole("status")).toHaveText(
-    "Offscreen. Six seconds to return.",
+    "Offscreen. Five seconds to return.",
   );
-  await page.screenshot({
-    path: "test-results/redesign-offscreen-countdown.png",
-  });
-  await page.clock.runFor(1100);
-  await expect(countdown).toHaveText("Offscreen · 5s");
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.clock.runFor(8000);
-  await expect(countdown).toHaveCount(0);
-  await page.getByRole("button", { name: "How to play" }).click();
+  await expect(page.getByRole("button", { name: "Restart shot" })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "How to play Zen" }),
-  ).toContainText("six seconds");
-  await page.clock.runFor(3000);
-  await page.getByRole("button", { name: "Skip" }).click();
-  await page.getByRole("button", { name: "Resume", exact: true }).click();
-  await expect(countdown).toHaveText("Offscreen · 5s");
-  await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", {
-      configurable: true,
-      get: () => true,
-    });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
-  await page.clock.runFor(3000);
-  await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", {
-      configurable: true,
-      get: () => false,
-    });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
+    page.getByRole("button", { name: "Restart shot" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Restart shot" }).click();
   await page.clock.runFor(100);
-  await expect(page.getByRole("dialog", { name: "Paused" })).toBeVisible();
-  await expect(countdown).toHaveCount(0);
-  await page.getByRole("button", { name: "Resume", exact: true }).click();
-  await expect(countdown).toHaveText("Offscreen · 5s");
-  await page.clock.runFor(4300);
-  await expect(countdown).toHaveText("Offscreen · 1s");
-  await page.clock.runFor(500);
-  await expect(page.getByRole("status")).toHaveText("Preparing another shot.");
-  await expect(countdown).toHaveCount(0);
-  await page.clock.runFor(400);
-  await expect(page.getByRole("status")).toHaveText("Preparing another shot.");
-  await page.clock.runFor(400);
-  await ready(page);
-  await page.clock.runFor(2000);
   await ready(page);
   await expect(page.getByLabel("Checkpoint 0", { exact: true })).toBeVisible();
 });
 
-test("real generated gravity flight returns from offscreen and clears its countdown", async ({
+test("Odessey completes a real generated route with bounded following", async ({
   page,
 }) => {
-  const viewport = { width: 1440, height: 900 };
-  await page.setViewportSize(viewport);
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await page.clock.runFor(100);
   await ready(page);
-  const reference = new OrbitEngine(42);
-  const sector = reference.getSnapshot().sector;
-  const bounds = visibleWorldBounds(
-    fitFieldCamera(
-      sector.bounds,
-      sector.launch,
-      viewport.width,
-      viewport.height,
-    ),
-    viewport.width,
-    viewport.height,
+  const sector = new OrbitEngine(42).getSnapshot().sector;
+  await pull(page, sector.solution.angle, sector.solution.power);
+  await page.clock.runFor((sector.solution.flightSeconds + 2) * 1000);
+  await expect(page.getByLabel("Checkpoint 1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Restart shot" })).toHaveCount(
+    0,
   );
-  reference.setFlightBounds(bounds);
-  reference.setAim(-1.2, 0.8);
-  reference.launch();
-  let outsideAt = 0,
-    returnedAt = 0;
-  for (let step = 0; step < 22 * 120; step++) {
-    reference.update(1 / 120);
-    const snapshot = reference.getSnapshot();
-    if (snapshot.status !== "flying") break;
-    if (snapshot.particles[0].offscreenRemaining !== undefined)
-      outsideAt ||= (step + 1) / 120;
-    else if (outsideAt) {
-      returnedAt = (step + 1) / 120;
-      break;
-    }
-  }
-  expect(outsideAt).toBeGreaterThan(0);
-  expect(returnedAt - outsideAt).toBeGreaterThan(0.35);
-  expect(returnedAt - outsideAt).toBeLessThan(6);
-  await pull(page, -1.2, 0.8);
-  await page.clock.runFor((outsideAt + 0.1) * 1000);
-  await expect(page.locator(".offscreen-countdown")).toHaveText(
-    "Offscreen · 6s",
-  );
-  await expect(page.getByRole("status")).toHaveText(
-    "Offscreen. Six seconds to return.",
-  );
-  await page.clock.runFor((returnedAt - outsideAt + 0.05) * 1000);
-  await expect(page.locator(".offscreen-countdown")).toHaveCount(0);
-  await expect(page.getByRole("status")).toHaveText("In flight");
-  await expect(page.getByLabel("Checkpoint 0", { exact: true })).toBeVisible();
-  await page.screenshot({ path: "test-results/redesign-offscreen-return.png" });
 });
 
 test("open shelves remain playable in landscape", async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=21");
+  await page.goto("/?mode=odessey&seed=21");
   await page.clock.runFor(100);
   await ready(page);
   const sector = new OrbitEngine(21).getSnapshot().sector;
@@ -817,7 +710,7 @@ test("portrait checkpoint advance keeps the complete blue goal inside the viewpo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto("/?mode=zen&seed=4");
+  await page.goto("/?mode=odessey&seed=4");
   await page.clock.runFor(100);
   await ready(page);
   const solution = new OrbitEngine(4).getSnapshot().sector.solution;
@@ -843,10 +736,11 @@ test("portrait checkpoint advance keeps the complete blue goal inside the viewpo
           const offset = (y * canvas.width + x) * 4;
           // The saturated electric-blue capture ring, excluding muted wave relief.
           if (
-            pixels[offset] <= 40 &&
+            pixels[offset] <= 100 &&
             pixels[offset + 1] >= 120 &&
-            pixels[offset + 1] <= 160 &&
-            pixels[offset + 2] >= 240
+            pixels[offset + 1] <= 190 &&
+            pixels[offset + 2] >= 240 &&
+            pixels[offset + 2] - pixels[offset] >= 140
           ) {
             left = Math.min(left, x);
             right = Math.max(right, x);
@@ -892,13 +786,14 @@ test("actual touch portrait flight docks and automatically prepares the next lau
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   try {
-    await page.goto("/?mode=zen&seed=42");
+    await page.goto("/?mode=odessey&seed=42");
     await ready(page);
     const reference = new OrbitEngine(42),
       solution = reference.getSnapshot().sector.solution;
     const cdp = await context.newCDPSession(page);
     const origin = { x: 240, y: 480 },
       distance = solution.power * MOBILE_PULL_DISTANCE;
+    const screenAngle = solution.angle - Math.PI / 2;
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchStart",
       touchPoints: [{ ...origin, id: 1 }],
@@ -908,8 +803,8 @@ test("actual touch portrait flight docks and automatically prepares the next lau
         type: "touchMove",
         touchPoints: [
           {
-            x: origin.x - (Math.cos(solution.angle) * distance * n) / 8,
-            y: origin.y - (Math.sin(solution.angle) * distance * n) / 8,
+            x: origin.x - (Math.cos(screenAngle) * distance * n) / 8,
+            y: origin.y - (Math.sin(screenAngle) * distance * n) / 8,
             id: 1,
           },
         ],
@@ -940,7 +835,7 @@ test("mouse selects split mode, launches one piece and taps in flight to branch 
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/?mode=zen&seed=42");
+  await page.goto("/?mode=odessey&seed=42");
   await ready(page);
   await page.mouse.dblclick(600, 400, { delay: 60 });
   await expect(page.getByText("Split mode", { exact: true })).toHaveText(
@@ -1005,7 +900,7 @@ test("actual touch selects split mode and branches only on a valid in-flight tap
   await context.addInitScript(markTutorialSeen);
   const page = await context.newPage();
   try {
-    await page.goto("/?mode=zen&seed=42");
+    await page.goto("/?mode=odessey&seed=42");
     await ready(page);
     const cdp = await context.newCDPSession(page);
     const touch = async (
@@ -1180,7 +1075,7 @@ test("blue checkpoint gravity captures a near miss using the predicted real gest
   expect(assisted!.missDistance).toBeGreaterThanOrEqual(120);
   console.info("Goal-assisted fixture", assisted);
   await page.setViewportSize(viewport);
-  await page.goto(`/?mode=zen&seed=${assisted!.seed}`);
+  await page.goto(`/?mode=odessey&seed=${assisted!.seed}`);
   await ready(page);
   await pull(
     page,

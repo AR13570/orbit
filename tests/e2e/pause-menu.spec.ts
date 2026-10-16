@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { markTutorialSeen } from "./tutorial-fixture";
 
-for (const mode of ["zen", "gravity"])
+for (const mode of ["odessey", "gravity"])
   for (const viewport of [
     { width: 1200, height: 800 },
     { width: 320, height: 568 },
