@@ -33,6 +33,7 @@ export function useGameplayZoom({
   restoreView?: (fraction?: number) => void;
 }) {
   const [zoom, setZoom] = useState(1);
+  const [panned, setPanned] = useState(false);
   const [panReady, setPanReady] = useState(false),
     [panning, setPanning] = useState(false);
   const spaceHeld = useRef(false),
@@ -57,6 +58,7 @@ export function useGameplayZoom({
       callbacks.current.cancel();
       value.current = clamped;
       callbacks.current.apply(value.current, focus);
+      if (focus) setPanned(true);
       setZoom(value.current);
     },
     [minimum, maximum, stopReset],
@@ -70,6 +72,7 @@ export function useGameplayZoom({
       value.current = 1;
       callbacks.current.apply(1);
       setZoom(1);
+      setPanned(false);
       return;
     }
     const startZoom = value.current;
@@ -87,6 +90,7 @@ export function useGameplayZoom({
       value.current = 1 + (startZoom - 1) * remaining;
       callbacks.current.apply(value.current);
       setZoom(value.current);
+      if (progress === 1) setPanned(false);
       previousRemaining = remaining;
       resetFrame.current = progress < 1 ? requestAnimationFrame(frame) : null;
     };
@@ -243,11 +247,14 @@ export function useGameplayZoom({
         x: event.clientX,
         y: event.clientY,
       };
-      if (!callbacks.current.blocked())
+      if (!callbacks.current.blocked()) {
+        if (event.clientX !== previous.x || event.clientY !== previous.y)
+          setPanned(true);
         callbacks.current.pan?.(
           event.clientX - previous.x,
           event.clientY - previous.y,
         );
+      }
       event.preventDefault();
       return true;
     }
@@ -281,6 +288,7 @@ export function useGameplayZoom({
   };
   return {
     zoom,
+    panned,
     panReady,
     panning,
     change,

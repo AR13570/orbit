@@ -37,7 +37,86 @@ function anchored(
   );
 }
 
+test("Odessey reset view appears after a mouse pan at default zoom", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await boot(page, "odessey");
+  const initial = await body(page);
+  const reset = page.getByRole("button", { name: "Reset view", exact: true });
+  await expect(reset).toHaveCount(0);
+  await page.mouse.move(600, 400);
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.move(680, 440, { steps: 4 });
+  await page.mouse.up({ button: "middle" });
+  const moved = await body(page);
+  expect(moved.radius).toBeCloseTo(initial.radius, 3);
+  expect(Math.hypot(moved.x - initial.x, moved.y - initial.y)).toBeGreaterThan(
+    50,
+  );
+  await expect(reset).toBeVisible();
+  await reset.click();
+  await page.clock.runFor(350);
+  const restored = await body(page);
+  expect(restored.x).toBeCloseTo(initial.x, 3);
+  expect(restored.y).toBeCloseTo(initial.y, 3);
+  await expect(reset).toHaveCount(0);
+});
+
 for (const mode of ["odessey", "gravity"]) {
+  test(`${mode} reset view restores a two-finger pan without a zoom change`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    try {
+      const page = await context.newPage();
+      const cdp = await context.newCDPSession(page);
+      await boot(page, mode);
+      const initial = await body(page);
+      const reset = page.getByRole("button", {
+        name: "Reset view",
+        exact: true,
+      });
+      await expect(reset).toHaveCount(0);
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [
+          { id: 1, x: 100, y: 400 },
+          { id: 2, x: 230, y: 400 },
+        ],
+      });
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          { id: 1, x: 140, y: 440 },
+          { id: 2, x: 270, y: 440 },
+        ],
+      });
+      await expect
+        .poll(async () => (await body(page)).x)
+        .toBeCloseTo(initial.x + 40, 2);
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+      expect((await body(page)).radius).toBeCloseTo(initial.radius, 3);
+      await expect(reset).toBeVisible();
+      await reset.tap();
+      await page.clock.runFor(350);
+      const restored = await body(page);
+      expect(restored.x).toBeCloseTo(initial.x, 3);
+      expect(restored.y).toBeCloseTo(initial.y, 3);
+      expect(restored.radius).toBeCloseTo(initial.radius, 3);
+      await expect(reset).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+
   test(`${mode} wheel zoom preserves the world point beneath the cursor`, async ({
     page,
   }) => {

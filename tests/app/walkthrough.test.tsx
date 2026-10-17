@@ -43,7 +43,11 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  vi.stubGlobal("matchMedia", () => ({ matches: false }));
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
 });
 afterEach(() => {
   cleanup();

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { gsap } from "gsap";
 import Icon from "./components/Icon";
 import Attribution from "./components/Attribution";
 import ModePreview from "./home/ModePreview";
@@ -9,12 +10,14 @@ const modes = [
   {
     id: "odessey",
     name: "Odessey",
-    description: "Curve your shot to the next checkpoint.",
+    description:
+      "Curve past attractors and repellers to reach each checkpoint. Split your shot to find another way through.",
   },
   {
     id: "gravity",
     name: "Gravity",
-    description: "Launch planets. Build living orbits.",
+    description:
+      "Build shared orbits and guide one planet between cores. Play 45 challenges, then explore an endless sky.",
   },
 ] as const;
 
@@ -25,6 +28,7 @@ export default function ModeChooser({
   onSelect: (mode: OrbitMode) => void;
   onHelp: (mode: "odessey" | "gravity") => void;
 }) {
+  const screen = useRef<HTMLElement>(null);
   const [progress] = useState(() => readHomeProgress(window.location.search));
   const [motion, setMotion] = useState(
     () =>
@@ -41,13 +45,79 @@ export default function ModeChooser({
       document.removeEventListener("visibilitychange", update);
     };
   }, []);
+  useLayoutEffect(() => {
+    const media = gsap.matchMedia();
+    media.add(
+      "(prefers-reduced-motion: no-preference)",
+      () => {
+        gsap
+          .timeline({ defaults: { ease: "power3.out" } })
+          .from(".home-brand img", {
+            opacity: 0,
+            scale: 0.94,
+            duration: 0.45,
+            clearProps: "transform,opacity",
+          })
+          .from(
+            ".home-title-letter",
+            {
+              yPercent: -80,
+              opacity: 0,
+              duration: 0.6,
+              stagger: 0.065,
+              ease: "back.out(1.2)",
+              clearProps: "transform,opacity",
+            },
+            0.06,
+          )
+          .from(
+            ".home-brand-copy p",
+            {
+              y: 6,
+              opacity: 0,
+              duration: 0.4,
+              clearProps: "transform,opacity",
+            },
+            0.25,
+          )
+          .from(
+            ".home-mode",
+            {
+              y: 16,
+              opacity: 0,
+              duration: 0.5,
+              stagger: 0.09,
+              clearProps: "transform,opacity",
+            },
+            0.3,
+          )
+          .from(
+            ".home-create, .home-footer",
+            { opacity: 0, duration: 0.4, stagger: 0.06, clearProps: "opacity" },
+            0.5,
+          );
+      },
+      screen,
+    );
+    return () => media.revert();
+  }, []);
   return (
-    <main className="home-screen">
+    <main className="home-screen" ref={screen}>
       <header className="home-header">
         <div className="home-brand">
           <img src="/orbit.svg" alt="" width="120" height="120" />
           <div className="home-brand-copy">
-            <h1>Orbit</h1>
+            <h1 aria-label="Orbit">
+              {Array.from("Orbit", (letter, index) => (
+                <span
+                  className="home-title-letter"
+                  aria-hidden="true"
+                  key={index}
+                >
+                  {letter}
+                </span>
+              ))}
+            </h1>
             <p>A little space to play.</p>
           </div>
         </div>

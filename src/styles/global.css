@@ -1,3 +1,10 @@
+@font-face {
+  font-family: "Righteous";
+  src: url("/fonts/Righteous-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
 :root {
   color-scheme: light;
   font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
@@ -9,6 +16,7 @@
   --muted: #626d78;
   --blue: #527c9a;
   --rust: #b76550;
+  --font-display: "Righteous", "Avenir Next", sans-serif;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   -webkit-font-smoothing: antialiased;
 }
@@ -153,12 +161,14 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 19px;
+  font-size: 18px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 23px;
   letter-spacing: -0.15px;
 }
 .game-header-status {
+  padding-left: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2437,10 +2447,11 @@ p {
 }
 .home-header {
   width: min(100%, 880px);
+  flex: 1 0 auto;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding-top: 28px;
+  padding-block: 24px;
 }
 .home-brand {
   display: flex;
@@ -2448,10 +2459,14 @@ p {
   gap: 20px;
 }
 .home-brand h1 {
+  font-family: var(--font-display);
   font-size: 64px;
-  font-weight: 450;
-  letter-spacing: -0.06em;
+  font-weight: 400;
+  letter-spacing: -0.025em;
   line-height: 1.05;
+}
+.home-title-letter {
+  display: inline-block;
 }
 .home-brand img {
   width: 120px;
@@ -2466,11 +2481,11 @@ p {
 }
 .home-content {
   width: min(100%, 880px);
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 40px 0 30px;
+  justify-content: flex-end;
+  padding: 0 0 30px;
 }
 .home-modes {
   display: grid;
@@ -2478,6 +2493,7 @@ p {
   gap: 24px;
 }
 .home-mode {
+  --home-card-padding: 22px;
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 148px;
@@ -2486,7 +2502,8 @@ p {
   align-items: start;
   gap: 6px 12px;
 
-  padding: 22px;
+  /* Balance the visible inset around text and the compact button face. */
+  padding: calc(var(--home-card-padding) - 7px) var(--home-card-padding);
   border-radius: 24px;
   background: #e1e7eb;
 }
@@ -2518,10 +2535,11 @@ p {
 }
 
 .home-mode h2 {
+  font-family: var(--font-display);
   font-size: 32px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.2;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.015em;
 }
 .home-description {
   grid-area: description;
@@ -2641,7 +2659,7 @@ p {
   .home-mode {
     grid-template-columns: minmax(0, 1fr) 120px;
     grid-template-areas: "heading heading" "description preview" "actions actions";
-    padding: 20px;
+    --home-card-padding: 20px;
   }
   .home-preview {
     width: 120px;
@@ -2662,7 +2680,7 @@ p {
       max(20px, env(safe-area-inset-left));
   }
   .home-header {
-    padding-top: 16px;
+    padding-block: 16px;
   }
   .home-brand {
     gap: 16px;
@@ -2680,7 +2698,7 @@ p {
   }
   .home-content {
     max-width: 500px;
-    padding: 40px 0 24px;
+    padding: 0 0 24px;
   }
   .home-modes {
     grid-template-columns: 1fr;
@@ -2689,7 +2707,7 @@ p {
   .home-mode {
     grid-template-columns: minmax(0, 1fr) 148px;
     gap: 6px 12px;
-    padding: 18px;
+    --home-card-padding: 18px;
 
     border-radius: 22px;
   }
@@ -2725,7 +2743,7 @@ p {
     padding-inline: 16px;
   }
   .home-header {
-    padding-top: 0;
+    padding-block: 12px;
   }
   .home-brand {
     gap: 14px;
@@ -2738,11 +2756,11 @@ p {
     height: 88px;
   }
   .home-content {
-    padding-top: 28px;
+    padding-top: 0;
   }
   .home-mode {
     grid-template-columns: minmax(0, 1fr) 120px;
-    padding: 16px 16px 12px;
+    --home-card-padding: 16px;
     gap: 4px 8px;
   }
   .home-mode h2 {
@@ -2761,7 +2779,7 @@ p {
     padding: 16px 24px 12px;
   }
   .home-header {
-    padding-top: 0;
+    padding-block: 12px;
   }
   .home-brand {
     gap: 14px;
@@ -2779,7 +2797,7 @@ p {
   }
   .home-content {
     max-width: 880px;
-    padding: 20px 0 12px;
+    padding: 0 0 12px;
   }
   .home-modes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2787,7 +2805,7 @@ p {
   .home-mode {
     grid-template-columns: minmax(0, 1fr) 120px;
     grid-template-areas: "heading heading" "description preview" "actions preview";
-    padding: 16px;
+    --home-card-padding: 16px;
 
     gap: 6px;
   }

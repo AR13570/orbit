@@ -2,6 +2,81 @@ import { expect, test } from "@playwright/test";
 import { OrbitEngine } from "../../src/game/engine";
 import { markTutorialSeen } from "./tutorial-fixture";
 
+test("Righteous headings enter with letters dropping from above, then settle", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.addInitScript(() => {
+    const frames: number[][] = [];
+    (window as Window & { homeEntranceFrames: number[][] }).homeEntranceFrames =
+      frames;
+    function sample() {
+      const letters = document.querySelectorAll(".home-title-letter");
+      if (letters.length === 5) {
+        frames.push(
+          Array.from(letters, (letter) => {
+            const transform = getComputedStyle(letter).transform;
+            return transform === "none"
+              ? 0
+              : new DOMMatrixReadOnly(transform).m42;
+          }),
+        );
+      }
+      if (performance.now() < 3000) requestAnimationFrame(sample);
+    }
+    requestAnimationFrame(sample);
+  });
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Orbit", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (
+          window as Window & { homeEntranceFrames: number[][] }
+        ).homeEntranceFrames.some(
+          (positions) => positions[0] < -10 && positions[4] < positions[0] - 5,
+        ),
+      ),
+    )
+    .toBe(true);
+  for (const letter of await page.locator(".home-title-letter").all()) {
+    await expect(letter).toHaveCSS("transform", "none");
+    await expect(letter).toHaveCSS("opacity", "1");
+  }
+  await page.evaluate(() => document.fonts.ready);
+  for (const heading of await page
+    .locator(".home-brand h1, .home-mode h2")
+    .all()) {
+    await expect(heading).toHaveCSS("font-family", /Righteous/);
+  }
+  expect(
+    await page.evaluate(() =>
+      document.fonts.check("32px Righteous", "Orbit Odessey Gravity"),
+    ),
+  ).toBe(true);
+});
+
+test("reduced motion shows the whole menu immediately without a falling title", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  for (const element of await page
+    .locator(".home-title-letter, .home-mode, .home-create")
+    .all()) {
+    await expect(element).toHaveCSS("transform", "none");
+    await expect(element).toHaveCSS("opacity", "1");
+  }
+  await page
+    .getByRole("button", { name: "How to play Gravity", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "How to play Gravity", exact: true }),
+  ).toBeVisible();
+});
+
 for (const viewport of [
   { width: 1280, height: 900 },
   { width: 390, height: 844 },

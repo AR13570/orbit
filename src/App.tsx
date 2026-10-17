@@ -740,7 +740,11 @@ export function OdesseyGame({
           </button>
         )}
         {!paused && !help && (
-          <ResetViewControl zoom={zoom.zoom} onReset={zoom.reset} />
+          <ResetViewControl
+            zoom={zoom.zoom}
+            panned={zoom.panned}
+            onReset={zoom.reset}
+          />
         )}
         <p className="visually-hidden" aria-live="polite" aria-atomic="true">
           {modeFeedback}

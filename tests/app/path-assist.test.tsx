@@ -57,7 +57,11 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  vi.stubGlobal("matchMedia", () => ({ matches: false }));
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
     frame = callback;
     return 1;

@@ -654,7 +654,11 @@ export default function GravityGame({
           )}
         </div>
         {!paused && !help && (
-          <ResetViewControl zoom={zoom.zoom} onReset={zoom.reset} />
+          <ResetViewControl
+            zoom={zoom.zoom}
+            panned={zoom.panned}
+            onReset={zoom.reset}
+          />
         )}
       </div>
       {help ? (
