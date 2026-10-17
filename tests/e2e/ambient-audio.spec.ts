@@ -188,7 +188,7 @@ for (const mode of ["odessey", "gravity"] as const) {
     const selectMode = () =>
       page
         .getByRole("button", {
-          name: mode === "odessey" ? /^Odessey/ : /Gravity.*Build living/,
+          name: mode === "odessey" ? /(?:Play|Continue) Odessey/ : /(?:Play|Continue) Gravity/,
         })
         .click();
     await selectMode();

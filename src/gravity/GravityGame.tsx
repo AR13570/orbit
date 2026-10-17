@@ -454,6 +454,14 @@ export default function GravityGame({
         />
         <GameHeader
           title={customLevel ? customName || "Custom level" : "Gravity"}
+          onHome={
+            customLevel
+              ? undefined
+              : () => {
+                  cancel();
+                  onExit();
+                }
+          }
         >
           <span className="gravity-level">
             {customLevel ? "Playtest" : `Level ${snapshot.level.index + 1}`}

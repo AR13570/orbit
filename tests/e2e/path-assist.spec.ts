@@ -113,7 +113,7 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
   expect(odesseyFull).toBeGreaterThan(odesseyPartial * 2);
   await pauseHeld(page);
   await page.getByRole("button", { name: "Choose mode", exact: true }).click();
-  await page.getByRole("button", { name: /^Gravity\s*Build/ }).click();
+  await page.getByRole("button", { name: /(?:Play|Continue) Gravity/ }).click();
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.getByRole("button", { name: "Advanced", exact: true }).click();
   await expect(

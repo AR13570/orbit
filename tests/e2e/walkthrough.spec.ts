@@ -389,7 +389,7 @@ test("unavailable storage still permits dismissal and same-page mode revisits", 
   await page.getByRole("button", { name: "Skip", exact: true }).click();
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.getByRole("button", { name: "Choose mode", exact: true }).click();
-  await page.getByRole("button", { name: /^Gravity Build/ }).click();
+  await page.getByRole("button", { name: /(?:Play|Continue) Gravity/ }).click();
   await expect(page.getByRole("dialog", { name: /How to play/ })).toHaveCount(
     0,
   );

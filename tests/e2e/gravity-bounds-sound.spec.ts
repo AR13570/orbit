@@ -44,7 +44,7 @@ for (const initialMode of ["odessey", "gravity"] as const) {
     const other = initialMode === "odessey" ? "gravity" : "odessey";
     await page
       .getByRole("button", {
-        name: other === "gravity" ? /^Gravity\s*Build/ : /^Odessey\s*Follow/,
+        name: other === "gravity" ? /(?:Play|Continue) Gravity/ : /(?:Play|Continue) Odessey/,
       })
       .click();
     await pause();
@@ -66,7 +66,7 @@ for (const initialMode of ["odessey", "gravity"] as const) {
       .click();
     await page
       .getByRole("button", {
-        name: initialMode === "gravity" ? /^Gravity\s*Build/ : /^Odessey\s*Follow/,
+        name: initialMode === "gravity" ? /(?:Play|Continue) Gravity/ : /(?:Play|Continue) Odessey/,
       })
       .click();
     await pause();

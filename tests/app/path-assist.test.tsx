@@ -109,7 +109,7 @@ describe("shared path assist preference", () => {
     const odessey = vi.spyOn(OrbitEngine.prototype, "launch"),
       gravity = vi.spyOn(GravityEngine.prototype, "launch");
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /^OdesseyFollow/ }));
+    fireEvent.click(screen.getByRole("button", { name: /(?:Play|Continue) Odessey/ }));
     fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
     fireEvent.click(
       screen.getByRole("button", { name: "Advanced", exact: true }),
@@ -123,7 +123,7 @@ describe("shared path assist preference", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Choose mode", exact: true }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /^GravityBuild/ }));
+    fireEvent.click(screen.getByRole("button", { name: /(?:Play|Continue) Gravity/ }));
     fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
     fireEvent.click(
       screen.getByRole("button", { name: "Advanced", exact: true }),

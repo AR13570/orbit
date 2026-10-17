@@ -1,6 +1,7 @@
 import { expect, test, type Page, type CDPSession } from "@playwright/test";
 import { OrbitEngine } from "../../src/game/engine";
 import { MOBILE_PULL_DISTANCE, pullDistance } from "../../src/controls";
+import { gravityPullDistance } from "../../src/gravity/input";
 import { markTutorialSeen } from "./tutorial-fixture";
 
 async function drag(
@@ -74,11 +75,15 @@ for (const mobile of [false, true]) {
         (mobile
           ? MOBILE_PULL_DISTANCE
           : pullDistance("mouse", viewport.width, viewport.height));
-      console.log(
-        `Odessey ${device}: angle=${solution.angle}, power=${solution.power}, drag (${x},${y}) -> (${x - Math.cos(solution.angle) * distance},${y - Math.sin(solution.angle) * distance})`,
-      );
       const cdp = mobile ? await context.newCDPSession(page) : undefined;
-      await drag(page, cdp, x, y, solution.angle, distance);
+      await drag(
+        page,
+        cdp,
+        x,
+        y,
+        solution.angle - (mobile ? Math.PI / 2 : 0),
+        distance,
+      );
       await page.clock.runFor(50);
       await expect(page.getByRole("status")).toHaveText("In flight");
       await reload(page);
@@ -86,7 +91,14 @@ for (const mobile of [false, true]) {
       await expect(
         page.getByLabel("Checkpoint 0", { exact: true }),
       ).toBeVisible();
-      await drag(page, cdp, x, y, solution.angle, distance);
+      await drag(
+        page,
+        cdp,
+        x,
+        y,
+        solution.angle - (mobile ? Math.PI / 2 : 0),
+        distance,
+      );
       for (let t = 0; t < 20000; t += 100) {
         await page.clock.runFor(100);
         if (await page.getByLabel("Checkpoint 1", { exact: true }).count())
@@ -100,7 +112,9 @@ for (const mobile of [false, true]) {
               .pendingAdvance,
         ),
       ).toBe(true);
-      await page.screenshot({ path: test.info().outputPath("odessey-docked.png") });
+      await page.screenshot({
+        path: test.info().outputPath("odessey-docked.png"),
+      });
       reference.setAim(solution.angle, solution.power);
       reference.launch();
       for (
@@ -136,12 +150,16 @@ for (const mobile of [false, true]) {
       await page
         .getByRole("button", { name: "Choose mode", exact: true })
         .click();
-      await page.getByRole("button", { name: /^Gravity Build/ }).click();
+      await page
+        .getByRole("button", { name: /(?:Play|Continue) Gravity/ })
+        .click();
       await page.getByRole("button", { name: "Pause", exact: true }).click();
       await page
         .getByRole("button", { name: "Choose mode", exact: true })
         .click();
-      await page.getByRole("button", { name: /^Odessey Follow/ }).click();
+      await page
+        .getByRole("button", { name: /(?:Play|Continue) Odessey/ })
+        .click();
       await expect(
         page.getByLabel("Checkpoint 1", { exact: true }),
       ).toBeVisible();
@@ -224,7 +242,12 @@ for (const mobile of [false, true]) {
         position.x,
         position.y,
         shot.angle,
-        Math.sqrt(shot.power) * (mobile ? 48 : 90),
+        Math.sqrt(shot.power) *
+          gravityPullDistance(
+            mobile ? "touch" : "mouse",
+            viewport.width,
+            viewport.height,
+          ),
       );
       for (let t = 0; t < 60000; t += 500) {
         await page.clock.runFor(500);
@@ -249,7 +272,12 @@ for (const mobile of [false, true]) {
         position.x,
         position.y,
         shot.angle,
-        Math.sqrt(shot.power) * (mobile ? 48 : 90),
+        Math.sqrt(shot.power) *
+          gravityPullDistance(
+            mobile ? "touch" : "mouse",
+            viewport.width,
+            viewport.height,
+          ),
       );
       for (let t = 0; t < 60000; t += 500) {
         await page.clock.runFor(500);

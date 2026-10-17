@@ -37,6 +37,7 @@ In **Gravity**, start a pull anywhere to launch from that spot. Launch again whi
 ## Settle into your own pace
 
 - Pinch on touchscreens or scroll with a mouse to zoom the field around your fingers or cursor. Odessey supports roughly 83% to 120% zoom and Gravity supports 50% to 200%. In Odessey, drag with two fingers or hold Space and drag to pan without launching. The camera follows flights within the level; manual panning takes over until the next shot. An offscreen Odessey ship gets five seconds to return, with a Restart control available immediately. Bringing it back into view resets the timer. Gravity removes a planet only on contact with a fixed obstacle or once its whole disc leaves the outermost view.
+- Click the Orbit logo at the top left in either game mode to return to the main menu. Your checkpoint or level progress stays saved.
 - Pause with the pause button, **Esc**, or **P**. Resume with the same keys, **Resume**, or a click outside the pause panel.
 - Press **R** or use the reset button to retry the current Odessey shot or reset the current Gravity level. In Odessey, **New seed** starts a fresh checkpoint journey.
 - Open **Pause → Advanced → Path assist** to switch between the default partial aiming preview and a full predicted path.

@@ -16,7 +16,7 @@ for (const viewport of [
     );
     await page.goto("/");
     await expect(
-      page.getByRole("button", { name: /^Odessey\s*Follow/ }),
+      page.getByRole("button", { name: /(?:Play|Continue) Odessey/ }),
     ).toBeVisible();
     await expect(page.getByText("Zen", { exact: true })).toHaveCount(0);
     if (process.env.UPDATE_README_SHOTS === "1" && viewport.width === 1280)
@@ -24,7 +24,9 @@ for (const viewport of [
         path: "docs/images/mode-picker.png",
         animations: "disabled",
       });
-    await page.getByRole("button", { name: /^Odessey\s*Follow/ }).click();
+    await page
+      .getByRole("button", { name: /(?:Play|Continue) Odessey/ })
+      .click();
     await expect(page).toHaveURL(/mode=odessey/);
     await expect(page.getByText("Odessey", { exact: true })).toBeVisible();
     await expect(page.getByRole("status")).toHaveText("Ready to pull");

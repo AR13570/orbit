@@ -163,7 +163,8 @@ export function OdesseyGame({
       const previousSeed = engine.getSnapshot().sector.seed;
       let seed = crypto.getRandomValues(new Uint32Array(1))[0];
       if (seed === previousSeed) seed = (seed + 1) >>> 0;
-      if (runSeed(window.location.search) === undefined) rememberOdesseySeed(seed);
+      if (runSeed(window.location.search) === undefined)
+        rememberOdesseySeed(seed);
       else {
         const url = new URL(window.location.href);
         url.searchParams.set("seed", String(seed));
@@ -678,7 +679,18 @@ export function OdesseyGame({
               cancel();
           }}
         />
-        <GameHeader title="Odessey" label="Journey status">
+        <GameHeader
+          title="Odessey"
+          label="Journey status"
+          onHome={
+            onExit
+              ? () => {
+                  cancel();
+                  onExit();
+                }
+              : undefined
+          }
+        >
           <span>Checkpoint </span>
           <span
             className="journey-progress"

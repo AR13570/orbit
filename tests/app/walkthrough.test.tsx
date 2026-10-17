@@ -130,9 +130,7 @@ describe("guided mode visits", () => {
       screen.getByRole("heading", { name: "Let gravity draw" }),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Next", exact: true }));
-    expect(
-      screen.getByRole("heading", { name: "Choose a size" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Choose a size" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Next", exact: true }));
     practiceKey("Enter", "Gravity");
     expect(
@@ -260,7 +258,7 @@ describe("mode chooser tutorial entry", () => {
       );
       render(<App />);
       const help = screen.getByRole("button", { name: `How to play ${label}` });
-      expect(help.closest(".mode-choice")).toBeNull();
+      expect(help.closest(".home-play")).toBeNull();
       fireEvent.click(help);
       expect(
         screen.getByRole("dialog", { name: `How to play ${label}` }),
@@ -286,7 +284,7 @@ describe("mode chooser tutorial entry", () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
       fireEvent.click(
         screen.getByRole("button", {
-          name: new RegExp(`^${label}(?:Follow|Build)`),
+          name: new RegExp(`(?:Play|Continue) ${label}`),
         }),
       );
       expect(screen.queryByRole("dialog")).toBeNull();
@@ -310,7 +308,7 @@ describe("mode chooser tutorial entry", () => {
       render(<App />);
       fireEvent.click(
         screen.getByRole("button", {
-          name: new RegExp(`^${label}(?:Follow|Build)`),
+          name: new RegExp(`(?:Play|Continue) ${label}`),
         }),
       );
       expect(

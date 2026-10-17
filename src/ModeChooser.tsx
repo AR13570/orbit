@@ -1,7 +1,23 @@
+import { useEffect, useState } from "react";
 import Icon from "./components/Icon";
 import Attribution from "./components/Attribution";
+import ModePreview from "./home/ModePreview";
+import { readHomeProgress } from "./home/progress";
 
 export type OrbitMode = "odessey" | "gravity" | "creator";
+const modes = [
+  {
+    id: "odessey",
+    name: "Odessey",
+    description: "Curve your shot to the next checkpoint.",
+  },
+  {
+    id: "gravity",
+    name: "Gravity",
+    description: "Launch planets. Build living orbits.",
+  },
+] as const;
+
 export default function ModeChooser({
   onSelect,
   onHelp,
@@ -9,133 +25,94 @@ export default function ModeChooser({
   onSelect: (mode: OrbitMode) => void;
   onHelp: (mode: "odessey" | "gravity") => void;
 }) {
+  const [progress] = useState(() => readHomeProgress(window.location.search));
+  const [motion, setMotion] = useState(
+    () =>
+      !document.hidden &&
+      !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const update = () => setMotion(!document.hidden && !media?.matches);
+    media?.addEventListener?.("change", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      media?.removeEventListener?.("change", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
   return (
-    <main className="mode-chooser">
-      <div className="mode-intro">
-        <img
-          className="mode-logo"
-          src="/orbit.svg"
-          alt=""
-          width="56"
-          height="56"
-        />
-        <p className="mode-eyebrow">A little space to play</p>
-        <h1>Orbit</h1>
-        <p>Follow a path. Or make a world of your own.</p>
-      </div>
-      <div className="mode-selection">
-        <div className="mode-options" aria-label="Choose a mode">
-          <div className="mode-option">
-            <button className="mode-choice" onClick={() => onSelect("odessey")}>
-              <svg
-                className="mode-art"
-                viewBox="0 0 200 110"
-                aria-hidden="true"
-              >
-                <circle cx="100" cy="55" r="23" fill="currentColor" />
-                <path
-                  d="M20 85C55 85 50 10 110 15S155 85 185 30"
-                  fill="none"
-                  stroke="#527c9a"
-                  strokeWidth="1.5"
-                  strokeDasharray="2 5"
-                />
-                <circle cx="180" cy="42" r="5" fill="#527c9a" />
-              </svg>
-              <span className="mode-name">Odessey</span>
-              <span className="mode-description">
-                Follow the pull.
-                <br />
-                Find the next checkpoint.
-              </span>
-              <span className="mode-enter">
-                Free flight <Icon name="play" />
-              </span>
-            </button>
-            <button
-              className="mode-help"
-              aria-label="How to play Odessey"
-              onClick={() => onHelp("odessey")}
-            >
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                aria-hidden="true"
-              >
-                <path d="M10 5C8 3.5 5 3.5 2.5 4v11c2.5-.5 5.5-.5 7.5 1 2-1.5 5-1.5 7.5-1V4c-2.5-.5-5.5-.5-7.5 1Zm0 0v11" />
-              </svg>
-              How to play
-            </button>
-          </div>
-          <div className="mode-option">
-            <button className="mode-choice" onClick={() => onSelect("gravity")}>
-              <svg
-                className="mode-art"
-                viewBox="0 0 200 110"
-                aria-hidden="true"
-              >
-                <ellipse
-                  cx="100"
-                  cy="55"
-                  rx="68"
-                  ry="35"
-                  fill="none"
-                  stroke="#476f9b"
-                  strokeWidth="1.2"
-                  transform="rotate(-20 100 55)"
-                />
-                <ellipse
-                  cx="100"
-                  cy="55"
-                  rx="44"
-                  ry="44"
-                  fill="none"
-                  stroke="#a45c52"
-                  strokeWidth="1.2"
-                />
-                <circle cx="100" cy="55" r="19" fill="currentColor" />
-                <circle cx="162" cy="33" r="3.5" fill="#476f9b" />
-                <circle cx="78" cy="93" r="3.5" fill="#a45c52" />
-              </svg>
-              <span className="mode-name">Gravity</span>
-              <span className="mode-description">
-                Build living orbits.
-                <br />
-                Solve an endless sky.
-              </span>
-              <span className="mode-enter">
-                Orbital puzzles <Icon name="play" />
-              </span>
-            </button>
-            <button
-              className="mode-help"
-              aria-label="How to play Gravity"
-              onClick={() => onHelp("gravity")}
-            >
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                aria-hidden="true"
-              >
-                <path d="M10 5C8 3.5 5 3.5 2.5 4v11c2.5-.5 5.5-.5 7.5 1 2-1.5 5-1.5 7.5-1V4c-2.5-.5-5.5-.5-7.5 1Zm0 0v11" />
-              </svg>
-              How to play
-            </button>
+    <main className="home-screen">
+      <header className="home-header">
+        <div className="home-brand">
+          <img src="/orbit.svg" alt="" width="120" height="120" />
+          <div className="home-brand-copy">
+            <h1>Orbit</h1>
+            <p>A little space to play.</p>
           </div>
         </div>
-        <button className="mode-creator" onClick={() => onSelect("creator")}>
-          <Icon name="edit" /> Gravity creator
-          <span>
-            Design your own puzzle <Icon name="play" />
-          </span>
+      </header>
+      <div className="home-content">
+        <div className="home-modes" aria-label="Choose a mode">
+          {modes.map((mode) => (
+            <section
+              className={`home-mode home-mode-${mode.id}`}
+              key={mode.id}
+              aria-labelledby={`home-title-${mode.id}`}
+            >
+              <ModePreview mode={mode.id} motion={motion} />
+              <div className="home-mode-copy">
+                <div className="home-mode-heading">
+                  <h2 id={`home-title-${mode.id}`}>{mode.name}</h2>
+                  {progress[mode.id] &&
+                    progress[mode.id] !==
+                      (mode.id === "odessey" ? "Checkpoint 0" : "Level 1") && (
+                      <>
+                        <span
+                          className="home-mode-divider"
+                          aria-hidden="true"
+                        />
+                        <p className="home-progress">{progress[mode.id]}</p>
+                      </>
+                    )}
+                </div>
+                <p className="home-description">{mode.description}</p>
+              </div>
+              <div className="home-actions">
+                <div className="home-launch">
+                  <button
+                    className="home-play"
+                    aria-label={`${progress[mode.id] ? "Continue" : "Play"} ${mode.name}`}
+                    onClick={() => onSelect(mode.id)}
+                  >
+                    <span className="home-play-face">
+                      <Icon name="play" />
+                      {progress[mode.id] ? "Continue" : "Play"}
+                    </span>
+                  </button>
+                </div>
+                <button
+                  className="home-help"
+                  aria-label={`How to play ${mode.name}`}
+                  onClick={() => onHelp(mode.id)}
+                >
+                  <span>How to play</span>
+                  <Icon name="help" />
+                </button>
+              </div>
+            </section>
+          ))}
+        </div>
+        <button
+          className="home-create"
+          onClick={() => onSelect("creator")}
+          aria-label="Gravity creator"
+        >
+          <Icon name="edit" />
+          <span>Create a gravity puzzle</span>
         </button>
       </div>
-      <footer className="mode-footer">
-        <p>No lives. No rush. Just one more launch.</p>
+      <footer className="home-footer">
         <Attribution />
       </footer>
     </main>

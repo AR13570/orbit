@@ -407,12 +407,12 @@ describe("Gravity interface", () => {
     render(<App />);
     expect(screen.getByRole("heading", { name: "Orbit" })).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: /Gravity.*Build living/ }),
+      screen.getByRole("button", { name: /(?:Play|Continue) Gravity/ }),
     );
     expect(field()).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
-    fireEvent.click(screen.getByRole("button", { name: /^Odessey/ }));
+    fireEvent.click(screen.getByRole("button", { name: /(?:Play|Continue) Odessey/ }));
     expect(screen.getByLabelText("Slingshot flight field")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
