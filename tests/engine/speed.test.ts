@@ -26,11 +26,11 @@ describe('Odessey speed with real-time lifecycle',()=>{
   expect(actual.position.x).toBeCloseTo(reference.position.x,8);expect(actual.position.y).toBeCloseTo(reference.position.y,8);
   expect(actual.velocity.x).toBeCloseTo(reference.velocity.x*ODESSEY_SPEED_SCALE,8);expect(actual.velocity.y).toBeCloseTo(reference.velocity.y*ODESSEY_SPEED_SCALE,8);
  });
- it('still grants six real seconds outside and permits retry afterward',()=>{
+ it('grants five real seconds outside and permits retry afterward',()=>{
   const engine=openField();engine.setFlightBounds({x:-5000,y:-5000,width:100,height:100});engine.setAim(0,1);engine.launch();
-  for(let step=0;step<1187;step++)engine.update(ODESSEY_FIXED_STEP);
+  for(let step=0;step<Math.round(5/ODESSEY_FIXED_STEP)-1;step++)engine.update(ODESSEY_FIXED_STEP);
   expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeCloseTo(ODESSEY_FIXED_STEP,10);
-  engine.update(ODESSEY_FIXED_STEP);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(4258,8);
+  engine.update(ODESSEY_FIXED_STEP);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(3565,8);
   engine.retry();expect(engine.getSnapshot().status).toBe('aiming');
  });
 });

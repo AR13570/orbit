@@ -214,7 +214,7 @@ describe("Gravity guide", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next", exact: true }));
     expect(screen.getByText(/Pinch to zoom/)).toBeTruthy();
     expect(
-      screen.getByText(/Choose Skip level or Next level below the goal/),
+      screen.getByText(/Skip a level from the bottom of the screen/),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
     expect(finished).toHaveBeenCalledWith("complete");

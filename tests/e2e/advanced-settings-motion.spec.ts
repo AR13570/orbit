@@ -64,8 +64,8 @@ for (const mode of ["odessey", "gravity"]) {
     await expect(menu).toHaveCount(0);
     await pause.click();
     await expect(
-      menu.getByRole("button", { name: "Reset shot", exact: true }),
-    ).toHaveCount(0);
+      menu.getByRole("button", { name: "Restart level", exact: true }),
+    ).toHaveCount(1);
     if (mode === "gravity") {
       await menu
         .getByRole("button", { name: "Choose a level", exact: true })

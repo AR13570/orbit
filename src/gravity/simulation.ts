@@ -167,6 +167,29 @@ export function step(state: GravityState, dt: number): void {
   state.held = 0;
 }
 export function objectiveText(level: GravityLevel): string {
+  const planetLabel =
+    level.objective.count === 1
+      ? "one planet"
+      : `${level.objective.count} planets`;
+  const coreLabel = (id: string) =>
+    String.fromCharCode(65 + level.bodies.findIndex((body) => body.id === id));
+  if (level.journey) {
+    const route = level.journey.legs
+      .map((leg) => coreLabel(leg.bodyId))
+      .join(" → ");
+    const capture = level.journey.legs.at(-1)!.sweep >= Math.PI * 2;
+    return `Curve past ${route} with ${planetLabel}.${capture ? ` Finish a full orbit at ${coreLabel(level.journey.legs.at(-1)!.bodyId)}.` : " Keep the same planet."}`;
+  }
+  if (level.sharedOrbit)
+    return `Loop ${planetLabel} around ${level.sharedOrbit.length === 2 ? "both cores" : `all ${level.sharedOrbit.length} cores`}${level.sharedCounter ? ", in opposite directions" : " in one shared orbit"}.`;
+  if (
+    level.source === "campaign" &&
+    level.requirements?.every(
+      (goal) =>
+        goal.count === 1 && goal.direction && goal.direction !== "either",
+    )
+  )
+    return "Orbit each core in its marked direction.";
   if (level.source === "procedural") {
     const { turns, count, kind } = level.objective;
     const duration = ` for ${turns} ${turns === 1 ? "revolution" : "revolutions"}`;

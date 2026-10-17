@@ -200,6 +200,10 @@ for (const device of [
       await page.getByRole("button", { name: "Reset level (R)" }).click();
       await expect(slider).toHaveValue("1.99");
       await page.getByRole("button", { name: "Skip level" }).click();
+      await page
+        .getByRole("dialog", { name: "Skip this level?" })
+        .getByRole("button", { name: "Skip level", exact: true })
+        .click();
       await expect(slider).toHaveValue("1.99");
       await page.reload();
       await expect(slider).toHaveValue("1.99");

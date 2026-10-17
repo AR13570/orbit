@@ -63,3 +63,44 @@ describe("reference inspired authored campaign", () => {
       ).not.toBeNull();
   }, 60000);
 });
+
+it("changes challenge type quickly and builds toward meaningful transfer and capture", () => {
+  const levels = Array.from({ length: 45 }, (_, index) =>
+    getGravityLevel(42, index),
+  );
+  const kind = (level: (typeof levels)[number]) =>
+    level.journey
+      ? "relay"
+      : level.sharedOrbit
+        ? "shared"
+        : level.objective.kind === "counter" ||
+            level.requirements?.some((r) => r.direction)
+          ? "direction"
+          : "local";
+  for (let index = 0; index <= 39; index++)
+    expect(
+      new Set(levels.slice(index, index + 6).map(kind)).size,
+      `levels ${index + 1} through ${index + 6}`,
+    ).toBeGreaterThanOrEqual(3);
+  const shapes = levels.map((level) =>
+    JSON.stringify(
+      level.bodies.map((body) => ({
+        kind: body.kind,
+        position: body.position,
+        radius: body.radius,
+        strength: body.strength,
+      })),
+    ),
+  );
+  expect(new Set(shapes).size).toBeGreaterThanOrEqual(40);
+  expect(levels.filter((level) => level.journey).length).toBeGreaterThanOrEqual(
+    10,
+  );
+  expect(levels.filter((level) => level.sharedCounter).length).toBe(2);
+  expect(
+    levels.filter((level) => level.journey?.legs.at(-1)!.sweep === Math.PI * 2)
+      .length,
+  ).toBeGreaterThanOrEqual(3);
+  expect(levels[44].journey?.legs).toHaveLength(4);
+  expect(levels[44].journey?.legs.at(-1)?.sweep).toBe(Math.PI * 2);
+});

@@ -1,4 +1,5 @@
 import type { Vec2 } from "../game/types";
+import { updateJourney } from "./journeys";
 import { wellVelocity } from "./motion";
 import { wellPotential } from "./physics";
 import type {
@@ -47,6 +48,7 @@ export function updateOrbits(
   level: GravityLevel,
   particle: GravityParticle,
 ): void {
+  updateJourney(level, particle);
   const targets = orbitTargets(level);
   for (const target of targets) {
     const track = particle.orbits[target.id];
@@ -171,6 +173,57 @@ export function goalProgress(state: GravityState): GoalProgress {
   const goal = state.level.objective;
   if (goal.kind === "none" && !state.level.requirements?.length)
     return { current: 0, target: 0, held: 0, hold: 0, complete: false };
+  if (state.level.journey) {
+    const legs = state.level.journey.legs;
+    const living = state.particles.filter((p) => p.alive);
+    const current = living.filter(
+      (p) => (p.journey?.leg ?? 0) >= legs.length,
+    ).length;
+    const best = Math.max(0, ...living.map((p) => p.journey?.leg ?? 0));
+    return {
+      current: Math.min(current, goal.count),
+      target: goal.count,
+      complete: current >= goal.count,
+      held: 0,
+      hold: 0,
+      bodies: [...new Set(legs.map((leg) => leg.bodyId))].map((bodyId) => ({
+        bodyId,
+        current: legs.slice(0, best).filter((leg) => leg.bodyId === bodyId)
+          .length,
+        target: legs.filter((leg) => leg.bodyId === bodyId).length,
+      })),
+    };
+  }
+  if (state.level.sharedOrbit?.length) {
+    const orbiters = state.particles.filter(
+      (p) =>
+        p.alive &&
+        boundTo(state, p, "pair") &&
+        state.level.sharedOrbit!.every((bodyId) => {
+          const winding = p.orbits[bodyId]?.winding ?? 0;
+          return Math.abs(winding) + 1e-9 >= TAU * goal.turns;
+        }),
+    );
+    const current = state.level.sharedCounter
+      ? Number(
+          orbiters.some(
+            (p) => p.orbits[state.level.sharedOrbit![0]].winding > 0,
+          ),
+        ) +
+        Number(
+          orbiters.some(
+            (p) => p.orbits[state.level.sharedOrbit![0]].winding < 0,
+          ),
+        )
+      : orbiters.length;
+    return {
+      current: Math.min(current, goal.count),
+      target: goal.count,
+      complete: current >= goal.count,
+      held: 0,
+      hold: 0,
+    };
+  }
   const bodies = state.level.bodies.filter((b) => b.kind === "attractor");
   let current = 0,
     target = goal.count,
@@ -216,6 +269,28 @@ export function orbitFraction(
   particle: GravityParticle,
   id: string,
 ): number {
+  if (state.level.journey) {
+    const legs = state.level.journey.legs;
+    const track = particle.journey;
+    if (!track || !particle.alive) return 0;
+    const indices = legs.flatMap((leg, index) =>
+      leg.bodyId === id ? [index] : [],
+    );
+    const completed = indices.filter((index) => index < track.leg).length;
+    const current =
+      legs[track.leg]?.bodyId === id
+        ? Math.min(1, Math.abs(track.sweep) / legs[track.leg].sweep)
+        : 0;
+    return indices.length ? (completed + current) / indices.length : 0;
+  }
+  if (state.level.sharedOrbit?.includes(id)) {
+    if (!particle.alive || !boundTo(state, particle, "pair")) return 0;
+    return Math.min(
+      1,
+      Math.abs(particle.orbits[id]?.winding ?? 0) /
+        (TAU * state.level.objective.turns),
+    );
+  }
   const track = particle.orbits[id];
   if (!track || !particle.alive || !boundTo(state, particle, id)) return 0;
   const local =

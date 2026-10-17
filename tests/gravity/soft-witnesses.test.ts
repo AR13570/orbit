@@ -7,12 +7,12 @@ import { buildGravityLayout, GRAVITY_LAYOUTS } from "../../src/gravity/layouts";
 import { createState } from "../../src/gravity/simulation";
 import { getGravityLevel } from "../../src/gravity/campaign";
 
-it("uses no-rebound soft contacts for every regular campaign formation", () => {
+it("leaves campaign grouping off by default without disabling attraction", () => {
   for (let index = 0; index < 45; index++)
     expect(
       createState(getGravityLevel(42, index)).physics.planetCollisions,
       `campaign ${index}`,
-    ).toBe("soft");
+    ).toBe("none");
 });
 
 it("completes opposite-direction orbits with soft contacts across rotations and force scales", () => {

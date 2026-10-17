@@ -1,4 +1,4 @@
-import { ODESSEY_SPEED_SCALE } from '../../src/game/physics';
+import { OFFSCREEN_TIMEOUT_SECONDS, SHIP_RADIUS, odesseyLaunchSpeed, ODESSEY_SPEED_SCALE } from '../../src/game/physics';
 import { describe,expect,it } from 'vitest';
 import { OrbitEngine } from '../../src/game/engine';
 import { generateFallbackSector,generateGuaranteedFallbackSector,generateSector } from '../../src/game/generator';
@@ -123,22 +123,24 @@ describe('single-projectile journey',()=>{
  });
 });
 
+const timeoutX=(edge:number)=>edge+SHIP_RADIUS+OFFSCREEN_TIMEOUT_SECONDS*odesseyLaunchSpeed(1);
+
 describe('visible flight bounds',()=>{
  function openField():OrbitEngine {const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:500};engine.setAim(0,1);return engine;}
  it('preserves visible flight beyond canonical bounds and permits free retries after the outside timeout',()=>{
-  const canonical=openField();canonical.launch();tick(canonical,4.5);expect(canonical.getSnapshot().status).toBe('flying');expect(canonical.getSnapshot().particles[0].offscreenRemaining).toBeLessThan(6);tick(canonical,6);expect(canonical.getSnapshot().status).toBe('failed');expect(canonical.getSnapshot().particles[0].position.x).toBeCloseTo(5963);
+  const canonical=openField();canonical.launch();tick(canonical,4.5);expect(canonical.getSnapshot().status).toBe('flying');expect(canonical.getSnapshot().particles[0].offscreenRemaining).toBeLessThan(OFFSCREEN_TIMEOUT_SECONDS);tick(canonical,6);expect(canonical.getSnapshot().status).toBe('failed');expect(canonical.getSnapshot().particles[0].position.x).toBeCloseTo(timeoutX(1800));
   const engine=openField();engine.setFlightBounds({x:0,y:0,width:3000,height:1000});engine.launch();tick(engine,2.5);expect(engine.getSnapshot().particles[0].position.x).toBeGreaterThan(1800);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeUndefined();
-  tick(engine,9);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(7163);engine.retry();expect(engine.getSnapshot().status).toBe('aiming');expect(engine.getSnapshot().checkpointCount).toBe(0);
+  tick(engine,9);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(timeoutX(3000));engine.retry();expect(engine.getSnapshot().status).toBe('aiming');expect(engine.getSnapshot().checkpointCount).toBe(0);
  });
  it('uses identical outside timeout positions in prediction and live flight',()=>{
-  const engine=openField();engine.setFlightBounds({x:0,y:0,width:2600,height:1000});const before=engine.getSnapshot();const path=engine.predict(14)[0];expect(path.at(-1)!.x).toBeCloseTo(6763);expect(engine.getSnapshot()).toEqual(before);engine.launch();tick(engine,14);expect(engine.getSnapshot().particles[0].position).toEqual(path.at(-1));
+  const engine=openField();engine.setFlightBounds({x:0,y:0,width:2600,height:1000});const before=engine.getSnapshot();const path=engine.predict(14)[0];expect(path.at(-1)!.x).toBeCloseTo(timeoutX(2600));expect(engine.getSnapshot()).toEqual(before);engine.launch();tick(engine,14);expect(engine.getSnapshot().particles[0].position).toEqual(path.at(-1));
  });
  it('resets the outside interval on real re-entry following resize',()=>{
-  const engine=openField();engine.setFlightBounds({x:0,y:0,width:3000,height:1000});engine.launch();tick(engine,.5);engine.setFlightBounds({x:800,y:0,width:1500,height:1000});tick(engine,0.25);expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeCloseTo(5.75);
-  tick(engine,1);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeUndefined();tick(engine,9.5);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(6463);
+  const engine=openField();engine.setFlightBounds({x:0,y:0,width:3000,height:1000});engine.launch();tick(engine,.5);engine.setFlightBounds({x:800,y:0,width:1500,height:1000});tick(engine,0.25);expect(engine.getSnapshot().status).toBe('flying');expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeCloseTo(OFFSCREEN_TIMEOUT_SECONDS-0.25);
+  tick(engine,1);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeUndefined();tick(engine,9.5);expect(engine.getSnapshot().status).toBe('failed');expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(timeoutX(2300));
  });
  it('defensively copies visible bounds, ignores invalid rectangles and restores canonical bounds',()=>{
-  const engine=openField(),bounds={x:0,y:0,width:3000,height:1000};engine.setFlightBounds(bounds);bounds.width=100;engine.setFlightBounds({x:0,y:0,width:Number.NaN,height:100});expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(7163);engine.setFlightBounds(null);expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(5963);
+  const engine=openField(),bounds={x:0,y:0,width:3000,height:1000};engine.setFlightBounds(bounds);bounds.width=100;engine.setFlightBounds({x:0,y:0,width:Number.NaN,height:100});expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(timeoutX(3000));engine.setFlightBounds(null);expect(engine.predict(14)[0].at(-1)!.x).toBeCloseTo(timeoutX(1800));
  });
 });
 
@@ -223,9 +225,9 @@ describe('tap-to-branch shooter', () => {
  it('maintains independent outside timers after resize and branch', () => {
   const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:500};engine.setShotCount(3);engine.launch();tick(engine,0.4/ODESSEY_SPEED_SCALE);engine.branch();tick(engine,0.8/ODESSEY_SPEED_SCALE);
   engine.setFlightBounds({x:0,y:503,width:1800,height:1000});internal(engine).particles[0].velocity={x:0,y:-30};internal(engine).particles[1].velocity={x:0,y:30};internal(engine).particles[2].velocity={x:0,y:0};
-  engine.update(0.25);expect(engine.getSnapshot().particles.every(p=>p.alive)).toBe(true);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeLessThan(6);
+  engine.update(0.25);expect(engine.getSnapshot().particles.every(p=>p.alive)).toBe(true);expect(engine.getSnapshot().particles[0].offscreenRemaining).toBeLessThan(OFFSCREEN_TIMEOUT_SECONDS);
   engine.update(0.25);expect(engine.getSnapshot().particles[1].offscreenRemaining).toBeUndefined();internal(engine).particles[1].velocity={x:0,y:-30};tick(engine,0.5);
-  internal(engine).particles.forEach(piece=>{piece.velocity={x:0,y:0};});tick(engine,5.1);expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,true,true]);tick(engine,1);expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,false,true]);expect(engine.getSnapshot().status).toBe('flying');
+  internal(engine).particles.forEach(piece=>{piece.velocity={x:0,y:0};});tick(engine,OFFSCREEN_TIMEOUT_SECONDS-0.9);expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,true,true]);tick(engine,1);expect(engine.getSnapshot().particles.map(p=>p.alive)).toEqual([false,false,true]);expect(engine.getSnapshot().status).toBe('flying');
  });
  it('bounds all branched trails during a long on-screen flight', () => {
   const engine=fixture();internal(engine).sector.checkpoint.position={x:10000,y:10000};engine.setFlightBounds({x:-10000,y:-10000,width:20000,height:20000});engine.setShotCount(3);engine.launch();tick(engine,0.4/ODESSEY_SPEED_SCALE);engine.branch();tick(engine,24);

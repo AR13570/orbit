@@ -393,7 +393,7 @@ describe("minimal scene lifecycle", () => {
     expect(toggle).toHaveBeenCalledTimes(1);
     expect(engine.getSnapshot().particles).toHaveLength(3);
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    fireEvent.click(screen.getByRole("button", { name: "Reset shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restart level" }));
     expect(engine.getSnapshot().shotCount).toBe(3);
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "New seed" }));
@@ -495,4 +495,29 @@ describe("minimal scene lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+});
+
+it("opens help from the top bar and always offers to restart the current checkpoint", () => {
+  const retry = vi.spyOn(OrbitEngine.prototype, "retry");
+  render(<App />);
+  const bar = document.querySelector(".scene-actions")!;
+  expect(
+    Array.from(bar.querySelectorAll("button")).map((button) =>
+      button.getAttribute("aria-label"),
+    ),
+  ).toEqual(["How to play", "Reset level (R)", "Pause"]);
+  expect(document.querySelector(".gesture-hint")).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "How to play", exact: true }),
+  );
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Skip", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Restart level", exact: true }),
+  );
+  expect(retry).toHaveBeenCalledTimes(1);
+  expect(
+    screen.queryByRole("dialog", { name: "Paused", exact: true }),
+  ).toBeNull();
 });

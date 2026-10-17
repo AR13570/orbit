@@ -277,9 +277,12 @@ describe("Gravity interface", () => {
     expect(after.particles).toEqual(before.particles);
     expect(after.elapsed).toBe(before.elapsed);
     fireEvent.click(
-      screen.getByRole("button", { name: "Reset level", exact: true }),
+      screen.getByRole("button", { name: "Restart level", exact: true }),
     );
     expect(engine.getSnapshot().physics.planetGravity).toBe(false);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Skip level", exact: true }),
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Skip level", exact: true }),
     );
@@ -386,7 +389,7 @@ describe("Gravity interface", () => {
       "Resume",
       "Sound on",
       "How to play",
-      "Reset level",
+      "Restart level",
       "Choose a level",
       "Choose mode",
     ])
@@ -412,7 +415,9 @@ describe("Gravity interface", () => {
     expect(field()).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
-    fireEvent.click(screen.getByRole("button", { name: /(?:Play|Continue) Odessey/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /(?:Play|Continue) Odessey/ }),
+    );
     expect(screen.getByLabelText("Slingshot flight field")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose mode" }));
@@ -469,6 +474,9 @@ describe("Gravity interface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset level (R)" }));
     expect(screen.getByText("Level 1")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Skip level" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Skip level", exact: true }),
+    );
     expect(screen.getByText("Level 2")).toBeTruthy();
   });
   it("pauses on a hidden document and requires explicit resume", () => {
@@ -579,4 +587,93 @@ it("checks the live core pose when a moving core crosses the held launch point",
   pointer(canvas, "pointerup", 405, 550, 1, true, "mouse");
   expect(engine.getSnapshot().particles).toHaveLength(0);
   expect(screen.getByRole("status").textContent).toBe("Start in clear space");
+});
+
+it("keeps grouping off independently of mutual gravity and explains Advanced toggles", () => {
+  const launch = vi.spyOn(GravityEngine.prototype, "launch");
+  const view = render(<GravityGame onExit={() => {}} />);
+  pull(field());
+  const engine = launch.mock.instances[0] as GravityEngine;
+  expect(engine.getSnapshot().physics).toMatchObject({
+    planetGravity: true,
+    planetCollisions: "none",
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Advanced", exact: true }),
+  );
+  const grouping = screen.getByRole("switch", {
+    name: "Particle grouping",
+    exact: true,
+  });
+  expect(grouping.getAttribute("aria-checked")).toBe("false");
+  for (const label of [
+    "Path assist",
+    "Particle Interaction",
+    "Particle grouping",
+  ]) {
+    const help = screen.getByRole("button", {
+      name: `About ${label}`,
+      exact: true,
+    });
+    fireEvent.click(help);
+    expect(help.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      document.getElementById(help.getAttribute("aria-controls")!)?.textContent
+        ?.length,
+    ).toBeGreaterThan(30);
+    fireEvent.click(help);
+  }
+  fireEvent.click(grouping);
+  expect(engine.getSnapshot().physics).toMatchObject({
+    planetGravity: true,
+    planetCollisions: "soft",
+  });
+  fireEvent.click(screen.getByRole("switch", { name: "Particle Interaction" }));
+  expect(engine.getSnapshot().physics).toMatchObject({
+    planetGravity: false,
+    planetCollisions: "soft",
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Restart level", exact: true }),
+  );
+  expect(engine.getSnapshot().physics).toMatchObject({
+    planetGravity: false,
+    planetCollisions: "soft",
+  });
+  view.unmount();
+  render(<GravityGame onExit={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Advanced", exact: true }),
+  );
+  expect(
+    screen
+      .getByRole("switch", { name: "Particle grouping" })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
+});
+
+it("offers help before reset in the header and a restart in pause without footer instructions", () => {
+  render(<GravityGame onExit={() => {}} />);
+  const bar = document.querySelector(".scene-actions")!;
+  expect(
+    Array.from(bar.querySelectorAll("button")).map((button) =>
+      button.getAttribute("aria-label"),
+    ),
+  ).toEqual(["How to play", "Reset level (R)", "Pause"]);
+  expect(document.querySelector(".gravity-instruction")).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "How to play", exact: true }),
+  );
+  expect(screen.getByLabelText("Gravity practice field")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Skip", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Restart level", exact: true }),
+  );
+  expect(
+    screen.queryByRole("dialog", { name: "Paused", exact: true }),
+  ).toBeNull();
+  expect(document.querySelector(".gravity-level")?.textContent).toBe("Level 1");
 });

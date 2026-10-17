@@ -200,3 +200,57 @@ describe("particle interaction engine override", () => {
     );
   });
 });
+
+it("lets particles pass through with gravity off and grouping disabled, while grouping transfers momentum", () => {
+  const make = (grouping: boolean) => {
+    const engine = new GravityEngine(1, empty);
+    engine.setTimeScale(1);
+    engine.setParticleInteraction(false);
+    engine.setParticleGrouping(grouping);
+    engine.launchFrom({ x: 420, y: 350 }, { x: 40, y: 0 });
+    engine.launchFrom({ x: 460, y: 350 }, { x: -40, y: 0 });
+    for (let n = 0; n < 120; n++) engine.update(1 / 120);
+    return engine.getSnapshot();
+  };
+  const free = make(false),
+    grouped = make(true);
+  expect(free.particles[0].position.x).toBeGreaterThan(
+    free.particles[1].position.x,
+  );
+  expect(free.particles.map((p) => p.velocity.x)).toEqual([40, -40]);
+  expect(grouped.particles.every((p) => p.alive)).toBe(true);
+  expect(
+    grouped.particles[1].position.x - grouped.particles[0].position.x,
+  ).toBeCloseTo(16, 6);
+  expect(grouped.particles.every((p) => Math.abs(p.velocity.x) < 1e-6)).toBe(
+    true,
+  );
+});
+
+it("keeps mutual gravity and grouping independent through resets, navigation and predictions", () => {
+  const engine = new GravityEngine(1, undefined, (seed, index) => ({
+    ...empty,
+    seed,
+    index,
+  }));
+  engine.setParticleGrouping(false);
+  engine.setParticleInteraction(true);
+  engine.launchFrom({ x: 480, y: 350 }, { x: 0, y: 80 });
+  const before = engine.getSnapshot();
+  const path = engine.predictFrom(empty.launch, { x: 0, y: 80 }, 2);
+  expect(path.at(-1)!.x).toBeGreaterThan(empty.launch.x + 10);
+  expect(engine.getSnapshot()).toEqual(before);
+  engine.setParticleGrouping(true);
+  expect(engine.getSnapshot().particles).toEqual(before.particles);
+  expect(engine.getSnapshot().physics.planetGravity).toBe(true);
+  engine.retry();
+  expect(engine.getSnapshot().physics.planetCollisions).toBe("soft");
+  engine.skip();
+  expect(engine.getSnapshot().physics.planetCollisions).toBe("soft");
+  engine.setParticleGrouping(false);
+  engine.goTo(3);
+  expect(engine.getSnapshot().physics).toMatchObject({
+    planetGravity: true,
+    planetCollisions: "none",
+  });
+});

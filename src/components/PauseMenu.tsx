@@ -9,19 +9,17 @@ export default function PauseMenu({
   onResume,
   onHelp,
   onRestart,
-  onResetShot,
+  onRestartLevel,
   onSound,
   muted,
-  flying,
 }: {
   onModes?: () => void;
   onResume: () => void;
   onHelp: () => void;
   onRestart: () => void;
-  onResetShot: () => void;
+  onRestartLevel: () => void;
   onSound: () => void;
   muted: boolean;
-  flying: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -86,13 +84,11 @@ export default function PauseMenu({
               <span>How to play</span>
               <span className="pause-chevron" aria-hidden="true" />
             </button>
-            {flying && (
-              <button className="pause-option" onClick={onResetShot}>
-                <Icon name="reset" />
-                <span>Reset shot</span>
-                <span className="pause-chevron" aria-hidden="true" />
-              </button>
-            )}
+            <button className="pause-option" onClick={onRestartLevel}>
+              <Icon name="reset" />
+              <span>Restart level</span>
+              <span className="pause-chevron" aria-hidden="true" />
+            </button>
           </div>
           <button className="pause-option pause-new-seed" onClick={onRestart}>
             <svg

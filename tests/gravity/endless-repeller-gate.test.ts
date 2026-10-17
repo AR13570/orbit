@@ -10,6 +10,7 @@ import {
   verifyLevel,
 } from "../../src/gravity/generator";
 import { createState, goalProgress } from "../../src/gravity/simulation";
+import { CAMPAIGN_ENDLESS_IDS } from "../../src/gravity/campaign-endless";
 
 const authoringOnly = [
   "unequal-binary",
@@ -53,7 +54,7 @@ it("boots the saved seed 42 and index 45 with a verified ENDLESS formation", () 
   const level = generateGravityLevel(42, 45);
   expect(level.index).toBe(45);
   expect(level.seed).toBe(42);
-  expect(ENDLESS_LAYOUT_IDS).toContain(level.layout);
+  expect(CAMPAIGN_ENDLESS_IDS).toContain(level.layout);
   expect(authoringOnly).not.toContain(level.layout);
   expect(verifyLevel(level)).toBe(true);
 });

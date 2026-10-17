@@ -296,6 +296,10 @@ for (const mobile of [false, true]) {
       await page
         .getByRole("button", { name: "Skip level", exact: true })
         .click();
+      await page
+        .getByRole("dialog", { name: "Skip this level?" })
+        .getByRole("button", { name: "Skip level", exact: true })
+        .click();
       await reload(page);
       await expect(page.locator(".gravity-level")).toHaveText("Level 3");
       await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -308,9 +312,17 @@ for (const mobile of [false, true]) {
       await page
         .getByRole("button", { name: "Skip level", exact: true })
         .click();
+      await page
+        .getByRole("dialog", { name: "Skip this level?" })
+        .getByRole("button", { name: "Skip level", exact: true })
+        .click();
       await reload(page);
       await expect(page.locator(".gravity-level")).toHaveText("Level 46");
       await page
+        .getByRole("button", { name: "Skip level", exact: true })
+        .click();
+      await page
+        .getByRole("dialog", { name: "Skip this level?" })
         .getByRole("button", { name: "Skip level", exact: true })
         .click();
       await reload(page);

@@ -34,6 +34,7 @@ export class GravityEngine {
   private timeScale = GRAVITY_SPEED_SCALE;
   private customLevel: GravityLevel | undefined;
   private particleInteractionOverride: boolean | undefined;
+  private particleGroupingOverride: boolean | undefined;
   private projectileSize = DEFAULT_PROJECTILE_SIZE;
   private projectileBaseRadius: number;
   private projectileBaseMass: number;
@@ -144,7 +145,17 @@ export class GravityEngine {
     this.particleInteractionOverride = enabled;
     this.state.physics.planetGravity = enabled;
   }
-  private applyParticleInteractionOverride(): void {
+  /** Surface contact is independent from the mutual gravitational force. */
+  setParticleGrouping(enabled: boolean): void {
+    this.state.groupSpin = { groups: {} };
+    this.particleGroupingOverride = enabled;
+    this.state.physics.planetCollisions = enabled ? "soft" : "none";
+  }
+  private applyParticleOverrides(): void {
+    if (this.particleGroupingOverride !== undefined)
+      this.state.physics.planetCollisions = this.particleGroupingOverride
+        ? "soft"
+        : "none";
     if (this.particleInteractionOverride !== undefined)
       this.state.physics.planetGravity = this.particleInteractionOverride;
   }
@@ -182,7 +193,7 @@ export class GravityEngine {
     if (this.flightBounds) this.state.flightBounds = { ...this.flightBounds };
     this.captureProjectileBaseline();
     this.applyProjectileSize();
-    this.applyParticleInteractionOverride();
+    this.applyParticleOverrides();
     this.accumulator = 0;
     this.launchPosition = { ...this.state.level.launch };
   }
@@ -248,7 +259,7 @@ export class GravityEngine {
     if (this.flightBounds) this.state.flightBounds = { ...this.flightBounds };
     this.captureProjectileBaseline();
     this.applyProjectileSize();
-    this.applyParticleInteractionOverride();
+    this.applyParticleOverrides();
     this.launchPosition = { ...this.state.level.launch };
     this.complete = false;
     this.accumulator = 0;

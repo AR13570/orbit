@@ -1,7 +1,11 @@
 import { GRAVITY_FIXED_STEP } from "./physics";
 import { createState, fire, fireFrom, goalProgress, step } from "./simulation";
-import { buildEndlessGravityLevel, endlessLayoutId } from "./endless";
-import type { GravityLevel } from "./types";
+import {
+  buildCampaignEndlessLevel,
+  campaignEndlessLayoutId,
+} from "./campaign-endless";
+import { fitGravityFrame } from "./renderer";
+import type { GravityLevel, GravityState } from "./types";
 
 export const normalizeGravitySeed = (seed: number) =>
   Number.isFinite(seed) ? seed >>> 0 : 0;
@@ -28,8 +32,12 @@ export function mixGravitySeed(seed: number, index: number): number {
 export function witnessCompletionTime(
   level: GravityLevel,
   dt = GRAVITY_FIXED_STEP,
+  options?: { radius?: number; flightBounds?: GravityState["flightBounds"] },
 ): number | null {
   const state = createState(level);
+  if (options?.radius !== undefined)
+    state.physics.planetRadius = options.radius;
+  if (options?.flightBounds) state.flightBounds = options.flightBounds;
   let shot = 0;
   const interval =
     Number.isFinite(dt) && dt > 0
@@ -55,6 +63,36 @@ export function witnessCompletionTime(
 export function verifyLevel(level: GravityLevel): boolean {
   return witnessCompletionTime(level) !== null;
 }
+/** Generated campaign variants must survive both size extremes and actual viewport removal bounds. */
+export function verifyGeneratedLevel(level: GravityLevel): boolean {
+  for (const radius of [4, 16])
+    if (witnessCompletionTime(level, GRAVITY_FIXED_STEP, { radius }) === null)
+      return false;
+  for (const [width, height] of [
+    [1200, 800],
+    [390, 844],
+    [320, 568],
+    [844, 390],
+  ]) {
+    const { camera, area } = fitGravityFrame(level, width, height);
+    const scale = camera.scale * 0.5;
+    const flightBounds = {
+      x: camera.center.x - (area.x + area.width / 2) / scale,
+      y: camera.center.y - (area.y + area.height / 2) / scale,
+      width: width / scale,
+      height: height / scale,
+    };
+    const radius = Math.max(4, Math.min(16, 6 / camera.scale));
+    if (
+      witnessCompletionTime(level, GRAVITY_FIXED_STEP, {
+        radius,
+        flightBounds,
+      }) === null
+    )
+      return false;
+  }
+  return witnessCompletionTime(level, GRAVITY_FIXED_STEP / 2) !== null;
+}
 const cache = new Map<string, GravityLevel>();
 /** Seeded formations vary while the objective effort grows with global progress. */
 export function generateGravityLevel(
@@ -67,20 +105,33 @@ export function generateGravityLevel(
     cached = cache.get(key);
   if (cached) return structuredClone(cached);
   const random = gravityRandom(mixGravitySeed(seed, index));
-  const layoutId = endlessLayoutId(mixGravitySeed(seed, 0), index);
-  let chosen = buildEndlessGravityLevel(
+  const layoutId = campaignEndlessLayoutId(mixGravitySeed(seed, 0), index);
+  const rotation = random() * Math.PI * 2,
+    reflected = random() < 0.5;
+  let chosen = buildCampaignEndlessLevel(
     seed,
     index,
     layoutId,
-    random() * Math.PI * 2,
+    rotation,
+    reflected,
+    true,
   );
-  // A failed orientation retries the same formation and exact difficulty at its verified orientation.
-  if (!verifyLevel(chosen)) {
-    chosen = buildEndlessGravityLevel(seed, index, layoutId, 0);
-    if (!verifyLevel(chosen))
-      throw new Error(
-        `Authored endless Gravity fixture no longer validates: ${layoutId}`,
-      );
+  // Failed perturbations retain the same mechanic, template and exact difficulty.
+  if (!verifyGeneratedLevel(chosen)) {
+    chosen = buildCampaignEndlessLevel(
+      seed,
+      index,
+      layoutId,
+      rotation,
+      reflected,
+    );
+    if (!verifyGeneratedLevel(chosen)) {
+      chosen = buildCampaignEndlessLevel(seed, index, layoutId, 0);
+      if (!verifyGeneratedLevel(chosen))
+        throw new Error(
+          `Campaign endless solution no longer validates: ${layoutId}`,
+        );
+    }
   }
   if (cache.size >= 96) cache.delete(cache.keys().next().value!);
   cache.set(key, structuredClone(chosen));

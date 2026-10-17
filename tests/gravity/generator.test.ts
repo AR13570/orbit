@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateGravityLevel, verifyLevel } from "../../src/gravity/generator";
 import { GRAVITY_LAYOUTS, buildGravityLayout } from "../../src/gravity/layouts";
 import { distance } from "../../src/game/physics";
-import { ENDLESS_LAYOUT_IDS } from "../../src/gravity/endless";
+import { CAMPAIGN_ENDLESS_IDS as ENDLESS_LAYOUT_IDS } from "../../src/gravity/campaign-endless";
 import { physicsSettings } from "../../src/gravity/physics";
 describe("structural endless Gravity puzzles", () => {
   it("validates every canonical fallback with its actual objective and physics", () => {

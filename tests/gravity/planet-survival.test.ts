@@ -17,6 +17,7 @@ describe("launched planet survival", () => {
     (_name, level) => {
       const engine = new GravityEngine(42, level());
       engine.setTimeScale(1);
+      engine.setParticleGrouping(true);
       engine.launchFrom({ x: 410, y: 100 }, { x: 0, y: 0 });
       engine.setProjectileSize(2);
       engine.launchFrom({ x: 470, y: 100 }, { x: 0, y: 0 });

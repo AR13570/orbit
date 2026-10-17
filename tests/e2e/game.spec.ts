@@ -208,7 +208,7 @@ for (const viewport of [
       page.getByRole("dialog", { name: "How to play Odessey" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
-    await page.getByRole("button", { name: "Reset shot" }).click();
+    await page.getByRole("button", { name: "Restart level" }).click();
     await ready(page);
     await pauseNewSeed(page);
     expect(errors).toEqual([]);
@@ -586,7 +586,7 @@ test("real touch drag releases to fire and ignores additional touch", async ({
     await expect(page.getByRole("status")).toHaveText("In flight");
     await page.getByRole("button", { name: "Pause", exact: true }).tap();
     await expect(page.getByRole("dialog", { name: "Paused" })).toBeVisible();
-    await page.getByRole("button", { name: "Reset shot" }).tap();
+    await page.getByRole("button", { name: "Restart level" }).tap();
     await ready(page);
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchStart",
@@ -880,7 +880,7 @@ test("mouse selects split mode, launches one piece and taps in flight to branch 
     0,
   );
   await page.getByRole("button", { name: "Pause", exact: true }).click();
-  await page.getByRole("button", { name: "Reset shot" }).click();
+  await page.getByRole("button", { name: "Restart level" }).click();
   await ready(page);
   await page.mouse.dblclick(600, 400, { delay: 60 });
   await expect(page.getByText("Single shooter", { exact: true })).toHaveText(
@@ -975,7 +975,7 @@ test("actual touch selects split mode and branches only on a valid in-flight tap
       0,
     );
     await page.getByRole("button", { name: "Pause", exact: true }).tap();
-    await page.getByRole("button", { name: "Reset shot" }).tap();
+    await page.getByRole("button", { name: "Restart level" }).tap();
     await ready(page);
     // Pause clears a first tap, so one tap after resuming cannot toggle.
     await touch("touchStart", [{ x: 240, y: 480, id: 4 }]);

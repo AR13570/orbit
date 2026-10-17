@@ -4,6 +4,7 @@ import { usePathAssist } from "../pathAssist";
 import { useSoundPreference } from "../soundPreference";
 import { MIN_GRAVITY_ZOOM } from "../zoom";
 import type { GravityPredictionJob } from "./prediction";
+import AdvancedToggle from "../components/AdvancedToggle";
 import AdvancedSettings from "../components/AdvancedSettings";
 import PathAssistControl from "../components/PathAssistControl";
 import ProjectileSizeControl from "./ProjectileSizeControl";
@@ -13,6 +14,7 @@ import { gravityAimPredictionSeconds } from "./aim-preview";
 import { gravityLaunchSpeed } from "./physics";
 import Icon from "../components/Icon";
 import GameHeader from "../components/GameHeader";
+import GravityLevelAction from "./GravityLevelAction";
 import ResetViewControl from "../components/ResetViewControl";
 import { resolveGravitySeed } from "./seed";
 import { useAmbientMusic } from "../audio/useAmbientMusic";
@@ -28,6 +30,8 @@ import {
   setGravityCurrentIndex,
 } from "./progress";
 import {
+  readParticleGrouping,
+  saveParticleGrouping,
   readParticleInteraction,
   saveParticleInteraction,
   readProjectileSize,
@@ -79,6 +83,7 @@ export default function GravityGame({
     const interaction = readParticleInteraction();
     if (interaction !== null || !customLevel)
       game.setParticleInteraction(interaction ?? true);
+    game.setParticleGrouping(readParticleGrouping());
     game.setProjectileSize(readProjectileSize());
     return game;
   });
@@ -94,6 +99,9 @@ export default function GravityGame({
   const [projectileScale, setProjectileScale] = useState(1);
   const [snapshot, setSnapshot] = useState(() => hudSnapshot(engine));
   const [levels, setLevels] = useState(false);
+  const [confirmSkip, setConfirmSkip] = useState(false);
+  const completionElapsed = useRef(0);
+  const nextBorder = useRef<SVGPathElement>(null);
   const [paused, setPaused] = useState(false);
   const [help, setHelp] = useState(
     () => !customLevel && (startTutorial || !gravityGuideSeen()),
@@ -194,6 +202,29 @@ export default function GravityGame({
     lastComplete.current = false;
     refresh();
   }, [cancel, engine, refresh, saveCurrent]);
+  const nextLevel = useCallback(() => {
+    if (!engine.getRenderSnapshot().complete || customLevel) return;
+    cancel();
+    engine.advance();
+    completionElapsed.current = 0;
+    saveCurrent(engine.getRenderSnapshot().level.index);
+    lastComplete.current = false;
+    refresh();
+  }, [cancel, customLevel, engine, refresh, saveCurrent]);
+  const cancelSkip = () => {
+    setConfirmSkip(false);
+    resume();
+  };
+  const skipLevel = () => {
+    cancel();
+    engine.skip();
+    completionElapsed.current = 0;
+    saveCurrent(engine.getRenderSnapshot().level.index);
+    lastComplete.current = false;
+    setConfirmSkip(false);
+    refresh();
+    resume();
+  };
   useEffect(() => {
     const r = createGravityRenderer(canvas.current!);
     renderer.current = r;
@@ -216,13 +247,13 @@ export default function GravityGame({
       "(prefers-reduced-motion: reduce)",
     ).matches;
     const tick = (time: number) => {
-      const dt =
-        last === null ? 0 : Math.min(0.05, Math.max(0, (time - last) / 1000));
+      const wallMilliseconds = last === null ? 0 : Math.max(0, time - last);
+      const dt = Math.min(0.05, wallMilliseconds / 1000);
       last = time;
       const active = !pause.current && !helpRef.current && !document.hidden;
       syncWorldFrame();
       if (active) engine.update(dt);
-      const state = engine.getRenderSnapshot();
+      let state = engine.getRenderSnapshot();
       if (
         active &&
         gesture.current.active &&
@@ -261,8 +292,20 @@ export default function GravityGame({
         preview.current = [];
         lastPreview.current = -Infinity;
       }
-      if (state.complete && !lastComplete.current) {
+      if (!state.complete) completionElapsed.current = 0;
+      else if (!lastComplete.current) {
+        completionElapsed.current = 0;
         saveCurrent(state.level.index, true);
+      } else if (active && !customLevel) {
+        completionElapsed.current += wallMilliseconds;
+        if (nextBorder.current)
+          nextBorder.current.style.strokeDashoffset = String(
+            Math.max(0, 1 - completionElapsed.current / 3000),
+          );
+        if (completionElapsed.current >= 3000) {
+          nextLevel();
+          state = engine.getRenderSnapshot();
+        }
       }
       lastComplete.current = state.complete;
       r.render(state, preview.current, time / 1000, {
@@ -298,7 +341,15 @@ export default function GravityGame({
       r.destroy();
       renderer.current = null;
     };
-  }, [engine, cancel, openPause, saveCurrent, syncWorldFrame]);
+  }, [
+    engine,
+    cancel,
+    customLevel,
+    nextLevel,
+    openPause,
+    saveCurrent,
+    syncWorldFrame,
+  ]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (
@@ -346,6 +397,13 @@ export default function GravityGame({
     }
     engine.setLaunch(origin.current, aim);
     pull.current = aim.pull;
+  };
+  const openHelp = (fromPause = false) => {
+    pauseMusic();
+    cancel();
+    returnToPause.current = fromPause;
+    helpRef.current = true;
+    setHelp(true);
   };
   const closeGuide = (result: "complete" | "skipped") => {
     finishGravityGuide(result);
@@ -485,6 +543,14 @@ export default function GravityGame({
         <div className="scene-actions">
           <button
             className="pause-button"
+            aria-label="How to play"
+            title="How to play"
+            onClick={() => openHelp()}
+          >
+            <Icon name="help" />
+          </button>
+          <button
+            className="pause-button"
             aria-label="Reset level (R)"
             title="Reset level (R)"
             onClick={retry}
@@ -500,11 +566,59 @@ export default function GravityGame({
           </button>
         </div>
         <div className="gravity-objective">
-          <p>{objectiveText(snapshot.level)}</p>
-          {snapshot.level.objective.kind !== "none" && (
-            <span>
-              {snapshot.progress.current} / {snapshot.progress.target} orbits
+          {snapshot.level.orbitPadding !== undefined && snapshot.level.title && (
+            <h1 className="gravity-stage-title">{snapshot.level.title}</h1>
+          )}
+          {snapshot.level.requirements?.some(
+            (goal) => goal.direction && goal.direction !== "either",
+          ) && (
+            <span className="visually-hidden">
+              {snapshot.level.requirements
+                .map(
+                  (goal) =>
+                    `Core ${String.fromCharCode(65 + snapshot.level.bodies.findIndex((body) => body.id === goal.bodyId))}: ${goal.direction ?? "either direction"}`,
+                )
+                .join(". ")}
             </span>
+          )}
+          <p>{objectiveText(snapshot.level)}</p>
+          {snapshot.level.journey ? (
+            <div className="gravity-journey" aria-label="Route progress">
+              <span>Same planet</span>
+              <ol>
+                {snapshot.level.journey.legs.map((leg, index) => {
+                  const best = Math.max(
+                    0,
+                    ...snapshot.particles
+                      .filter((p) => p.alive)
+                      .map((p) => p.journey?.leg ?? 0),
+                  );
+                  const name = String.fromCharCode(
+                    65 +
+                      snapshot.level.bodies.findIndex(
+                        (body) => body.id === leg.bodyId,
+                      ),
+                  );
+                  return (
+                    <li
+                      key={index}
+                      data-complete={index < best}
+                      data-active={index === best}
+                      aria-label={`Core ${name}${index < best ? ": passed" : index === best ? ": next" : ""}`}
+                    >
+                      {name}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          ) : (
+            snapshot.level.objective.kind !== "none" && (
+              <span>
+                {snapshot.progress.current} / {snapshot.progress.target}{" "}
+                {snapshot.level.sharedOrbit ? "shared orbits" : "orbits"}
+              </span>
+            )
           )}
           {customLevel ? (
             <button
@@ -517,22 +631,7 @@ export default function GravityGame({
               Back to editor
               <Icon name="back" />
             </button>
-          ) : (
-            <button
-              className={`gravity-skip ${snapshot.complete ? "gravity-next" : ""}`}
-              onClick={() => {
-                cancel();
-                if (snapshot.complete) engine.advance();
-                else engine.skip();
-                saveCurrent(engine.getRenderSnapshot().level.index);
-                lastComplete.current = false;
-                refresh();
-              }}
-            >
-              {snapshot.complete ? "Next level" : "Skip level"}
-              <Icon name={snapshot.complete ? "play" : "skip"} />
-            </button>
-          )}
+          ) : null}
         </div>
         <div className="gravity-footer">
           <p className="gravity-feedback" role="status">
@@ -542,9 +641,17 @@ export default function GravityGame({
                 ? "Orbits aligned"
                 : `${alive} ${alive === 1 ? "planet" : "planets"} in motion`}
           </p>
-          <p className="gravity-instruction">
-            Start anywhere. Pull back and release. Keep adding planets.
-          </p>
+          {!customLevel && (
+            <GravityLevelAction
+              complete={snapshot.complete}
+              borderRef={nextBorder}
+              onNext={nextLevel}
+              onSkip={() => {
+                openPause();
+                setConfirmSkip(true);
+              }}
+            />
+          )}
         </div>
         {!paused && !help && (
           <ResetViewControl zoom={zoom.zoom} onReset={zoom.reset} />
@@ -552,6 +659,25 @@ export default function GravityGame({
       </div>
       {help ? (
         <GravityGuide onFinish={closeGuide} />
+      ) : confirmSkip ? (
+        <GravityMenu
+          title="Skip this level?"
+          onClose={cancelSkip}
+          dismissOnBackdrop
+        >
+          <p>
+            You can return to this level later. Skipping won't mark it as
+            completed.
+          </p>
+          <div className="gravity-skip-confirm-actions">
+            <button onClick={cancelSkip}>
+              <span>Keep playing</span>
+            </button>
+            <button onClick={skipLevel}>
+              <span className="gravity-confirm-primary">Skip level</span>
+            </button>
+          </div>
+        </GravityMenu>
       ) : paused && levels ? (
         <GravityMenu title="Choose a level" onClose={() => setLevels(false)}>
           <button className="pause-option" onClick={() => setLevels(false)}>
@@ -619,12 +745,11 @@ export default function GravityGame({
           </button>
           <AdvancedSettings>
             <PathAssistControl />
-            <button
-              type="button"
-              className="pause-option"
-              role="switch"
-              aria-checked={snapshot.physics.planetGravity}
-              onClick={() => {
+            <AdvancedToggle
+              label="Particle Interaction"
+              description="On lets each planet attract other planets. Larger planets exert a stronger pull. Off removes this mutual pull; fixed cores still affect every planet."
+              enabled={snapshot.physics.planetGravity}
+              onToggle={() => {
                 cancel();
                 const enabled =
                   !engine.getRenderSnapshot().physics.planetGravity;
@@ -632,22 +757,47 @@ export default function GravityGame({
                 saveParticleInteraction(enabled);
                 refresh();
               }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="12" r="3" />
-                <path d="m10 9 2 3-2 3m4-6-2 3 2 3" />
-              </svg>
-              <span>Particle Interaction</span>
-              <span className="pause-switch" aria-hidden="true" />
-            </button>
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="12" r="3" />
+                  <path d="m10 9 2 3-2 3m4-6-2 3 2 3" />
+                </svg>
+              }
+            />
+            <AdvancedToggle
+              label="Particle grouping"
+              description="On lets planets transfer momentum on contact and settle together as a group. Off lets them pass through each other. Their mutual pull is controlled separately by Particle Interaction."
+              enabled={snapshot.physics.planetCollisions === "soft"}
+              onToggle={() => {
+                cancel();
+                const enabled =
+                  engine.getRenderSnapshot().physics.planetCollisions !==
+                  "soft";
+                engine.setParticleGrouping(enabled);
+                saveParticleGrouping(enabled);
+                refresh();
+              }}
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <circle cx="8" cy="10" r="5" />
+                  <circle cx="16" cy="14" r="4" />
+                </svg>
+              }
+            />
           </AdvancedSettings>
           <div className="pause-options">
             <button
@@ -661,15 +811,7 @@ export default function GravityGame({
               <span>{muted ? "Sound off" : "Sound on"}</span>
               <span className="pause-switch" aria-hidden="true" />
             </button>
-            <button
-              className="pause-option"
-              onClick={() => {
-                cancel();
-                returnToPause.current = true;
-                helpRef.current = true;
-                setHelp(true);
-              }}
-            >
+            <button className="pause-option" onClick={() => openHelp(true)}>
               <Icon name="help" />
               <span>How to play</span>
               <span className="pause-chevron" aria-hidden="true" />
@@ -682,7 +824,7 @@ export default function GravityGame({
               }}
             >
               <Icon name="reset" />
-              <span>Reset level</span>
+              <span>Restart level</span>
               <span className="pause-chevron" aria-hidden="true" />
             </button>
             {!customLevel && (

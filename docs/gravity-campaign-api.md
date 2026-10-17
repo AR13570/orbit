@@ -1,50 +1,44 @@
 # Gravity campaign and endless provider
 
-The campaign contains 45 newly authored, reference-inspired levels. It is not a reconstruction of the undisclosed original campaign. The source geometries include isolated wells with colorful orbital crowds, separated and close binaries, enclosed central wells, and increasingly varied constellations. There are 34 named structural families with different populations, adjacency, gaps, masses, repeller arrangements and physics settings.
+The 45-level campaign is newly authored and inspired by the reference game's App Store screenshots. It is not a copy of its undisclosed levels. The first eight stages already alternate isolated capture, twin homes, shared loops, opposing directions, same-planet handoffs, repeller pockets and three-core fields.
 
-## Provider
+## Campaign design
 
-`getGravityLevel(seed, index)` in `src/gravity/campaign.ts` supplies the fixed authored campaign for indices 0 through 44, followed by seeded endless levels. The global index is preserved, including indices beyond 10000. `CAMPAIGN_LEVEL_COUNT` is 45. `getCampaignCatalog()` returns independent `{ index, title, family, mechanics }` entries for a selector. Catalog `family` is the structural layout identifier; `GravityLevel.family` remains the legacy objective adapter.
+`src/gravity/campaign-design.ts` defines all 45 spatial arrangements and their goals. Titles describe the current challenge. Every six-level window contains at least three challenge types. Most stages need one or two planets, with a maximum of four assigned orbiters, so progression comes from trajectories and field interactions rather than bigger crowds.
 
-Inject `getGravityLevel` into `new GravityEngine(seed, undefined, getGravityLevel)` and navigate using `engine.goTo(index)`. Creator and Odessey callers can continue supplying their own levels and providers.
+- **Local orbits:** assign separate living planets to the marked cores. Some fields have non-target cores that disturb the route. Curved arrows identify required clockwise or counterclockwise orbits.
+- **Shared orbits:** each qualifying planet must circle every named core in one shared loop. Circling their midpoint alone does not qualify. Later stages add strong mass imbalance and repellers directly on outer flight lanes.
+- **Opposing shared orbits:** establish a shared loop in each direction with different planets. The goal cannot be satisfied by two planets moving the same way.
+- **Relays:** one living planet must sweep a curved arc inside each encounter region, in order. Different planets cannot pool visits. The active region has a faint dashed boundary and a filling arc, with a matching lettered progress row.
+- **Transfer and capture:** complete the relay and then remain inside the destination region for a full revolution. Levels 28, 41 and 45 use this finish. Level 45 returns to its starting core after visiting the other two.
+- **Moving fields:** wells move physically; late motion is more pronounced. Tidal balance asks for two revolutions around the outside cores while a moving central well disturbs their paths.
 
-`generateGravityLevel(seed, index)` remains a standalone endless generator, including when called with an index below 45. Inputs normalize unsigned seeds and finite, nonnegative integer indices. A seeded coprime traversal visits 29 distinct eligible structural families from the first endless level, without repeating a family during a complete traversal. Orientation varies by seed; physical force and playback speed do not increase with difficulty. A failed orientation retries the verified orientation of the same family with exactly the same population and revolution demands. Validation has a strict two-candidate bound and a 30 physical second replay horizon. Generated cache size is limited to 96, and returned objects are cloned to prevent mutation of cached levels.
+Flyby sweep demands increase in later relays. A visit is not credited for simply spawning inside a region, remaining stationary, or approaching cores out of order. Partial sweep resets on leaving the encounter region; completed legs persist while that planet remains alive. No goal depends on elapsed time. The normal three-second Next level transition is presentation, not a win condition.
 
-## Endless difficulty
+Grouping remains independently configurable in Advanced and defaults off. Mutual particle attraction remains on by default. Levels preserve the player's physics preferences; they never silently enable grouping or disable gravity.
 
-`gravityDifficulty(index)` in `src/gravity/difficulty.ts` defines a nondecreasing objective budget. It begins at the final campaign level's six orbiters and two revolutions. Here, offset is the number of levels after the first endless level, global index 45.
+## Provider and authoring evidence
 
-| Endless offset | Required orbiters | Revolutions |
-| --- | --- | --- |
-| 0 | 6 | 2 |
-| 15 | 7 | 2 |
-| 30 | 8 | 2 |
-| 45 and beyond | 8 | 3 |
+`getGravityLevel(seed, index)` in `src/gravity/campaign.ts` supplies fixed campaign indices 0 through 44, followed by seeded endless levels. Campaign coordinates are seed-independent. `getCampaignCatalog()` returns cloned `{ index, title, family, mechanics }` entries. Catalog `family` is the layout identifier; `GravityLevel.family` retains the legacy objective adapter for compatibility.
 
-There are no elapsed-time win requirements. A level completes as soon as the required number of living bound orbiters has completed the required revolutions. Population is capped at eight and revolutions at three to keep fields readable on mobile and avoid impractically long objectives. This is a bounded progression, rather than unlimited difficulty growth. Each profile's population is the total assigned across wells, not a random count multiplied by the number of bodies. Seeded formation changes never reduce that budget. Per-core markers retain their exact assigned counts, while longer objective descriptions summarize the total.
+`campaign-witnesses.json` records physically reachable launch positions, velocities and launch times. These never launch on the player's behalf. Normal startup loads the recorded data without running a solution search. `tests/gravity/campaign-authoring.test.ts` is an opt-in authoring search:
 
-Legacy v1 `objective.hold` fields are accepted and normalized to zero when importing, loading, saving or creating simulation state. Goal evaluation also ignores legacy hold values in an already-restored state, so they cannot silently delay completion. Compatibility `hold` and `held` progress fields remain zero. The creator exposes only populations and revolutions for goal configuration. Physics integration time, playback, moving wells, prediction and trail fading retain their simulation clocks.
+```sh
+GRAVITY_AUTHOR_CAMPAIGN=1 npm test -- tests/gravity/campaign-authoring.test.ts --maxWorkers=1
+```
 
-`src/gravity/endless.ts` selects and configures these profiles. All 29 eligible formations support the maximum eight-orbiter, three-revolution objective using recorded launch evidence. Double-ring and three-clusters remain in the campaign but are excluded from endless selection because they did not yield suitable long-lived captures. Counterflow remains in the campaign because the renderer currently expects one population goal per core. Compact-swarm and concentric-shells are omitted as selection aliases of the same visible single-core formation under a shared population budget. Other single-core formations remain distinct through repellers, motion or planet interactions.
+The authoring pass rejects candidates that fail at world radii 4, 6, 8, 12 or 16, at the actual camera-calibrated default sizes for desktop, phone, small phone and landscape, or with half-sized physics steps. `campaign-playability.test.ts` also replays all 45 against actual outermost-view removal bounds. The browser campaign suite replays all 45 through the live engine, completion UI and level navigation on desktop, portrait and landscape. Separate input playtests cover real mouse and touch launches.
 
-## Authoring evidence
+## Endless play
 
-`src/gravity/layouts.ts` contains the structural definitions. `src/gravity/campaign.ts` contains the 45 authored configurations. Body radius encodes the square root of relative gravitational strength. Advanced layouts use the same default planet gravity constant as the simulation, with explicit collision policies and moving well definitions.
+Level 46 onward uses `campaign-endless.ts` and all 45 campaign structures. The eight introductory layouts receive advanced goals: opposing local directions, opposing shared duets, multiple orbiters or a destination capture. Local, shared and relay families alternate, while each family reshuffles deterministically without immediately repeating a template. Every six-stage window includes all three families. Opposing shared loops, moving wells and transfer captures remain part of the pool.
 
-Hidden `witness` shots are authoring evidence. Each contains an arbitrary world position, physical velocity and physical launch time. They never launch on the player's behalf. `verifyLevel(level)` and `witnessCompletionTime(level, dt?)` replay `createState`, `fireFrom`, `step` and `goalProgress` with all configured wells, mutual forces, motions and collisions enabled. Per-well counts use the simulation's unique orbiter assignment. Tests replay all 45 levels and every canonical endless fallback, along with varied seeds, distant indices and half-size integration steps.
+Difficulty is a global band: Level 46 starts at band 0, Level 76 at band 1, and Level 106 at band 2. Stable orbit goals gain up to two turns, capped at three. Chaotic fields have explicit verified ceilings of one or two turns so their challenge remains finding a trajectory rather than surviving an arbitrarily long wait. Non-capture relay arcs increase by 10% and then 20%; destination captures remain one full orbit. Populations, force baselines and playback speed do not increase with the band. A given template's demand never decreases.
 
-`witness-fixtures.json` stores capture trajectories found through an author-time angle, radius and velocity search. Completion times are synchronized across wells. Populations sample those same trajectories at distinct positions, preserving actual N-body replay validation. Campaign loading uses the stored trajectories and short phase sampling rather than a search or full solution replay. To regenerate the base capture fixtures deliberately, run `GRAVITY_AUTHOR_FIXTURES=1 npx vitest run tests/gravity/authoring.test.ts`, then rerun the campaign and generator tests. Normal test runs skip this source-writing authoring operation.
+Seeded variants rotate and reflect bodies, launches and well motion together; reflections also reverse directional requirements. Bounded changes to individual well positions and strengths produce additional field variation. The generator accepts a variant only after its recorded solution succeeds at minimum/maximum planet sizes, calibrated desktop/phone/small-phone/landscape sizes with actual outermost removal bounds, and half-sized physics steps. Failed field perturbations retry the same template and difficulty with its unperturbed transform, then its canonical orientation. A failure never substitutes a lower-demand goal.
 
-`endless-fixtures.json` is separate from the campaign fixtures. It stores complete maximum-demand solutions, including all eight launches when a lower profile requires six or seven orbiters. Retaining those extra planets preserves the validated mutual forces. To deliberately regenerate these long-lived captures, run `GRAVITY_AUTHOR_ENDLESS=1 npx vitest run tests/gravity/endless-authoring.test.ts`, then replay the progression and generator suites. This opt-in search is never run during normal tests or level loading. A campaign hash regression normalizes only the removed hold metadata, confirming the geometry, launch witnesses and orbital goals of all 45 authored levels remain unchanged.
+`campaign-endless-witnesses.json` records solutions for every template and band. Authoring searches run offline through `GRAVITY_AUTHOR_ENDLESS_CAMPAIGN=1 npm test -- tests/gravity/campaign-endless-authoring.test.ts --maxWorkers=1`; runtime only replays these solutions to validate bounded variants. Returned levels are cloned and the runtime cache remains bounded. Old `endless.ts` formation helpers and their fixtures are retained solely for authoring and physics regressions, and are not scheduled by the game.
 
-## Gravity-only progress
+## Progress
 
-`src/gravity/progress.ts` exports:
-
-- `GravityProgress`: `{ version: 1, seed, currentIndex, unlockedIndex, completedIndices }`.
-- `loadGravityProgress(seed)`: resume the seed's state or return fresh progress when storage is absent, corrupt, mismatched or disabled.
-- `saveGravityProgress(progress)`: normalize and save, tolerating unavailable storage.
-- `recordGravityCompletion(progress, index)`: immutable update recording completion, selecting the next global level and unlocking it.
-- `setGravityCurrentIndex(progress, index)`: immutable navigation update. Skipping unlocks the selected index without recording a completion or imposing a penalty.
-
-Storage uses `orbit.gravity.progress.v1:<unsigned seed>`. Campaign completion and endless completion share global indices. Creator and Odessey play must not save campaign progress. There are no competitive scores or launch penalties.
+Browser progress uses `orbit.gravity.progress.v1:<unsigned seed>`. Current index, unlocked index and completed indices remain intact across this campaign revision. Skipping does not record a completion. Replay the rebuilt campaign by choosing Level 1 in Pause. Odessey and creator saves are separate and unchanged.

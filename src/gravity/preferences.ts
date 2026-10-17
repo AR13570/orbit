@@ -66,3 +66,24 @@ export function saveProjectileSize(value: number): void {
     sizeUnwritten = true;
   }
 }
+
+export const PARTICLE_GROUPING_KEY = "orbit.gravity.particle-grouping.v1";
+let sessionGrouping = false;
+let groupingUnwritten = false;
+export function readParticleGrouping(): boolean {
+  if (groupingUnwritten) return sessionGrouping;
+  try {
+    return localStorage.getItem(PARTICLE_GROUPING_KEY) === "true";
+  } catch {
+    return sessionGrouping;
+  }
+}
+export function saveParticleGrouping(enabled: boolean): void {
+  sessionGrouping = enabled;
+  try {
+    localStorage.setItem(PARTICLE_GROUPING_KEY, String(enabled));
+    groupingUnwritten = false;
+  } catch {
+    groupingUnwritten = true;
+  }
+}

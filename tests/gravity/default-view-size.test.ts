@@ -83,11 +83,11 @@ it("keeps custom authoring and tutorial physics independent of responsive calibr
 
 it.each([
   [1200, 800, 0, 4],
-  [390, 844, 0, 4.024844720496895],
+  [390, 844, 0, 4.392],
   [844, 390, 0, 4.0754716981132075],
-  [1200, 800, 30, 9.663934426229508],
-  [390, 844, 30, 16],
-  [844, 390, 30, 14.830188679245284],
+  [1200, 800, 30, 6.526411502028423],
+  [390, 844, 30, 9.652173913043478],
+  [844, 390, 30, 9.765653874522794],
 ])(
   "calibrates the actual %ix%i default view for campaign index %i",
   (width, height, index, radius) => {

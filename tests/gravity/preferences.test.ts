@@ -24,3 +24,29 @@ it("keeps an explicit choice for the session when storage is blocked", () => {
   saveParticleInteraction(true);
   expect(readParticleInteraction()).toBe(true);
 });
+
+it("defaults grouping off and remembers a separate explicit choice", async () => {
+  const { PARTICLE_GROUPING_KEY, readParticleGrouping, saveParticleGrouping } =
+    await import("../../src/gravity/preferences");
+  expect(readParticleGrouping()).toBe(false);
+  localStorage.setItem(PARTICLE_GROUPING_KEY, "garbage");
+  expect(readParticleGrouping()).toBe(false);
+  saveParticleGrouping(true);
+  expect(readParticleGrouping()).toBe(true);
+  saveParticleInteraction(false);
+  expect(readParticleGrouping()).toBe(true);
+  saveParticleGrouping(false);
+  expect(readParticleGrouping()).toBe(false);
+});
+
+it("remembers grouping for the session if browser storage is unavailable", async () => {
+  const { readParticleGrouping, saveParticleGrouping } =
+    await import("../../src/gravity/preferences");
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new Error("blocked");
+  });
+  saveParticleGrouping(true);
+  expect(readParticleGrouping()).toBe(true);
+  saveParticleGrouping(false);
+  expect(readParticleGrouping()).toBe(false);
+});

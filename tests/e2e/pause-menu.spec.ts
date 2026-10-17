@@ -71,10 +71,9 @@ for (const mode of ["odessey", "gravity"])
         ...(mode === "gravity" ? ["Particle Interaction"] : []),
         "Sound on",
         "How to play",
+        "Restart level",
         "Choose mode",
-        ...(mode === "gravity"
-          ? ["Reset level", "Choose a level"]
-          : ["New seed"]),
+        ...(mode === "gravity" ? ["Choose a level"] : ["New seed"]),
       ];
       for (const name of actions) {
         const button = menu.getByRole(
@@ -103,9 +102,7 @@ for (const mode of ["odessey", "gravity"])
       await expect(assist).toHaveAttribute("aria-checked", "false");
       await page.keyboard.press("Enter");
       await expect(assist).toHaveAttribute("aria-checked", "true");
-      await menu
-        .getByRole("button", { name: "Sound on", exact: true })
-        .click();
+      await menu.getByRole("button", { name: "Sound on", exact: true }).click();
       await expect(
         menu.getByRole("button", { name: "Sound off", exact: true }),
       ).toHaveAttribute("aria-pressed", "false");

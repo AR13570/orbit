@@ -73,7 +73,7 @@ const lessons = [
   ],
   [
     "Let gravity draw",
-    "Blue cores pull. Coral cores push. Rings and counts show each core’s goal. Particle Interaction in Advanced controls planets’ mutual pull.",
+    "Blue cores pull. Coral cores push. Rings and counts show each core’s goal. In Advanced, Particle Interaction controls mutual pull. Particle grouping is off by default; turn it on to let planets settle together on contact.",
   ],
   [
     "Choose a size",
@@ -81,7 +81,7 @@ const lessons = [
   ],
   [
     "Keep a sky you love",
-    "Choose Skip level or Next level below the goal. Pinch to zoom; scroll on desktop. Path assist is in Advanced.",
+    "Skip a level from the bottom of the screen after confirming. Complete a goal to advance automatically after three seconds, or tap Next level to go sooner. Pinch to zoom; scroll on desktop.",
   ],
 ];
 export default function GravityGuide({

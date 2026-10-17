@@ -41,7 +41,17 @@ export function fitGravityFrame(
   const landscape = touchLayout && width >= height && height <= 500;
   const left = landscape ? Math.min(190, width * 0.25) : touchLayout ? 16 : 32;
   const right = touchLayout ? 16 : 80;
-  const top = landscape ? 18 : touchLayout ? 128 : 136;
+  const top = landscape
+    ? 18
+    : level.orbitPadding !== undefined
+      ? level.journey
+        ? 180
+        : touchLayout
+          ? 150
+          : 156
+      : touchLayout
+        ? 128
+        : 136;
   const bottom = landscape ? 18 : touchLayout ? 104 : 128;
   const area = {
     x: left,
@@ -50,7 +60,7 @@ export function fitGravityFrame(
     height: Math.max(1, height - top - bottom),
   };
   const orbitRadius = (body: GravityLevel["bodies"][number]) =>
-    body.radius + (body.kind === "attractor" ? 84 : 48);
+    body.radius + (body.kind === "attractor" ? (level.orbitPadding ?? 84) : 48);
   const envelopes = level.bodies.map((body) => {
     const motion = level.motions?.find((path) => path.bodyId === body.id);
     const travel = motion
@@ -462,6 +472,48 @@ export function createGravityRenderer(
       for (const { particle, radius } of visiblePlanets) {
         planet(particle.position, radius, particle.color);
       }
+      const journey = snapshot.level.journey;
+      if (journey) {
+        const best = snapshot.particles
+          .filter((p) => p.alive)
+          .sort(
+            (a, b) =>
+              (b.journey?.leg ?? 0) - (a.journey?.leg ?? 0) ||
+              Math.abs(b.journey?.sweep ?? 0) - Math.abs(a.journey?.sweep ?? 0),
+          )[0];
+        const legIndex = best?.journey?.leg ?? 0;
+        const leg = journey.legs[legIndex];
+        const body = snapshot.level.bodies.find(
+          (body) => body.id === leg?.bodyId,
+        );
+        if (leg && body) {
+          ctx.strokeStyle = "#527c9a";
+          ctx.lineWidth = 1 / renderScale;
+          ctx.globalAlpha = 0.25;
+          ctx.setLineDash([3 / renderScale, 6 / renderScale]);
+          circle(body.position, leg.radius);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const fraction = Math.min(
+            1,
+            Math.abs(best?.journey?.sweep ?? 0) / leg.sweep,
+          );
+          if (fraction > 0) {
+            ctx.globalAlpha = 0.65;
+            ctx.lineWidth = 1.5 / renderScale;
+            ctx.beginPath();
+            ctx.arc(
+              body.position.x,
+              body.position.y,
+              leg.radius,
+              -Math.PI / 2,
+              -Math.PI / 2 + fraction * TAU,
+            );
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 1;
+        }
+      }
       const showBodyLabels =
         snapshot.level.bodies.filter((b) => b.kind === "attractor").length > 1;
       snapshot.level.bodies.forEach((body, index) => {
@@ -483,31 +535,33 @@ export function createGravityRenderer(
           ctx.globalAlpha = 1;
         }
         if (body.kind === "repellent") return;
-        const best = Math.max(
-          0,
-          ...snapshot.particles
-            .filter((p) => p.alive)
-            .map((p) => orbitFraction(snapshot, p, body.id)),
-        );
-        ctx.strokeStyle = "#527c9a";
-        ctx.globalAlpha = 0.22;
-        ctx.lineWidth = 1 / renderScale;
-        circle(body.position, body.radius + 8 / renderScale);
-        ctx.stroke();
-        if (best > 0) {
-          ctx.globalAlpha = 0.8;
-          ctx.lineWidth = 2 / renderScale;
-          ctx.beginPath();
-          ctx.arc(
-            body.position.x,
-            body.position.y,
-            body.radius + 8 / renderScale,
-            -Math.PI / 2,
-            -Math.PI / 2 + best * TAU,
+        if (!snapshot.level.sharedOrbit) {
+          const best = Math.max(
+            0,
+            ...snapshot.particles
+              .filter((p) => p.alive)
+              .map((p) => orbitFraction(snapshot, p, body.id)),
           );
+          ctx.strokeStyle = "#527c9a";
+          ctx.globalAlpha = 0.22;
+          ctx.lineWidth = 1 / renderScale;
+          circle(body.position, body.radius + 8 / renderScale);
           ctx.stroke();
+          if (best > 0) {
+            ctx.globalAlpha = 0.8;
+            ctx.lineWidth = 2 / renderScale;
+            ctx.beginPath();
+            ctx.arc(
+              body.position.x,
+              body.position.y,
+              body.radius + 8 / renderScale,
+              -Math.PI / 2,
+              -Math.PI / 2 + best * TAU,
+            );
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 1;
         }
-        ctx.globalAlpha = 1;
         const goal = snapshot.progress.bodies?.find(
           (item) => item.bodyId === body.id,
         );
@@ -521,6 +575,38 @@ export function createGravityRenderer(
             body.position.x,
             body.position.y + body.radius + 16 / renderScale,
           );
+        }
+        const direction = snapshot.level.requirements?.find(
+          (goal) => goal.bodyId === body.id,
+        )?.direction;
+        if (direction && direction !== "either") {
+          const sign = direction === "clockwise" ? 1 : -1;
+          const x = body.position.x + 25 / renderScale,
+            y = body.position.y + body.radius + 22 / renderScale;
+          const r = 6 / renderScale,
+            start = -Math.PI * 0.7,
+            end = start + sign * Math.PI * 1.5;
+          ctx.strokeStyle = "#527c9a";
+          ctx.lineWidth = 1.3 / renderScale;
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath();
+          ctx.arc(x, y, r, start, end, sign < 0);
+          ctx.stroke();
+          const px = x + Math.cos(end) * r,
+            py = y + Math.sin(end) * r,
+            tangent = end + (sign * Math.PI) / 2;
+          ctx.beginPath();
+          ctx.moveTo(
+            px - (Math.cos(tangent - 0.6) * 4) / renderScale,
+            py - (Math.sin(tangent - 0.6) * 4) / renderScale,
+          );
+          ctx.lineTo(px, py);
+          ctx.lineTo(
+            px - (Math.cos(tangent + 0.6) * 4) / renderScale,
+            py - (Math.sin(tangent + 0.6) * 4) / renderScale,
+          );
+          ctx.stroke();
+          ctx.globalAlpha = 1;
         }
         if (showBodyLabels) {
           ctx.fillStyle = insideLabel ? "#e9ecef" : "#455c70";
@@ -540,33 +626,52 @@ export function createGravityRenderer(
           );
         }
       });
-      if (snapshot.level.objective.kind === "tour") {
+      if (snapshot.level.objective.kind === "tour" && !snapshot.level.journey) {
         const bodies = snapshot.level.bodies.filter(
           (b) => b.kind === "attractor",
         );
         const center = {
-          x: (bodies[0].position.x + bodies[1].position.x) / 2,
-          y: (bodies[0].position.y + bodies[1].position.y) / 2,
+          x:
+            bodies.reduce((sum, body) => sum + body.position.x, 0) /
+            bodies.length,
+          y:
+            bodies.reduce((sum, body) => sum + body.position.y, 0) /
+            bodies.length,
         };
         const best = Math.max(
           0,
           ...snapshot.particles
             .filter((p) => p.alive)
-            .map((p) => orbitFraction(snapshot, p, "pair")),
+            .map((p) =>
+              snapshot.level.sharedOrbit
+                ? Math.min(
+                    ...snapshot.level.sharedOrbit.map((id) =>
+                      Math.min(
+                        1,
+                        Math.abs(p.orbits[id]?.winding ?? 0) /
+                          (TAU * snapshot.level.objective.turns),
+                      ),
+                    ),
+                  )
+                : orbitFraction(snapshot, p, "pair"),
+            ),
         );
         ctx.globalAlpha = 0.45;
         ctx.strokeStyle = "#527c9a";
         ctx.lineWidth = 1.5 / renderScale;
         ctx.setLineDash([2 / renderScale, 5 / renderScale]);
-        circle(
-          center,
-          Math.hypot(
-            bodies[0].position.x - center.x,
-            bodies[0].position.y - center.y,
+        const sharedRadius =
+          Math.max(
+            ...bodies.map(
+              (body) =>
+                Math.hypot(
+                  body.position.x - center.x,
+                  body.position.y - center.y,
+                ) + body.radius,
+            ),
           ) +
-            bodies[0].radius +
-            20 / renderScale,
-        );
+          20 / renderScale;
+        circle(center, sharedRadius);
         ctx.stroke();
         ctx.setLineDash([]);
         if (best > 0) {
@@ -574,7 +679,7 @@ export function createGravityRenderer(
           ctx.arc(
             center.x,
             center.y,
-            110,
+            sharedRadius,
             -Math.PI / 2,
             -Math.PI / 2 + best * TAU,
           );

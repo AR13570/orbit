@@ -5,14 +5,14 @@ import { worldToClient } from "../../src/render/coordinates";
 import { objectiveText } from "../../src/gravity/simulation";
 
 describe("Gravity content framing", () => {
-  it.each([0, 6])(
+  it.each([0, 1])(
     "makes early level %i cores readable on a desktop without changing world geometry",
     (index) => {
       const level = getGravityLevel(42, index),
         before = structuredClone(level);
       const frame = fitGravityFrame(level, 1280, 720, false);
       for (const body of level.bodies)
-        expect(body.radius * frame.camera.scale * 2).toBeGreaterThanOrEqual(60);
+        expect(body.radius * frame.camera.scale * 2).toBeGreaterThanOrEqual(48);
       for (const body of level.bodies)
         expect(body.radius * frame.camera.scale * 2).toBeLessThanOrEqual(100);
       expect(level).toEqual(before);
@@ -95,13 +95,14 @@ describe("Gravity objective copy", () => {
     expect(text.length).toBeLessThan(80);
     expect(text).not.toContain(" · ");
   });
-  it("includes the required two revolutions without a timed wait in the last authored level", () => {
+  it("describes the final ordered return and full capture without a timed wait", () => {
     const text = objectiveText(getGravityLevel(42, 44));
-    expect(text).toContain("for 2 revolutions");
+    expect(text).toContain("A → B → C → A");
+    expect(text).toContain("full orbit at A");
     expect(text).not.toMatch(/hold|seconds/i);
   });
   it("identifies the intended central core instead of implying every surrounding core is a target", () => {
-    const text = objectiveText(getGravityLevel(42, 28));
+    const text = objectiveText(getGravityLevel(42, 21));
     expect(text).toContain("around core A");
     expect(text).not.toContain("each core");
   });

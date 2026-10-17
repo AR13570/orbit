@@ -6,16 +6,24 @@ import { markTutorialSeen } from "./tutorial-fixture";
 
 async function assertObjectiveAction(page: Page, name: string) {
   const objective = page.locator(".gravity-objective");
-  const action = objective.getByRole("button", { name, exact: true });
+  const group =
+    name === "Back to editor" ? objective : page.locator(".gravity-footer");
+  const action = group.getByRole("button", { name, exact: true });
   await expect(action).toBeVisible();
   await expect(action.locator("svg")).toHaveCount(1);
-  await expect(page.locator(".gravity-footer button")).toHaveCount(0);
+  await expect(
+    page
+      .locator(".gravity-objective")
+      .getByRole("button", { name: "Skip level", exact: true }),
+  ).toHaveCount(0);
   await expect(page.locator(".gameplay-zoom-controls")).toHaveCount(0);
   const text = (await objective.locator("p").boundingBox())!;
   const button = (await action.boundingBox())!;
   expect(button.height).toBeGreaterThanOrEqual(44);
   expect(button.y).toBeGreaterThanOrEqual(text.y + text.height);
-  expect(button.y - (text.y + text.height)).toBeLessThanOrEqual(30);
+  if (name === "Back to editor")
+    expect(button.y - (text.y + text.height)).toBeLessThanOrEqual(30);
+  else expect(button.y).toBeGreaterThan(page.viewportSize()!.height * 0.7);
   const slider = (await page
     .locator(".projectile-size-control")
     .boundingBox())!;
@@ -25,9 +33,11 @@ async function assertObjectiveAction(page: Page, name: string) {
   );
   await expect(page.locator(".projectile-size-small")).toBeVisible();
   await expect(page.locator(".projectile-size-large")).toBeVisible();
-  const group = (await objective.boundingBox())!;
   expect(
-    slider.x + slider.width <= group.x || slider.y >= group.y + group.height,
+    slider.x + slider.width <= button.x ||
+      slider.x >= button.x + button.width ||
+      slider.y + slider.height <= button.y ||
+      slider.y >= button.y + button.height,
   ).toBe(true);
   expect(
     await objective.evaluate(
@@ -77,6 +87,10 @@ for (const viewport of [
         path: `/private/tmp/orbit-hud-campaign-${viewport.width}x${viewport.height}.png`,
       });
       await page
+        .getByRole("button", { name: "Skip level", exact: true })
+        .click();
+      await page
+        .getByRole("dialog", { name: "Skip this level?" })
         .getByRole("button", { name: "Skip level", exact: true })
         .click();
       await expect(page.locator(".gravity-level")).toHaveText("Level 46");

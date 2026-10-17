@@ -61,6 +61,13 @@ export interface GravityLevel {
   bodies: Body[];
   objective: GravityObjective;
   requirements?: GravityOrbitRequirement[];
+  /** One planet must curve around these cores in this order. Progress is never pooled. */
+  journey?: { legs: { bodyId: string; radius: number; sweep: number }[] };
+  /** Each qualifying planet must complete a shared outer orbit around every core. */
+  sharedOrbit?: string[];
+  sharedCounter?: boolean;
+  /** Extra room for authored outer orbits and flybys in the default camera. */
+  orbitPadding?: number;
   physics?: GravityPhysicsOptions;
   motions?: GravityWellMotion[];
   title?: string;
@@ -98,6 +105,7 @@ export interface GravityParticle {
   outside: number;
   trail: TrailPoint[];
   orbits: Record<string, OrbitTrack>;
+  journey?: { leg: number; sweep: number; angle?: number };
 }
 export interface GravityState {
   /** Opt-in gameplay torque history. Absent in pure authored/reference worlds. */

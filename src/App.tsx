@@ -53,8 +53,7 @@ export function OdesseyGame({
   const [paused, setPaused] = useState(false),
     [help, setHelp] = useState(
       () => startTutorial || (!debug.enabled && !tutorialSeen("odessey")),
-    ),
-    [hint, setHint] = useState(true);
+    );
   const [muted, setMuted] = useSoundPreference();
   const pauseMusic = useAmbientMusic(!muted && !paused && !help);
   const [modeFeedback, setModeFeedback] = useState("");
@@ -235,9 +234,7 @@ export function OdesseyGame({
     window.addEventListener("orientationchange", resize);
     let frame = 0,
       last = 0,
-      lastHud = 0,
-      hintTime = 0,
-      hintEnded = false;
+      lastHud = 0;
     const reduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -258,11 +255,6 @@ export function OdesseyGame({
       if (active) {
         engine.update(dt);
         s = engine.getSnapshot();
-        hintTime += dt;
-        if (hintTime > 5 && !hintEnded) {
-          hintEnded = true;
-          setHint(false);
-        }
         // Dock increments the count before its animation ends. Save that boundary now.
         persistCheckpoint(s);
         const next = clock.current.step(s.status, dt, true);
@@ -417,6 +409,13 @@ export function OdesseyGame({
     },
     [engine],
   );
+  const openHelp = (fromPause = false) => {
+    pauseMusic();
+    cancel();
+    returnToPause.current = fromPause;
+    helpRef.current = true;
+    setHelp(true);
+  };
   const closeTutorial = (result: TutorialResult) => {
     restoreTutorialFocus.current = true;
     finishTutorial("odessey", result);
@@ -457,8 +456,8 @@ export function OdesseyGame({
     <main ref={scene} className="orbit-scene">
       <div
         className="game-surface"
-        inert={help}
-        aria-hidden={help || undefined}
+        inert={help || paused}
+        aria-hidden={help || paused || undefined}
       >
         <canvas
           ref={canvas}
@@ -657,7 +656,6 @@ export function OdesseyGame({
               if (renderer.current)
                 engine.setFlightBounds(renderer.current.getVisibleBounds());
               engine.launch();
-              setHint(false);
               refresh();
             }
           }}
@@ -707,6 +705,14 @@ export function OdesseyGame({
         <div className="scene-actions">
           <button
             className="pause-button"
+            aria-label="How to play"
+            title="How to play"
+            onClick={() => openHelp()}
+          >
+            <Icon name="help" />
+          </button>
+          <button
+            className="pause-button"
             aria-label="Reset level (R)"
             title="Reset level (R)"
             disabled={snapshot.status === "docked"}
@@ -722,11 +728,6 @@ export function OdesseyGame({
             <Icon name="pause" />
           </button>
         </div>
-        {hint && !paused && snapshot.status === "aiming" && (
-          <p className="gesture-hint">
-            Pull back. Release to fly. Double tap to change shoot modes.
-          </p>
-        )}
         {offscreenRemaining !== null && !paused && !help && (
           <button
             className="offscreen-restart"
@@ -763,19 +764,13 @@ export function OdesseyGame({
         <PauseMenu
           onModes={onExit}
           onResume={resume}
-          onHelp={() => {
-            returnToPause.current = true;
-            cancel();
-            helpRef.current = true;
-            setHelp(true);
-          }}
+          onHelp={() => openHelp(true)}
           onRestart={restart}
-          onResetShot={resetLevel}
+          onRestartLevel={resetLevel}
           onSound={() => {
             setMuted((m) => !m);
           }}
           muted={muted}
-          flying={snapshot.status === "flying"}
         />
       ) : null}
     </main>

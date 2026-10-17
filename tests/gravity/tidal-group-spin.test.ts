@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GravityEngine } from "../../src/gravity/engine";
-import { getGravityLevel } from "../../src/gravity/campaign";
+import { buildGravityLayout, GRAVITY_LAYOUTS } from "../../src/gravity/layouts";
 import { assistGroupSpin } from "../../src/gravity/group-spin";
 import { planetAccelerations } from "../../src/gravity/physics";
 import { createGravityPrediction } from "../../src/gravity/prediction";
@@ -59,7 +59,12 @@ function capturedWorld(
   sizes: [number, number],
   scale: number,
 ) {
-  const engine = new GravityEngine(42, undefined, getGravityLevel);
+  const engine = new GravityEngine(42, undefined, (seed, index) =>
+    buildGravityLayout(
+      GRAVITY_LAYOUTS.find((layout) => layout.id === "single-well")!,
+      { index, seed, title: "Tidal physics fixture", source: "campaign" },
+    ),
+  );
   engine.goTo(3);
   engine.setTimeScale(1);
   engine.setDefaultViewScale(scale);

@@ -14,7 +14,7 @@ Pull back, release, and let gravity take over. Orbit is a quiet browser game abo
 
 **Odessey** · Curve past attractors and repellers to reach the blue checkpoint ring. Each checkpoint opens a new field. Missed shots give you another try, with your checkpoint progress intact.
 
-**Gravity** · Keep colourful projectiles orbiting to satisfy each field's challenge. Complete a revolution, gather several planets around a core, orbit in opposite directions, or circle two bodies together. Play 45 authored levels, then continue into endless procedural skies. Skip a level whenever you like, or use **Choose a level** in the pause menu to revisit unlocked fields.
+**Gravity** · Keep colourful projectiles orbiting to satisfy each field's challenge. The rebuilt 45-level campaign switches quickly between local orbits, shared loops, opposing directions, repeller gaps, moving cores and same-planet relays. In a relay, follow the lettered cores in order; a faint boundary shows where the next curved encounter counts. Later transfers end with a full orbit at the destination. Shared loops require the same planet to circle every marked core. After Level 45, endless play remixes the same 45 structures, alternating local orbits, shared loops and relays. Introductory layouts receive advanced goals; later bands increase orbit requirements and curved relay sweeps within verified limits. Use **Skip level** at the bottom and confirm to move on without completing a level, or use **Choose a level** in the pause menu to revisit unlocked fields. Completing a goal starts a three-second border countdown around **Next level**, then advances automatically. Tap it to advance sooner; pausing also pauses the countdown.
 
 **Creator** · Arrange bodies, shape their gravity, and play your own design. Choose an orbital challenge or leave **No challenge** selected for free play without an orbit counter.
 
@@ -30,16 +30,19 @@ In **Odessey**, the shot launches from your ship's ring. Portrait levels run fro
 
 ![Odessey: a portrait course through attractors and repellers toward the blue checkpoint](docs/images/odessey-flight.png)
 
-In **Gravity**, start a pull anywhere to launch from that spot. Launch again while earlier planets are still flying to build several orbits at once. The **Size** slider affects newly launched planets; larger planets pull others more strongly. New planets are sized for the level's default view; manual zoom scales them with the scene, while resizing preserves existing planets' sizes and adapts the next launch. Particle interaction is on by default and can be switched off under **Pause → Advanced → Particle Interaction**.
+In **Gravity**, start a pull anywhere to launch from that spot. Launch again while earlier planets are still flying to build several orbits at once. The **Size** slider affects newly launched planets; larger planets pull others more strongly. New planets are sized for the level's default view; manual zoom scales them with the scene, while resizing preserves existing planets' sizes and adapts the next launch. Particle interaction is on by default and can be switched off under **Pause → Advanced → Particle Interaction**. **Particle grouping** is a separate, saved setting and is off by default: planets pass through each other while still attracting when interaction is on. Enable grouping to allow surface contact, momentum transfer and clusters. Each Advanced toggle has a **?** button explaining it.
 
 ![Gravity: two live planets tracing orbits around a core, with size and challenge controls](docs/images/gravity-orbits.png)
+
+![Gravity's Grand tour: one planet curves through three lettered cores, returns to its starting core and completes a full orbit](docs/images/gravity-relay.png)
 
 ## Settle into your own pace
 
 - Pinch on touchscreens or scroll with a mouse to zoom the field around your fingers or cursor. Odessey supports roughly 83% to 120% zoom and Gravity supports 50% to 200%. In Odessey, drag with two fingers or hold Space and drag to pan without launching. The camera follows flights within the level; manual panning takes over until the next shot. An offscreen Odessey ship gets five seconds to return, with a Restart control available immediately. Bringing it back into view resets the timer. Gravity removes a planet only on contact with a fixed obstacle or once its whole disc leaves the outermost view.
 - Click the Orbit logo at the top left in either game mode to return to the main menu. Your checkpoint or level progress stays saved.
 - Pause with the pause button, **Esc**, or **P**. Resume with the same keys, **Resume**, or a click outside the pause panel.
-- Press **R** or use the reset button to retry the current Odessey shot or reset the current Gravity level. In Odessey, **New seed** starts a fresh checkpoint journey.
+- Use the **?** icon before Reset in the top bar to open How to play.
+- Press **R**, use the reset button, or choose **Restart level** in Pause to retry the current Odessey checkpoint or reset the current Gravity level. In Odessey, **New seed** starts a fresh checkpoint journey.
 - Open **Pause → Advanced → Path assist** to switch between the default partial aiming preview and a full predicted path.
 - Both game modes share a warm ambient melody with soft keys and occasional quiet chimes, with sound on by default. The sound toggle is remembered in this browser and shared across modes. Toggle sound in the pause menu, where you can also find **How to play**. Interactive guides appear on your first visit to each game mode.
 

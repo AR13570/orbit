@@ -50,7 +50,7 @@ it("resumes the saved checkpoint and Reset level retains it", () => {
   const view = render(<OdesseyGame />);
   expect(screen.getByLabelText("Checkpoint 4")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-  fireEvent.click(screen.getByRole("button", { name: "Reset level (R)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restart level" }));
   expect(screen.getByLabelText("Checkpoint 4")).toBeTruthy();
   view.unmount();
   render(<OdesseyGame />);
@@ -75,7 +75,11 @@ it("New seed starts fresh and its URL resumes without replacing explicit or defa
 it("debug level and tutorial practice do not replace the real saved checkpoint", () => {
   saveOdesseyCheckpoint(new OrbitEngine(42, 5).getCheckpoint());
   const saved = localStorage.getItem("orbit.odessey.progress.v1:42");
-  window.history.replaceState({}, "", "/?mode=odessey&seed=42&debug=1&level=15");
+  window.history.replaceState(
+    {},
+    "",
+    "/?mode=odessey&seed=42&debug=1&level=15",
+  );
   const view = render(<OdesseyGame />);
   expect(screen.getByLabelText("Checkpoint 14")).toBeTruthy();
   expect(localStorage.getItem("orbit.odessey.progress.v1:42")).toBe(saved);

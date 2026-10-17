@@ -95,6 +95,9 @@ it("sizes only future projectiles and keeps the size through retry, skip and rel
   shoot(field());
   expect(engine.getSnapshot().particles[0].radius).toBe(particles[1].radius);
   fireEvent.click(screen.getByRole("button", { name: "Skip level" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Skip level", exact: true }),
+  );
   expect((slider as HTMLInputElement).value).toBe("2");
   view.unmount();
   render(<GravityGame onExit={() => {}} />);

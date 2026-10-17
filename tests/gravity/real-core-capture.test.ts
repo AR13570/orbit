@@ -5,6 +5,7 @@ import { getGravityLevel } from "../../src/gravity/campaign";
 function launchNeighbours(interaction = true) {
   const engine = new GravityEngine(42, getGravityLevel(42, 0));
   engine.setTimeScale(1);
+  engine.setParticleGrouping(true);
   engine.setParticleInteraction(interaction);
   const core = engine.getSnapshot().level.bodies[0];
   const speed = Math.sqrt((core.strength * 100) / (100 ** 2 + 40 ** 2));

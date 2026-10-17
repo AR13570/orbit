@@ -85,6 +85,10 @@ test("Gravity desktop free launches, wheel cancellation, player settings and res
   await page.clock.runFor(150);
   await page.screenshot({ path: "/private/tmp/gravity-rebuild-desktop.png" });
   await page.getByRole("button", { name: "Skip level", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Skip this level?" })
+    .getByRole("button", { name: "Skip level", exact: true })
+    .click();
   await expect(page.locator(".gravity-level")).toHaveText("Level 2");
   await page.reload();
   await page.clock.runFor(100);

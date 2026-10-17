@@ -1,3 +1,5 @@
+/** Legacy formation authoring and physics regression fixtures. Runtime endless
+ * levels are provided by campaign-endless.ts. */
 import type { Vec2 } from "../game/types";
 import type {
   GravityLevel,

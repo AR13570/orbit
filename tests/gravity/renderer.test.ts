@@ -584,17 +584,17 @@ it("exposes the fitted default scale independently of player zoom and tutorial f
   const level = getGravityLevel(42, 0);
   renderer.resize(390, 844);
   renderer.prepareFrame(level);
-  expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
+  expect(renderer.getDefaultScale()).toBeCloseTo(1.366120218579235, 10);
   renderer.setZoom(4);
-  expect(renderer.getScale()).toBeCloseTo(2.9814814814814814, 10);
-  expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
+  expect(renderer.getScale()).toBeCloseTo(2.73224043715847, 10);
+  expect(renderer.getDefaultScale()).toBeCloseTo(1.366120218579235, 10);
   renderer.setWalkthroughFocus({
     position: { x: 450, y: 450 },
     radius: 1000,
     area: { left: 100, top: 100, width: 100, height: 100 },
   });
   expect(renderer.getScale()).toBeLessThan(0.1);
-  expect(renderer.getDefaultScale()).toBeCloseTo(1.4907407407407407, 10);
+  expect(renderer.getDefaultScale()).toBeCloseTo(1.366120218579235, 10);
   renderer.resize(844, 390);
   expect(renderer.getDefaultScale()).toBeCloseTo(1.4722222222222223, 10);
 });
