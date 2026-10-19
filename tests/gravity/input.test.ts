@@ -3,18 +3,46 @@ import {
   gravityAim,
   gravityLaunchIsClear,
   gravityPullDistance,
+  gravityPullFraction,
 } from "../../src/gravity/input";
 import { GravityEngine } from "../../src/gravity/engine";
 import { getGravityLevel } from "../../src/gravity/campaign";
+
+it("preserves precise short pulls and smoothly approaches a safe ceiling for long pulls", () => {
+  for (const fraction of [0, 0.1, 0.25, 0.5, 0.8])
+    expect(gravityAim({ power: fraction }).power).toBeCloseTo(
+      fraction ** 2,
+      12,
+    );
+  const powers = [0.8, 1, 1.2, 1.4, 1.6, 2, 4].map(
+    (power) => gravityAim({ power }).power,
+  );
+  for (let i = 1; i < powers.length; i++) {
+    expect(powers[i]).toBeGreaterThan(powers[i - 1]);
+    expect(powers[i]).toBeLessThanOrEqual(1);
+  }
+  expect(powers[1]).toBeLessThan(1);
+  expect(powers[2] - powers[1]).toBeGreaterThan(powers[3] - powers[2]);
+  const epsilon = 1e-5;
+  const before =
+    (gravityAim({ power: 0.8 }).power -
+      gravityAim({ power: 0.8 - epsilon }).power) /
+    epsilon;
+  const after =
+    (gravityAim({ power: 0.8 + epsilon }).power -
+      gravityAim({ power: 0.8 }).power) /
+    epsilon;
+  expect(after).toBeCloseTo(before, 3);
+});
 
 it("keeps all campaign witness powers reachable by a deliberate drag above the tap deadzone", () => {
   for (let index = 0; index < 45; index++) {
     const level = getGravityLevel(42, index);
     for (const shot of level.witness) {
       for (const limit of [153, 81.6]) {
-        const distance = limit * Math.sqrt(shot.power);
+        const distance = limit * gravityPullFraction(shot.power);
         expect(distance).toBeGreaterThanOrEqual(8);
-        expect(distance).toBeLessThanOrEqual(limit);
+        expect(distance).toBeLessThanOrEqual(limit * 1.2);
         const mapped = gravityAim({
           angle: shot.angle,
           power: distance / limit,

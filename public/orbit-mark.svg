@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Orbit</title>
+  <defs>
+    <mask id="horizon">
+      <rect width="64" height="64" fill="white"/>
+      <path d="M4 32a28 10 0 0 0 56 0" fill="none" stroke="black" stroke-width="8"/>
+    </mask>
+  </defs>
+  <g transform="rotate(-24 32 32)" fill="none" stroke="#303943" stroke-width="3" stroke-linecap="round">
+    <ellipse cx="32" cy="32" rx="28" ry="10"/>
+    <circle cx="32" cy="32" r="17" fill="#303943" stroke="none" mask="url(#horizon)"/>
+  </g>
+</svg>

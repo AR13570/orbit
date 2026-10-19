@@ -82,29 +82,34 @@ it("keeps custom authoring and tutorial physics independent of responsive calibr
 });
 
 it.each([
-  [1200, 800, 0, 4],
-  [390, 844, 0, 4.392],
-  [844, 390, 0, 4.0754716981132075],
-  [1200, 800, 30, 6.526411502028423],
-  [390, 844, 30, 9.652173913043478],
-  [844, 390, 30, 9.765653874522794],
+  [1200, 800, 0],
+  [390, 844, 0],
+  [844, 390, 0],
+  [1200, 800, 30],
+  [390, 844, 30],
+  [844, 390, 30],
 ])(
   "calibrates the actual %ix%i default view for campaign index %i",
-  (width, height, index, radius) => {
+  (width, height, index) => {
     const engine = new GravityEngine(42, undefined, getGravityLevel);
     engine.goTo(index);
-    const authored = engine.getSnapshot().level.physics;
+    const authored = structuredClone(engine.getSnapshot().level.physics);
     const { camera } = fitGravityFrame(
       engine.getSnapshot().level,
       width,
       height,
     );
+    expect(camera.scale).toBeGreaterThan(0);
+    const expectedRadius = Math.max(4, Math.min(16, 6 / camera.scale));
     engine.setDefaultViewScale(camera.scale);
     engine.launchFrom({ x: 100, y: 100 }, { x: 0, y: 0 });
-    expect(engine.getSnapshot().particles[0].radius).toBeCloseTo(radius, 8);
-    expect(engine.getSnapshot().particles[0].mass).toBe(
-      authored?.planetMass ?? 1,
-    );
+    const launched = engine.getSnapshot().particles[0];
+    expect(launched.radius).toBeCloseTo(expectedRadius, 8);
+    expect(launched.radius).toBeGreaterThanOrEqual(4);
+    expect(launched.radius).toBeLessThanOrEqual(16);
+    if (expectedRadius > 4 && expectedRadius < 16)
+      expect(launched.radius * camera.scale).toBeCloseTo(6, 8);
+    expect(launched.mass).toBe(authored?.planetMass ?? 1);
     expect(engine.getSnapshot().level.physics).toEqual(authored);
   },
 );

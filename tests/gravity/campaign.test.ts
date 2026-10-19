@@ -8,99 +8,65 @@ import {
   verifyLevel,
   witnessCompletionTime,
 } from "../../src/gravity/generator";
-
-describe("reference inspired authored campaign", () => {
-  it("constructs the campaign catalog within an interactive startup budget", () => {
-    const started = performance.now();
-    getCampaignCatalog();
-    expect(performance.now() - started).toBeLessThan(100);
-  });
-  it("has 45 authored entries with at least 24 genuinely named geometries", () => {
+import { gravityLaunchSpeed } from "../../src/gravity/physics";
+describe("stable authored campaign", () => {
+  it("constructs 45 honestly identified population and field variants across nine structures promptly", () => {
+    const start = performance.now(),
+      catalog = getCampaignCatalog();
+    expect(performance.now() - start).toBeLessThan(100);
     expect(CAMPAIGN_LEVEL_COUNT).toBe(45);
-    const catalog = getCampaignCatalog();
     expect(catalog).toHaveLength(45);
+    expect(new Set(catalog.map((e) => e.family)).size).toBe(9);
     expect(
-      new Set(catalog.map((entry) => entry.family)).size,
-    ).toBeGreaterThanOrEqual(24);
+      new Set(catalog.map((e) => `${e.family}:${e.field}:${e.population}`))
+        .size,
+    ).toBe(45);
     expect(getGravityLevel(7, 0).bodies).toEqual(getGravityLevel(42, 0).bodies);
   });
-  it("verifies every authored witness using the actual simulation", () => {
+  it("replays every objective with reachable humanly sequential shots and physically enlarged cores", () => {
     for (let index = 0; index < 45; index++) {
       const level = getGravityLevel(42, index);
       expect(verifyLevel(level), `${index}: ${level.title}`).toBe(true);
       expect(level.index).toBe(index);
-      level.witness.forEach((shot, shotIndex) => {
-        expect(shot.power, `${index}: shot ${shotIndex}`).toBeLessThanOrEqual(
-          1,
+      expect(level.journey).toBeUndefined();
+      expect(level.objective.turns).toBe(2);
+      expect(level.physics?.planetGravity).toBe(true);
+      expect(level.physics?.planetCollisions).toBe("none");
+      for (const [i, shot] of level.witness.entries()) {
+        expect(
+          Math.hypot(shot.velocity!.x, shot.velocity!.y),
+        ).toBeLessThanOrEqual(gravityLaunchSpeed(1));
+        expect(shot.power).toBeLessThanOrEqual(1);
+        if (i)
+          expect(shot.time - level.witness[i - 1].time).toBeGreaterThanOrEqual(
+            4.8,
+          );
+      }
+      for (const body of level.bodies)
+        expect(body.radius).toBeGreaterThanOrEqual(
+          body.kind === "attractor" ? 96 : 57,
         );
-        if (shotIndex)
-          expect(
-            shot.time - level.witness[shotIndex - 1].time,
-            `${index}: shot ${shotIndex}`,
-          ).toBeGreaterThanOrEqual(0.299);
-      });
-      for (const body of level.bodies) {
-        expect(body.position.x - body.radius).toBeGreaterThan(0);
-        expect(body.position.x + body.radius).toBeLessThan(900);
-        expect(body.position.y - body.radius).toBeGreaterThan(0);
-        expect(body.position.y + body.radius).toBeLessThan(900);
+      if (level.requirements) {
+        expect(level.requirements).toHaveLength(
+          level.bodies.filter((b) => b.kind === "attractor").length,
+        );
+        expect(new Set(level.requirements.map((r) => r.count)).size).toBe(1);
       }
     }
   }, 60000);
-  it("moves into endless play, remains deterministic and protects cached data", () => {
+  it("moves to deterministic generated variants and protects cached state", () => {
     expect(getGravityLevel(42, 44).source).toBe("campaign");
     expect(getGravityLevel(42, 45).source).toBe("procedural");
     expect(getGravityLevel(42, 10000).index).toBe(10000);
     const level = getGravityLevel(42, 12),
-      pristine = structuredClone(level);
+      original = structuredClone(level);
     level.bodies[0].position.x = -100;
-    expect(getGravityLevel(42, 12)).toEqual(pristine);
+    expect(getGravityLevel(42, 12)).toEqual(original);
   });
-  it("keeps selected witnesses valid with half sized physics steps", () => {
-    for (const index of [0, 8, 22, 34, 41, 44])
+  it("keeps representative witnesses valid with half physics steps", () => {
+    for (const index of [0, 1, 2, 5, 8, 24, 35, 44])
       expect(
         witnessCompletionTime(getGravityLevel(42, index), 1 / 240),
       ).not.toBeNull();
   }, 60000);
-});
-
-it("changes challenge type quickly and builds toward meaningful transfer and capture", () => {
-  const levels = Array.from({ length: 45 }, (_, index) =>
-    getGravityLevel(42, index),
-  );
-  const kind = (level: (typeof levels)[number]) =>
-    level.journey
-      ? "relay"
-      : level.sharedOrbit
-        ? "shared"
-        : level.objective.kind === "counter" ||
-            level.requirements?.some((r) => r.direction)
-          ? "direction"
-          : "local";
-  for (let index = 0; index <= 39; index++)
-    expect(
-      new Set(levels.slice(index, index + 6).map(kind)).size,
-      `levels ${index + 1} through ${index + 6}`,
-    ).toBeGreaterThanOrEqual(3);
-  const shapes = levels.map((level) =>
-    JSON.stringify(
-      level.bodies.map((body) => ({
-        kind: body.kind,
-        position: body.position,
-        radius: body.radius,
-        strength: body.strength,
-      })),
-    ),
-  );
-  expect(new Set(shapes).size).toBeGreaterThanOrEqual(40);
-  expect(levels.filter((level) => level.journey).length).toBeGreaterThanOrEqual(
-    10,
-  );
-  expect(levels.filter((level) => level.sharedCounter).length).toBe(2);
-  expect(
-    levels.filter((level) => level.journey?.legs.at(-1)!.sweep === Math.PI * 2)
-      .length,
-  ).toBeGreaterThanOrEqual(3);
-  expect(levels[44].journey?.legs).toHaveLength(4);
-  expect(levels[44].journey?.legs.at(-1)?.sweep).toBe(Math.PI * 2);
 });

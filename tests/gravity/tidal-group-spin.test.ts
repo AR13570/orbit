@@ -167,7 +167,9 @@ describe("settled group spin under core tides", () => {
       fixture.scale,
     );
     const result = record(engine.getSnapshot(), 120);
-    expect(result.longestLow).toBeLessThan(0.1);
+    // Weaker near-field binding can briefly release a surface under tides.
+    // Qualification deliberately waits 0.35s before applying settled torque.
+    expect(result.longestLow).toBeLessThan(0.35);
     expect(result.minimumFiveSecondRange).toBeGreaterThan(0.15);
   });
 

@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "errors": [],
+  "changedSourceSinceReplay": {
+    "src/gravity/campaign-endless-transforms.json": {
+      "replayedSha256": "1f68cc88f3c62048290dccdf37c2dd88c1c0a8f34abc0f3835bbfc0f34706a18",
+      "finalSha256": "23c971ae3fcab2221f7b730fcb3851b3b2875015d53f270923aef9fdfb70ac41"
+    }
+  },
+  "campaignEntries": 45,
+  "campaignAuthorScenarios": 990,
+  "independentlyMatchedCompletionScenarios": 540,
+  "completionSamplingDeltaRange": [
+    0.0,
+    0.09166666666666146
+  ],
+  "generatedCandidates": 200,
+  "acceptedGeneratedTransforms": 185,
+  "rejectedGeneratedTransforms": 15,
+  "acceptedGeneratedScenarios": 4070,
+  "manifestTransforms": 185,
+  "manifestExactlyMatchesAcceptedProofs": true,
+  "finalAuthorEvidenceSha256": "11348f8913db2cb4325fc266ecdbf706d788963500c8e3824928de9e2d009e2b",
+  "finalGenerationManifestSha256": "23c971ae3fcab2221f7b730fcb3851b3b2875015d53f270923aef9fdfb70ac41"
+}

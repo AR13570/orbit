@@ -61,14 +61,22 @@ for (const device of [
             });
           });
         let circle = { x: 0, y: 0, radius: 0 };
+        let filledCircle: {
+          x: number;
+          y: number;
+          radius: number;
+          color: string;
+        } | null = null;
         const fillRect = CanvasRenderingContext2D.prototype.fillRect;
         CanvasRenderingContext2D.prototype.fillRect = function (x, y, w, h) {
           if (
             this.canvas.classList.contains("scene-canvas") &&
             x === 0 &&
             y === 0
-          )
+          ) {
             probe.heldShooter = null;
+            filledCircle = null;
+          }
           return fillRect.call(this, x, y, w, h);
         };
         const arc = CanvasRenderingContext2D.prototype.arc;
@@ -87,20 +95,37 @@ for (const device of [
         CanvasRenderingContext2D.prototype.fill = function (...args: any[]) {
           if (
             this.canvas.classList.contains("scene-canvas") &&
-            (this.fillStyle === "#7a60d6" || this.fillStyle === "#c9675e")
+            this.globalAlpha === 1 &&
+            typeof this.fillStyle === "string"
+          )
+            filledCircle = { ...circle, color: this.fillStyle };
+          return fill.apply(this, args as []);
+        };
+        const stroke = CanvasRenderingContext2D.prototype.stroke;
+        CanvasRenderingContext2D.prototype.stroke = function (...args: any[]) {
+          const transform = this.getTransform();
+          const dpr =
+            this.canvas.width / this.canvas.getBoundingClientRect().width;
+          // The 13px power arc belongs to the held body and follows its real color.
+          // Flying planets no longer have a different color we can use as a shortcut.
+          if (
+            this.canvas.classList.contains("scene-canvas") &&
+            filledCircle &&
+            this.globalAlpha === 1 &&
+            this.strokeStyle === filledCircle.color &&
+            Math.abs((circle.radius * transform.a) / dpr - 13) < 0.001 &&
+            circle.x === filledCircle.x &&
+            circle.y === filledCircle.y
           ) {
-            const transform = this.getTransform();
-            const dpr =
-              this.canvas.width / this.canvas.getBoundingClientRect().width;
             probe.heldShooter = {
-              x: (circle.x * transform.a + transform.e) / dpr,
-              y: (circle.y * transform.d + transform.f) / dpr,
-              radius: (circle.radius * transform.a) / dpr,
+              x: (filledCircle.x * transform.a + transform.e) / dpr,
+              y: (filledCircle.y * transform.d + transform.f) / dpr,
+              radius: (filledCircle.radius * transform.a) / dpr,
               scale: transform.a / dpr,
               alpha: this.globalAlpha,
             };
           }
-          return fill.apply(this, args as []);
+          return stroke.apply(this, args as []);
         };
       });
       await page.clock.install({ time: new Date("2026-10-15T00:00:00Z") });
@@ -120,7 +145,7 @@ for (const device of [
         };
       }, engineModule);
       const cdp = device.touch ? await context.newCDPSession(page) : null;
-      const start = { x: device.width * 0.5, y: device.height * 0.6 };
+      const start = { x: device.width * 0.5, y: device.height * 0.3 };
       let id = 1;
       const down = async () => {
         if (cdp)

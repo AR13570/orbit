@@ -6,8 +6,10 @@ import {
 } from "../../src/gravity/physics";
 import { launchSpeed } from "../../src/game/physics";
 import { getGravityLevel } from "../../src/gravity/campaign";
-import { buildEndlessGravityLevel } from "../../src/gravity/endless";
-import endlessFixtures from "../../src/gravity/endless-fixtures.json";
+import {
+  buildCampaignEndlessLevel,
+  CAMPAIGN_ENDLESS_IDS,
+} from "../../src/gravity/campaign-endless";
 
 describe("Gravity physical units", () => {
   it("adds a modest full-pull boost without changing gentle shots or Odessey", () => {
@@ -41,19 +43,35 @@ describe("Gravity physical units", () => {
     expect(gravityLaunchPower(1000)).toBe(1);
     expect(gravityLaunchPower(NaN)).toBe(0);
   });
-  it("preserves every campaign and endless fixture velocity when launched by its power", () => {
+  it("preserves every actual campaign and endless velocity through the inverse launch curve", () => {
     const levels = [
       ...Array.from({ length: 45 }, (_, index) => getGravityLevel(42, index)),
-      ...Object.keys(endlessFixtures).map((id) =>
-        buildEndlessGravityLevel(42, 45, id, 0),
+      ...CAMPAIGN_ENDLESS_IDS.flatMap((profile) =>
+        [45, 85, 125].map((index) =>
+          buildCampaignEndlessLevel(42, index, profile),
+        ),
       ),
     ];
     for (const level of levels) {
+      expect(level.witness.length).toBeGreaterThan(0);
       for (const shot of level.witness) {
         const speed = Math.hypot(shot.velocity!.x, shot.velocity!.y);
-        expect(shot.power).toBeLessThan(0.8);
-        expect(shot.power).toBe(speed / 420);
+        expect(speed, level.title).toBeLessThanOrEqual(
+          gravityLaunchSpeed(1) + 1e-9,
+        );
+        expect(shot.power, level.title).toBeCloseTo(
+          gravityLaunchPower(speed),
+          12,
+        );
+        expect(shot.power).toBeGreaterThanOrEqual(0);
+        expect(shot.power).toBeLessThanOrEqual(1);
         expect(gravityLaunchSpeed(shot.power)).toBeCloseTo(speed, 10);
+        expect(
+          Math.cos(shot.angle) * gravityLaunchSpeed(shot.power),
+        ).toBeCloseTo(shot.velocity!.x, 8);
+        expect(
+          Math.sin(shot.angle) * gravityLaunchSpeed(shot.power),
+        ).toBeCloseTo(shot.velocity!.y, 8);
       }
     }
   });

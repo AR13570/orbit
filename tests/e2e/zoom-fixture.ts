@@ -26,7 +26,9 @@ export async function installZoomProbe(page: Page) {
       if (
         !captured &&
         this.canvas.classList.contains("scene-canvas") &&
-        ["#245f78", "#b64d32"].includes(String(this.fillStyle))
+        ["#303943", "#a95724", "#dedde5", "#8f4925"].includes(
+          String(this.fillStyle),
+        )
       ) {
         const transform = this.getTransform();
         const pixelRatio =

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gravity campaign | Sequential replay</title>
+    <style>
+      @font-face {
+        font-family: Righteous;
+        src: url("/fonts/Righteous-Regular.ttf");
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e9ecef;
+        color: #303943;
+        font:
+          14px "Avenir Next",
+          sans-serif;
+      }
+      canvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      header,
+      footer {
+        position: fixed;
+        left: 20px;
+        right: 20px;
+        text-align: center;
+        pointer-events: none;
+      }
+      header {
+        top: 20px;
+      }
+      footer {
+        bottom: 20px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font:
+          24px Righteous,
+          sans-serif;
+      }
+      p {
+        margin: 8px auto;
+        max-width: 580px;
+        color: #697783;
+      }
+      select,
+      button {
+        pointer-events: auto;
+        max-width: 100%;
+        font: inherit;
+        border: 1px solid #c7d0d7;
+        background: #e9ecef;
+        color: inherit;
+        border-radius: 8px;
+        padding: 6px 10px;
+      }
+      button {
+        cursor: pointer;
+      }
+      #status {
+        color: #245f78;
+        font-weight: 600;
+      }
+      small {
+        display: block;
+        margin: 8px auto;
+        max-width: 560px;
+        color: #697783;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas
+      class="scene-canvas"
+      aria-label="Sequential Gravity solution replay"
+    ></canvas>
+    <header>
+      <h1>Gravity · Sequential replay</h1>
+      <label
+        >Level
+        <select id="level"></select
+      ></label>
+      <p id="objective"></p>
+    </header>
+    <footer>
+      <p id="status" role="status"></p>
+      <button id="restart">Replay</button>
+      <small
+        >Recorded solutions launch one planet at a time. The simulation keeps
+        moving after the goal. This review page does not change your saved
+        progress.</small
+      >
+    </footer>
+    <script type="module">
+      import {
+        getGravityLevel,
+        getCampaignCatalog,
+      } from "/src/gravity/campaign.ts";
+      import { GravityEngine } from "/src/gravity/engine.ts";
+      import { createGravityRenderer } from "/src/gravity/renderer.ts";
+      import { objectiveText } from "/src/gravity/simulation.ts";
+      const canvas = document.querySelector("canvas");
+      const renderer = createGravityRenderer(canvas);
+      const selector = document.querySelector("#level");
+      const status = document.querySelector("#status");
+      for (const { index } of getCampaignCatalog()) {
+        const level = getGravityLevel(42, index);
+        selector.add(
+          new Option(`${index + 1} · ${level.title}`, String(index)),
+        );
+      }
+      let engine, level, shot, last, accumulator;
+      function resize() {
+        renderer.resize(innerWidth, innerHeight, devicePixelRatio);
+        renderer.prepareFrame(level);
+        engine.setDefaultViewScale(renderer.getDefaultScale());
+        engine.setFlightBounds(renderer.getFlightBounds());
+      }
+      function restart() {
+        const index = Number(selector.value);
+        level = getGravityLevel(42, index);
+        engine = new GravityEngine(42, undefined, getGravityLevel);
+        engine.goTo(index);
+        engine.setTimeScale(1);
+        shot = 0;
+        last = null;
+        accumulator = 0;
+        document.querySelector("#objective").textContent = objectiveText(level);
+        delete document.body.dataset.complete;
+        resize();
+      }
+      function frame(now) {
+        accumulator += last === null ? 0 : Math.min(0.05, (now - last) / 1000);
+        last = now;
+        while (accumulator >= 1 / 120) {
+          const state = engine.getRenderSnapshot();
+          while (
+            shot < level.witness.length &&
+            level.witness[shot].time <= state.elapsed + 1e-8
+          ) {
+            const launch = level.witness[shot++];
+            engine.launchFrom(launch.position, launch.velocity);
+          }
+          engine.update(1 / 120);
+          accumulator -= 1 / 120;
+        }
+        const state = engine.getRenderSnapshot();
+        const alive = state.particles.filter((p) => p.alive).length;
+        document.body.dataset.elapsed = state.elapsed.toFixed(2);
+        document.body.dataset.alive = String(alive);
+        if (state.complete) document.body.dataset.complete = "true";
+        status.textContent = `${state.complete ? "Two-orbit goal earned" : `Launched ${shot} of ${level.witness.length}`} · ${alive} in motion · ${state.elapsed.toFixed(1)}s simulated`;
+        renderer.render(state, [], now / 1000, {
+          paused: false,
+          reducedMotion: false,
+          pathAssist: "partial",
+        });
+        requestAnimationFrame(frame);
+      }
+      selector.addEventListener("change", restart);
+      document.querySelector("#restart").addEventListener("click", restart);
+      addEventListener("resize", resize);
+      restart();
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>

@@ -1,3 +1,4 @@
+import { canvasColors } from "../theme";
 import { getTutorialCameraTarget, TutorialCameraRig } from "./camera";
 import { createGravitySurface } from "../render/gravity-surface";
 import { FORCE_PALETTE } from "../render/force-palette";
@@ -269,7 +270,11 @@ export default function PracticeField({
         flying,
         branched: model.splitOccurred(),
         dragging: gesture.current.active && model.launchAllowed(),
-        guideSnapped: stageRef.current === "practice-split" && gesture.current.active && model.aim.angle === suggestion.angle && model.aim.power === suggestion.power,
+        guideSnapped:
+          stageRef.current === "practice-split" &&
+          gesture.current.active &&
+          model.aim.angle === suggestion.angle &&
+          model.aim.power === suggestion.power,
         launcherRadius: (22 * camera.scale) / glyphScale,
       };
       callback.current(currentFrame);
@@ -277,7 +282,7 @@ export default function PracticeField({
       if (ctx && scratch) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.globalAlpha = 1;
-        ctx.fillStyle = "#e9ecef";
+        ctx.fillStyle = canvasColors().ground;
         ctx.fillRect(0, 0, width, height);
         ctx.save();
         ctx.translate(area.left + area.width / 2, area.top + area.height / 2);
@@ -334,11 +339,11 @@ export default function PracticeField({
             ctx.scale(attentionScale, attentionScale);
             ctx.translate(-x, -y);
           }
-          ctx.fillStyle = "#e9ecef";
+          ctx.fillStyle = canvasColors().ground;
           ctx.beginPath();
           ctx.arc(x, y, radius, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = "#168dff";
+          ctx.strokeStyle = canvasColors().checkpoint;
           ctx.globalAlpha = 0.78;
           ctx.lineWidth = 1.6 / (camera.scale * goalScale);
           ctx.stroke();
@@ -352,7 +357,7 @@ export default function PracticeField({
           ctx.moveTo(poleX, top);
           ctx.lineTo(poleX, top + flagHeight);
           ctx.stroke();
-          ctx.fillStyle = "#168dff";
+          ctx.fillStyle = canvasColors().checkpoint;
           ctx.beginPath();
           ctx.moveTo(poleX, top);
           ctx.lineTo(poleX + flagHeight * 0.6, top + flagHeight * 0.22);
@@ -362,7 +367,7 @@ export default function PracticeField({
           ctx.restore();
         } else {
           const b = model.bodies[0];
-          ctx.strokeStyle = "#527c9a";
+          ctx.strokeStyle = canvasColors().blue;
           ctx.lineWidth = 2 / camera.scale;
           ctx.beginPath();
           ctx.arc(
@@ -391,8 +396,12 @@ export default function PracticeField({
         };
         for (const p of model.getParticles()) {
           ctx.globalAlpha =
-            model.mode === "odessey" ? model.trailOpacity(p) : p.alive ? 0.5 : 0.12;
-          ctx.strokeStyle = "#527c9a";
+            model.mode === "odessey"
+              ? model.trailOpacity(p)
+              : p.alive
+                ? 0.5
+                : 0.12;
+          ctx.strokeStyle = canvasColors().blue;
           ctx.lineWidth = 1.2 / camera.scale;
           ctx.beginPath();
           p.trail.forEach((point, i) =>
@@ -401,7 +410,11 @@ export default function PracticeField({
           ctx.stroke();
           ctx.globalAlpha = 1;
           if (p.alive)
-            ship(p.position, Math.atan2(p.velocity.y, p.velocity.x), "#303943");
+            ship(
+              p.position,
+              Math.atan2(p.velocity.y, p.velocity.x),
+              canvasColors().charcoal,
+            );
         }
         const launcherScale = ["intro", "split", "multiple"].includes(
           stageRef.current,
@@ -415,7 +428,7 @@ export default function PracticeField({
           ctx.translate(-model.launcher.x, -model.launcher.y);
         }
         ctx.globalAlpha = pull.current ? 1 : 0.72;
-        ctx.strokeStyle = pull.current ? "rgba(48,57,67,.24)" : "#c3a446";
+        ctx.strokeStyle = pull.current ? canvasColors().softLine : "#c3a446";
         ctx.lineWidth =
           (pull.current ? 1 : 1.2) / (camera.scale * launcherScale);
         ctx.setLineDash(
@@ -432,19 +445,19 @@ export default function PracticeField({
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = 1;
-        ship(model.launcher, model.aim.angle, "#303943");
+        ship(model.launcher, model.aim.angle, canvasColors().charcoal);
         ctx.restore();
         // Aim dots are deliberately last, above all decorative field relief.
         preview.current.forEach((point, i) => {
           ctx.globalAlpha = 1 - i / (preview.current.length + 1);
-          ctx.fillStyle = "#8c66ca";
+          ctx.fillStyle = canvasColors().aimRing;
           ctx.beginPath();
           ctx.arc(point.x, point.y, 2.2 / camera.scale, 0, Math.PI * 2);
           ctx.fill();
         });
         ctx.globalAlpha = 1;
         if (pull.current) {
-          ctx.strokeStyle = "#626d78";
+          ctx.strokeStyle = canvasColors().slate;
           ctx.lineWidth = 1 / camera.scale;
           ctx.beginPath();
           ctx.moveTo(model.launcher.x, model.launcher.y);
@@ -509,10 +522,10 @@ export default function PracticeField({
             return;
           event.currentTarget.focus();
           gestureRange.current = pullDistance(
-              event.pointerType,
-              view.current.width,
-              view.current.height,
-            );
+            event.pointerType,
+            view.current.width,
+            view.current.height,
+          );
           gesture.current = new PullGesture(gestureRange.current);
           gesture.current.begin(event.pointerId, {
             x: event.clientX,
@@ -623,30 +636,32 @@ export default function PracticeField({
           }
         }}
       />
-      {model.mode === "odessey" && model.interactive() && hud?.stage === step && (
-        <div
-          className="practice-mode-indicator"
-          data-mode={hud.mode}
-          aria-live="polite"
-          style={{
-            left: hud.launcher.x,
-            top: hud.launcher.y + hud.launcherRadius + 18,
-          }}
-        >
-          <span className="practice-mode-ships" aria-hidden="true">
-            <SplitIcon split={hud.mode === 3} />
-          </span>
-          <span>
-            {hud.mode === 1
-              ? "Single"
-              : hud.branched
-                ? "Three ships"
-                : hud.flying
-                  ? "Split flight"
-                  : "Split ready"}
-          </span>
-        </div>
-      )}
+      {model.mode === "odessey" &&
+        model.interactive() &&
+        hud?.stage === step && (
+          <div
+            className="practice-mode-indicator"
+            data-mode={hud.mode}
+            aria-live="polite"
+            style={{
+              left: hud.launcher.x,
+              top: hud.launcher.y + hud.launcherRadius + 18,
+            }}
+          >
+            <span className="practice-mode-ships" aria-hidden="true">
+              <SplitIcon split={hud.mode === 3} />
+            </span>
+            <span>
+              {hud.mode === 1
+                ? "Single"
+                : hud.branched
+                  ? "Three ships"
+                  : hud.flying
+                    ? "Split flight"
+                    : "Split ready"}
+            </span>
+          </div>
+        )}
       <div className="practice-topbar">
         <span>Practice</span>
         {model.interactive() && (

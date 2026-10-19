@@ -15,6 +15,8 @@ function campaignLevel(index: number): GravityLevel {
   level.witness = structuredClone(
     (witnesses as Record<string, WitnessShot[]>)[String(index)] ?? [],
   );
+  if (!level.witness.length)
+    throw new Error(`Missing validated campaign witness: ${index}`);
   if (level.witness[0]?.position)
     level.launch = { ...level.witness[0].position };
   cache.set(index, structuredClone(level));
@@ -32,11 +34,15 @@ export function getCampaignCatalog(): {
   title: string;
   family: string;
   mechanics: string[];
+  field: string;
+  population: number;
 }[] {
   return CAMPAIGN_DESIGNS.map((d, index) => ({
     index,
     title: d.title,
     family: d.layout,
+    field: d.field ?? "gentle",
+    population: d.population,
     mechanics: [...(campaignLevel(index).mechanics ?? [])],
   }));
 }

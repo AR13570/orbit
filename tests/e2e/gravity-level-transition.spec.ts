@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { fitGravityFrame } from "../../src/gravity/renderer";
-import { gravityPullDistance } from "../../src/gravity/input";
+import {
+  gravityPullDistance,
+  gravityPullFraction,
+} from "../../src/gravity/input";
 import { worldToClient } from "../../src/render/coordinates";
 import { markTutorialSeen } from "./tutorial-fixture";
 
@@ -53,7 +56,7 @@ test("footer skip confirms and completed levels advance with a paused three-seco
     camera,
   );
   const distance =
-    Math.sqrt(shot.power) *
+    gravityPullFraction(shot.power) *
     gravityPullDistance("mouse", viewport.width, viewport.height);
   await page.mouse.move(origin.x, origin.y);
   await page.mouse.down();

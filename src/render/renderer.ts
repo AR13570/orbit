@@ -1,3 +1,4 @@
+import { canvasColors } from "../theme";
 import {
   clampGameplayZoom,
   MIN_ODESSEY_ZOOM,
@@ -27,16 +28,6 @@ import {
 } from "./coordinates";
 
 const TAU = Math.PI * 2;
-const PROJECTILE_COLORS = ["#a45c52", "#64846a", "#8c6796"];
-const COLOR = {
-  ground: "#e9ecef",
-  charcoal: "#303943",
-  slate: "#626d78",
-  blue: "#527c9a",
-  checkpoint: "#168dff",
-  rust: "#b76550",
-  aim: "#8a0f4b",
-};
 
 type Sector = GameSnapshot["sector"];
 export interface SlingshotVisual {
@@ -160,7 +151,7 @@ function drawGravityFields(
       scale,
       motionTime,
       reducedMotion,
-      COLOR.checkpoint,
+      canvasColors().checkpoint,
       scratch,
     );
   ctx.restore();
@@ -171,6 +162,7 @@ export function drawBody(
   body: Readonly<Body>,
   scale: number,
   labelGap = 0,
+  showGlyph = true,
 ) {
   const { x, y } = body.position,
     r = body.radius;
@@ -179,7 +171,7 @@ export function drawBody(
   const opacity = ctx.globalAlpha;
   ctx.save();
   ctx.globalAlpha = opacity * 0.065;
-  ctx.fillStyle = COLOR.charcoal;
+  ctx.fillStyle = canvasColors().charcoal;
   circle(
     ctx,
     x + Math.max(2, 1 / scale),
@@ -195,6 +187,10 @@ export function drawBody(
   ctx.lineWidth = Math.max(1.2, 0.8 / scale);
   circle(ctx, x, y, r);
   ctx.stroke();
+  if (!showGlyph) {
+    ctx.restore();
+    return;
+  }
   // Directional chevrons add a second force cue beyond color.
   const mark = Math.min(r * 0.34, Math.max(7, 4 / scale));
   ctx.strokeStyle = palette.glyph;
@@ -238,10 +234,10 @@ function drawDock(
   } = snapshot.sector.checkpoint;
   ctx.save();
   ctx.globalAlpha = 1;
-  ctx.fillStyle = COLOR.ground;
+  ctx.fillStyle = canvasColors().ground;
   circle(ctx, x, y, radius);
   ctx.fill();
-  ctx.strokeStyle = COLOR.checkpoint;
+  ctx.strokeStyle = canvasColors().checkpoint;
   ctx.globalAlpha = 0.78;
   ctx.lineWidth = 1.6 / scale;
   circle(ctx, x, y, radius);
@@ -257,7 +253,7 @@ function drawDock(
   ctx.lineWidth = 1.2 / scale;
   ctx.lineCap = "round";
   line(ctx, poleX, top, poleX, top + flagHeight);
-  ctx.fillStyle = COLOR.checkpoint;
+  ctx.fillStyle = canvasColors().checkpoint;
   ctx.beginPath();
   ctx.moveTo(poleX, top);
   ctx.lineTo(poleX + flagHeight * 0.6, top + flagHeight * 0.22);
@@ -272,7 +268,7 @@ function drawShip(
   position: Vec2,
   angle: number,
   scale: number,
-  color = COLOR.charcoal,
+  color = canvasColors().charcoal,
   sizeFactor = 1,
 ) {
   ctx.save();
@@ -301,7 +297,7 @@ function drawShooter(
   if (shotCount !== 3) return;
   ctx.save();
   ctx.globalAlpha *= 0.55;
-  ctx.fillStyle = COLOR.charcoal;
+  ctx.fillStyle = canvasColors().charcoal;
   for (const side of [-1, 0, 1]) {
     circle(
       ctx,
@@ -328,7 +324,7 @@ function drawLauncher(
   const p = snapshot.sector.launch;
   const idle = snapshot.status === "aiming" && !sling;
   ctx.save();
-  ctx.strokeStyle = idle ? "#c3a446" : "rgba(48,57,67,.24)";
+  ctx.strokeStyle = idle ? "#c3a446" : canvasColors().softLine;
   if (idle)
     ctx.globalAlpha *= reducedMotion
       ? 0.72
@@ -342,10 +338,10 @@ function drawLauncher(
   if (snapshot.status === "aiming") {
     if (sling) {
       const ghost = visiblePullPoint(p, sling.pull, camera, width, height);
-      ctx.strokeStyle = "rgba(48,57,67,.58)";
+      ctx.strokeStyle = canvasColors().strongLine;
       ctx.lineWidth = 1 / scale;
       line(ctx, p.x, p.y, ghost.x, ghost.y);
-      ctx.fillStyle = COLOR.charcoal;
+      ctx.fillStyle = canvasColors().charcoal;
       circle(ctx, p.x, p.y, 2 / scale);
       ctx.fill();
       if (snapshot.shotCount === 3) {
@@ -360,7 +356,7 @@ function drawLauncher(
         }
       }
       drawShooter(ctx, ghost, snapshot.aim.angle, scale, snapshot.shotCount);
-      ctx.strokeStyle = COLOR.blue;
+      ctx.strokeStyle = canvasColors().blue;
       ctx.lineWidth = 1.6 / scale;
       ctx.beginPath();
       ctx.arc(
@@ -382,7 +378,7 @@ function drawLauncher(
       );
     } else drawShooter(ctx, p, snapshot.aim.angle, scale, snapshot.shotCount);
   } else {
-    ctx.fillStyle = COLOR.slate;
+    ctx.fillStyle = canvasColors().slate;
     circle(ctx, p.x, p.y, 2 / scale);
     ctx.fill();
   }
@@ -398,7 +394,7 @@ function drawPreview(
   const path = paths[0];
   if (!path) return;
   ctx.save();
-  ctx.fillStyle = COLOR.aim;
+  ctx.fillStyle = canvasColors().aim;
   ctx.strokeStyle = "#f8f9fa";
   ctx.lineWidth = 1.6 / scale;
   const length = assist === "full" ? path.length : Math.min(path.length, 49);
@@ -423,7 +419,10 @@ function drawParticles(
 ) {
   for (const particle of snapshot.particles) {
     ctx.save();
-    const color = PROJECTILE_COLORS[particle.id % PROJECTILE_COLORS.length];
+    const color =
+      canvasColors().projectileColors[
+        particle.id % canvasColors().projectileColors.length
+      ];
     ctx.strokeStyle = color;
     ctx.lineCap = "round";
     const trail = particle.trail;
@@ -519,10 +518,10 @@ function drawCheckpointEdge(
   const dx = Math.cos(angle),
     dy = Math.sin(angle);
   ctx.save();
-  ctx.fillStyle = COLOR.ground;
+  ctx.fillStyle = canvasColors().ground;
   circle(ctx, x, y, 10);
   ctx.fill();
-  ctx.strokeStyle = COLOR.checkpoint;
+  ctx.strokeStyle = canvasColors().checkpoint;
   ctx.lineWidth = 1.3;
   circle(ctx, x, y, 6);
   ctx.stroke();
@@ -531,7 +530,7 @@ function drawCheckpointEdge(
   ctx.lineTo(x + dx * 11, y + dy * 11);
   ctx.lineTo(x + dx * 8 - dy * 3, y + dy * 8 + dx * 3);
   ctx.stroke();
-  ctx.fillStyle = COLOR.checkpoint;
+  ctx.fillStyle = canvasColors().checkpoint;
   circle(ctx, x, y, 1);
   ctx.fill();
   ctx.restore();
@@ -807,7 +806,11 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
         focus && !walkthroughFocus
           ? clientToWorld(focus.from.x, focus.from.y, rect, displayCamera())
           : undefined;
-      gameplayZoom = clampGameplayZoom(value, MIN_ODESSEY_ZOOM, MAX_ODESSEY_ZOOM);
+      gameplayZoom = clampGameplayZoom(
+        value,
+        MIN_ODESSEY_ZOOM,
+        MAX_ODESSEY_ZOOM,
+      );
       if (
         focus &&
         selected &&
@@ -897,21 +900,21 @@ export function createRenderer(canvas: HTMLCanvasElement): OrbitRenderer {
               snapshot.status === "docked"
                 ? snapshot.sector.checkpoint.position
                 : snapshot.sector.launch,
-              COLOR.checkpoint,
+              canvasColors().checkpoint,
               14,
             );
           if (snapshot.event.kind === "fail") {
             const end = snapshot.particles[0]?.position;
-            if (end) burst(end, COLOR.rust, 10);
+            if (end) burst(end, canvasColors().rust, 10);
           }
           if (snapshot.event.kind === "launch")
-            burst(snapshot.sector.launch, COLOR.charcoal, 5);
+            burst(snapshot.sector.launch, canvasColors().charcoal, 5);
         }
         lastEvent = snapshot.event.id;
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = COLOR.ground;
+      ctx.fillStyle = canvasColors().ground;
       ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.translate(width / 2, height / 2);

@@ -23,10 +23,17 @@ function fixture() {
     fills: unknown[] = [],
     fillRecords: { color: unknown; alpha: number; circle: number[] }[] = [];
   let lastCircle: number[] = [];
+  const opacityStack: number[] = [];
   const context = new Proxy(
     { globalAlpha: 1, strokeStyle: "" } as Record<string, unknown>,
     {
       get(target, key: string) {
+        if (key === "save")
+          return () => opacityStack.push(target.globalAlpha as number);
+        if (key === "restore")
+          return () => {
+            target.globalAlpha = opacityStack.pop() ?? 1;
+          };
         if (key === "arc")
           return (...values: number[]) => {
             lastCircle = values;
@@ -66,6 +73,18 @@ function fixture() {
   vi.spyOn(canvas, "getContext").mockReturnValue(
     context as unknown as CanvasRenderingContext2D,
   );
+  vi.stubGlobal(
+    "OffscreenCanvas",
+    class {
+      constructor(
+        public width: number,
+        public height: number,
+      ) {}
+      getContext() {
+        return context;
+      }
+    },
+  );
   return {
     renderer: createGravityRenderer(canvas),
     canvas,
@@ -77,6 +96,74 @@ function fixture() {
   };
 }
 describe("Gravity rendering", () => {
+  it.each(["light", "dark"])(
+    "keeps a held projectile's color through release in %s mode",
+    (theme) => {
+      const previousTheme = document.documentElement.dataset.theme;
+      document.documentElement.dataset.theme = theme;
+      try {
+        const { renderer, fillRecords } = fixture();
+        const draft = newDraft();
+        draft.bodies = [];
+        const engine = new GravityEngine(42, toGravityLevel(draft));
+        renderer.resize(1200, 800);
+        const heldColors: unknown[] = [];
+        for (let shot = 0; shot < 3; shot++) {
+          const origin = { x: 240 + shot * 100, y: 300 };
+          engine.setLaunch(origin, { angle: 0.5, power: 0.3 });
+          fillRecords.length = 0;
+          renderer.render(engine.getSnapshot(), [], 0, {
+            paused: true,
+            reducedMotion: true,
+            pull: { x: -45, y: 0 },
+          });
+          const held = fillRecords.find(
+            ({ circle }) => circle[0] === origin.x && circle[1] === origin.y,
+          );
+          expect(held).toBeDefined();
+          heldColors.push(held!.color);
+          expect(engine.launch()).toBe(true);
+          fillRecords.length = 0;
+          renderer.render(engine.getSnapshot(), [], 0, {
+            paused: true,
+            reducedMotion: true,
+          });
+          const launched = fillRecords.find(
+            ({ circle }) => circle[0] === origin.x && circle[1] === origin.y,
+          );
+          expect(launched?.color).toBe(held!.color);
+        }
+        expect(new Set(heldColors).size).toBe(3);
+        renderer.destroy();
+      } finally {
+        if (previousTheme === undefined)
+          delete document.documentElement.dataset.theme;
+        else document.documentElement.dataset.theme = previousTheme;
+      }
+    },
+  );
+
+  it("uses small CSS-sized aim dots without decorative orbit rings", () => {
+    const { renderer, fillRecords, segments } = fixture();
+    const draft = newDraft();
+    draft.bodies = [];
+    const state = new GravityEngine(42, toGravityLevel(draft)).getSnapshot();
+    renderer.resize(390, 844);
+    renderer.render(
+      state,
+      [
+        { x: 300, y: 400 },
+        { x: 500, y: 400 },
+      ],
+      0,
+      { paused: true, reducedMotion: true, pathAssist: "full" },
+    );
+    const dots = fillRecords.filter(({ color }) => color === "#7956cf");
+    expect(dots.length).toBeGreaterThan(1);
+    for (const dot of dots)
+      expect(dot.circle[2] * renderer.getScale()).toBeCloseTo(1.5);
+    expect(segments.filter(({ color }) => color === "#527c9a")).toHaveLength(0);
+  });
   it("keeps small cluster members visible over larger planets and all trails", () => {
     const { renderer, fillRecords } = fixture();
     const draft = newDraft();
@@ -117,7 +204,7 @@ describe("Gravity rendering", () => {
     });
     const first = fillRecords.find(({ color }) => color === "#cf315c")!;
     const second = fillRecords.find(({ color }) => color === "#007c9e")!;
-    const aim = fillRecords.find(({ color }) => color === "#7a60d6")!;
+    const aim = fillRecords.find(({ color }) => color === "#a66b00")!;
     expect(first.circle[2]).toBe(12);
     expect(second.circle[2]).toBe(6);
     expect(aim.circle[2]).toBe(6);
@@ -138,7 +225,7 @@ describe("Gravity rendering", () => {
         pull: { x: -72, y: 0 },
       });
       const actual = fillRecords.find(({ color }) => color === "#cf315c")!;
-      const aim = fillRecords.find(({ color }) => color === "#7a60d6")!;
+      const aim = fillRecords.find(({ color }) => color === "#007c9e")!;
       expect(actual.circle[2]).toBe(6 * size);
       expect(aim.circle[2]).toBe(6 * size);
     },
@@ -233,7 +320,7 @@ describe("Gravity rendering", () => {
       renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
       const scale = renderer.getScale();
       // Irregular physical samples must produce the same readable screen-space path.
-      const points = [0, 2, 7, 31, 80, 400].map((x) => ({
+      const points = [0, 2, 7, 31, 80, 800].map((x) => ({
         x: 250 + x / scale,
         y: 400,
       }));
@@ -243,17 +330,17 @@ describe("Gravity rendering", () => {
         pathAssist: "partial",
       });
       const dots = fillRecords.filter(({ color }) => color === "#7956cf");
-      expect(dots.length).toBeGreaterThanOrEqual(20);
-      expect(dots.length).toBeLessThanOrEqual(24);
+      expect(dots.length).toBeGreaterThanOrEqual(40);
+      expect(dots.length).toBeLessThanOrEqual(70);
       expect(dots[0].alpha).toBeGreaterThan(0.75);
-      for (const dot of dots) expect(dot.circle[2] * scale).toBeCloseTo(2.3);
+      for (const dot of dots) expect(dot.circle[2] * scale).toBeCloseTo(1.5);
       for (let i = 1; i < dots.length; i++) {
         expect((dots[i].circle[0] - dots[i - 1].circle[0]) * scale).toBeCloseTo(
           9,
         );
         expect(dots[i].alpha).toBeLessThan(dots[i - 1].alpha);
       }
-      expect((dots.at(-1)!.circle[0] - 250) * scale).toBeLessThanOrEqual(200);
+      expect((dots.at(-1)!.circle[0] - 250) * scale).toBeLessThanOrEqual(600);
       expect(dots.at(-1)!.alpha).toBeLessThan(0.01);
     },
   );
@@ -267,13 +354,13 @@ describe("Gravity rendering", () => {
     renderer.resize(390, 844);
     renderer.render(snapshot, [], 1, { paused: false, reducedMotion: true });
     expect(segments.some((segment) => segment.color === "#c3a446")).toBe(false);
-    expect(fills).not.toContain("#7a60d6");
+    expect(fills).not.toContain("#cf315c");
     renderer.render(snapshot, [], 2, {
       paused: false,
       reducedMotion: true,
       pull: { x: -72, y: 0 },
     });
-    expect(fills).toContain("#7a60d6");
+    expect(fills).toContain("#cf315c");
   });
   it.each([
     [390, 844],
@@ -318,7 +405,7 @@ describe("Gravity rendering", () => {
     renderer.render(snapshot, [], 0, { paused: true, reducedMotion: true });
     expect(renderer.getScale()).toBeGreaterThan((390 - 36) / 900);
   });
-  it("centres the visible letter glyphs vertically with the body chevrons", () => {
+  it("centres semibold orbit counters inside each physical core without letter labels", () => {
     const { renderer, context } = fixture();
     context.measureText = vi.fn((letter: string) => ({
       actualBoundingBoxAscent: letter === "A" ? 8 : 10,
@@ -337,10 +424,10 @@ describe("Gravity rendering", () => {
       0,
       { paused: false, reducedMotion: true },
     );
-    expect(context.fillText).toHaveBeenCalledWith("A", 450, 453);
-    expect(context.fillText).toHaveBeenCalledWith("B", 650, 555);
+    expect(context.fillText).toHaveBeenCalledWith("0", 450, 455);
+    expect(context.fillText).toHaveBeenCalledWith("0", 650, 555);
     expect(context.textBaseline).toBe("alphabetic");
-    expect(context.font).toMatch(/^700 /);
+    expect(context.font).toMatch(/^600 /);
   });
   it("fits a stable field on portrait and landscape screens and caps pixel density", () => {
     const { renderer, canvas } = fixture();
@@ -382,25 +469,27 @@ describe("Gravity rendering", () => {
     renderer.resize(390, 844);
     renderer.render(state, [], 0, { paused: true, reducedMotion: true });
     const trailSegments = segments.filter(({ color }) => color !== "#e9ecef");
-    expect(trailSegments).toHaveLength(16 * 8);
+    expect(trailSegments).toHaveLength(0);
+    expect(gradients).toHaveLength(16 * 32);
     const bandAlpha = (color: string) =>
       Number(color.match(/(?:, | \/ )([\d.e+-]+)\)$/)?.[1]);
     for (let planet = 0; planet < 16; planet++) {
-      const bands = trailSegments
-        .slice(planet * 8, planet * 8 + 8)
-        .map(({ color }) => bandAlpha(color));
+      const bands = gradients
+        .slice(planet * 32, planet * 32 + 32)
+        .map(({ stops }) => bandAlpha(stops[1].color));
       expect(bands.every((alpha, i) => i === 0 || alpha > bands[i - 1])).toBe(
         true,
       );
-      expect(bands[7]).toBeLessThanOrEqual(0.52);
+      expect(bands[31]).toBeLessThanOrEqual(0.52);
       expect(bands[0]).toBeLessThan(0.02);
     }
-    expect(gradients).toHaveLength(0);
     for (const planet of extra) {
       expect(fills).toContain(planet.color);
-      expect(segments.some((segment) => segment.color.startsWith("hsl("))).toBe(
-        true,
-      );
+      expect(
+        gradients.some((gradient) =>
+          gradient.stops[0].color.startsWith("hsl("),
+        ),
+      ).toBe(true);
     }
     expect(
       segments.some((segment) =>
@@ -410,6 +499,7 @@ describe("Gravity rendering", () => {
     // The short ribbon path preserves the color family with a continuous opacity gradient.
     const planet = extra[0];
     state.particles = [{ ...planet, trail: planet.trail.slice(-3) }];
+    gradients.length = 0;
     renderer.render(state, [], 1, { paused: true, reducedMotion: true });
     expect(gradients).toHaveLength(2);
     expect(
@@ -419,7 +509,7 @@ describe("Gravity rendering", () => {
     ).toBe(true);
   });
   it("fades the far end of a fresh dense trail before its lifetime expires", () => {
-    const { renderer, segments } = fixture();
+    const { renderer, gradients } = fixture();
     const engine = new GravityEngine(42, toGravityLevel(newDraft()));
     engine.launchFrom({ x: 250, y: 500 }, { x: 10, y: 0 });
     const state = engine.getSnapshot();
@@ -433,10 +523,10 @@ describe("Gravity rendering", () => {
     renderer.render(state, [], 0, { paused: true, reducedMotion: true });
     const alpha = (color: string) =>
       Number(color.match(/, ([\d.e+-]+)\)$/)?.[1]);
-    const bands = segments.slice(0, 8).map(({ color }) => alpha(color));
-    expect(bands).toHaveLength(8);
+    const bands = gradients.map(({ stops }) => alpha(stops[1].color));
+    expect(bands).toHaveLength(86);
     expect(bands[0]).toBeLessThan(0.04);
-    expect(bands[7]).toBeGreaterThan(0.45);
+    expect(bands.at(-1)!).toBeGreaterThan(0.45);
     expect(bands.every((value, i) => i === 0 || value > bands[i - 1])).toBe(
       true,
     );
@@ -545,14 +635,12 @@ it("keeps Gravity zoom, projection and visible bounds aligned across resize", ()
 it("keeps an obstructed held planet visible with a clear warning and no trajectory dots", () => {
   const { renderer, fillRecords, context } = fixture();
   const engine = new GravityEngine(42, getGravityLevel(42, 0));
-  engine.setLaunch({ x: 450, y: 450 }, { angle: 0, power: 0.25 });
+  const position = engine.getSnapshot().level.bodies[0].position;
+  engine.setLaunch(position, { angle: 0, power: 0.25 });
   renderer.resize(1200, 800);
   renderer.render(
     engine.getSnapshot(),
-    [
-      { x: 450, y: 450 },
-      { x: 650, y: 450 },
-    ],
+    [position, { x: position.x + 200, y: position.y }],
     0,
     {
       paused: true,
@@ -563,18 +651,18 @@ it("keeps an obstructed held planet visible with a clear warning and no trajecto
   );
   const marker = fillRecords.find(({ color }) => color === "#c9675e");
   expect(marker?.alpha).toBe(1);
-  expect(marker?.circle.slice(0, 2)).toEqual([450, 450]);
+  expect(marker?.circle.slice(0, 2)).toEqual([position.x, position.y]);
   expect(fillRecords.filter(({ color }) => color === "#7956cf")).toHaveLength(
     0,
   );
   expect(context.fillText).toHaveBeenCalledWith(
     "Start in clear space",
-    450,
+    position.x,
     expect.any(Number),
   );
   expect(context.strokeText).toHaveBeenCalledWith(
     "Start in clear space",
-    450,
+    position.x,
     expect.any(Number),
   );
 });
@@ -584,19 +672,23 @@ it("exposes the fitted default scale independently of player zoom and tutorial f
   const level = getGravityLevel(42, 0);
   renderer.resize(390, 844);
   renderer.prepareFrame(level);
-  expect(renderer.getDefaultScale()).toBeCloseTo(1.366120218579235, 10);
+  const baseline = fitGravityFrame(level, 390, 844).camera.scale;
+  expect(renderer.getDefaultScale()).toBeCloseTo(baseline, 10);
   renderer.setZoom(4);
-  expect(renderer.getScale()).toBeCloseTo(2.73224043715847, 10);
-  expect(renderer.getDefaultScale()).toBeCloseTo(1.366120218579235, 10);
+  expect(renderer.getScale()).toBeCloseTo(baseline * 2, 10);
+  expect(renderer.getDefaultScale()).toBeCloseTo(baseline, 10);
   renderer.setWalkthroughFocus({
     position: { x: 450, y: 450 },
     radius: 1000,
     area: { left: 100, top: 100, width: 100, height: 100 },
   });
   expect(renderer.getScale()).toBeLessThan(0.1);
-  expect(renderer.getDefaultScale()).toBeCloseTo(1.366120218579235, 10);
+  expect(renderer.getDefaultScale()).toBeCloseTo(baseline, 10);
   renderer.resize(844, 390);
-  expect(renderer.getDefaultScale()).toBeCloseTo(1.4722222222222223, 10);
+  expect(renderer.getDefaultScale()).toBeCloseTo(
+    fitGravityFrame(level, 844, 390).camera.scale,
+    10,
+  );
 });
 
 it.each([

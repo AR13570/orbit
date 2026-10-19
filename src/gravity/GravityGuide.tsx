@@ -53,8 +53,8 @@ const practice: GravityLevel = {
       strength: bodyStrength(20),
     },
   ],
-  objective: { kind: "none", count: 1, turns: 1, hold: 0 },
-  requirements: [{ bodyId: "pull", count: 1, turns: 1 }],
+  objective: { kind: "none", count: 1, turns: 2, hold: 0 },
+  requirements: [{ bodyId: "pull", count: 1, turns: 2 }],
   physics: {
     planetGravity: true,
     planetCollisions: "soft",
@@ -65,7 +65,7 @@ const practice: GravityLevel = {
 const lessons = [
   [
     "Make your first planet",
-    "Start in any clear space. Pull back to choose its speed and direction, then release.",
+    "Start in any clear space. Tap to create a planet, or pull back to choose its speed and direction, then release.",
   ],
   [
     "Add another while it moves",
@@ -73,7 +73,7 @@ const lessons = [
   ],
   [
     "Let gravity draw",
-    "Blue cores pull. Coral cores push. Rings and counts show each core’s goal. In Advanced, Particle Interaction controls mutual pull. Particle grouping is off by default; turn it on to let planets settle together on contact.",
+    "Blue cores pull. Coral cores push. The number inside a core counts established orbiters. Each challenge needs at least two full laps. In Advanced, Particle Interaction controls mutual pull. Grouping is off by default; when enabled, slow encounters can settle together while faster planets can separate.",
   ],
   [
     "Choose a size",
@@ -313,6 +313,7 @@ export default function GravityGuide({
                   window.innerHeight,
                   1,
                 ),
+                { unlimitedPull: true },
               );
               origin.current = renderer.current?.screenToWorld(
                 e.clientX,
@@ -329,15 +330,23 @@ export default function GravityGuide({
             onPointerMove={(e) => aim(e.pointerId, e.clientX, e.clientY)}
             onPointerUp={(e) => {
               touches.current.delete(e.pointerId);
-              const rawShot = gesture.current.end(e.pointerId, {
-                  x: e.clientX,
-                  y: e.clientY,
-                }),
+              const rawShot = gesture.current.end(
+                  e.pointerId,
+                  {
+                    x: e.clientX,
+                    y: e.clientY,
+                  },
+                  { allowTap: true },
+                ),
                 p = origin.current;
               if (rawShot && p && !document.hidden && !touchRejected.current) {
                 if (gravityLaunchIsClear(p, engine.getRenderSnapshot())) {
                   engine.setLaunch(p, gravityAim(rawShot));
-                  if (engine.launch()) launched();
+                  const didLaunch =
+                    rawShot.power === 0
+                      ? engine.launchFrom(p, { x: 0, y: 0 })
+                      : engine.launch();
+                  if (didLaunch) launched();
                 } else setBlockedLaunch(true);
               }
               cancel();

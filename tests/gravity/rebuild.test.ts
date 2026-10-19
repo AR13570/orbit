@@ -500,15 +500,22 @@ it("keeps moving well absorption active when a dense overlap cluster exhausts it
   step(state, 1 / 120);
   expect(state.particles.filter((p) => p.alive)).toHaveLength(0);
 });
-it("describes requirement targets with the same friendly letters as the field", () => {
+it("describes requirement targets by their visible positions", () => {
   const single = { ...base, requirements: [{ bodyId: "a", count: 1 }] };
   expect(objectiveText(single)).toContain("orbiting the core");
   const multiple = {
     ...single,
-    bodies: [...base.bodies, { ...base.bodies[0], id: "internal-well-2" }],
+    bodies: [
+      ...base.bodies,
+      {
+        ...base.bodies[0],
+        id: "internal-well-2",
+        position: { x: 700, y: 450 },
+      },
+    ],
     requirements: [{ bodyId: "internal-well-2", count: 2 }],
   };
-  expect(objectiveText(multiple)).toContain("around core B");
+  expect(objectiveText(multiple)).toContain("around the rightmost core");
   expect(objectiveText(multiple)).not.toContain("internal-well-2");
 });
 

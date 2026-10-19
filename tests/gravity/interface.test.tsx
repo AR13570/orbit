@@ -8,6 +8,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
 import { loadGravityProgress } from "../../src/gravity/progress";
+import { gravityAim } from "../../src/gravity/input";
+import { gravityLaunchSpeed } from "../../src/gravity/physics";
 import GravityGame from "../../src/gravity/GravityGame";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
@@ -96,6 +98,54 @@ function pull(c: HTMLCanvasElement) {
   pointer(c, "pointerup", 220, 330);
 }
 describe("Gravity interface", () => {
+  it.each(["mouse", "touch"])(
+    "creates a resting projectile from a %s tap without a pull",
+    (pointerType) => {
+      const launch = vi.spyOn(GravityEngine.prototype, "launchFrom");
+      render(
+        <GravityGame
+          onExit={() => {}}
+          customLevel={toGravityLevel(newDraft())}
+        />,
+      );
+      const canvas = field();
+      pointer(canvas, "pointerdown", 250, 650, 1, true, pointerType);
+      pointer(canvas, "pointerup", 250, 650, 1, true, pointerType);
+      expect(screen.getByText("1 planet in motion")).toBeTruthy();
+      expect(launch).toHaveBeenCalledWith({ x: 250, y: 650 }, { x: 0, y: 0 });
+      const engine = launch.mock.contexts[0] as GravityEngine;
+      expect(engine.getSnapshot().particles[0].velocity).toEqual({
+        x: 0,
+        y: 0,
+      });
+    },
+  );
+
+  it("uses the same spatial targets in custom route text and accessible route progress", () => {
+    const level = toGravityLevel(newDraft());
+    const core = level.bodies[0];
+    level.bodies = [
+      { ...core, id: "right", position: { x: 650, y: 450 } },
+      { ...core, id: "left", position: { x: 250, y: 450 } },
+    ];
+    level.journey = {
+      legs: [
+        { bodyId: "left", radius: 100, sweep: Math.PI },
+        { bodyId: "right", radius: 100, sweep: 2 * Math.PI },
+      ],
+    };
+    render(<GravityGame customLevel={level} onExit={() => {}} />);
+    expect(
+      screen.getByText(/Curve past the leftmost core → the rightmost core/),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("listitem", { name: "the leftmost core: next" })
+        .textContent,
+    ).toBe("the leftmost core");
+    expect(
+      screen.getByRole("listitem", { name: "the rightmost core" }).textContent,
+    ).toBe("the rightmost core");
+  });
   describe.each([
     {
       name: "desktop",
@@ -145,10 +195,10 @@ describe("Gravity interface", () => {
           angle: number;
           pull: { x: number; y: number };
         };
-        const expectedPower = Math.min(1, distance / limit) ** 2;
+        const expectedPower = gravityAim({ power: distance / limit }).power;
         expect(previewAim.power).toBeCloseTo(expectedPower, 12);
         expect(Math.hypot(previewAim.pull!.x, previewAim.pull!.y)).toBeCloseTo(
-          Math.min(distance, limit),
+          distance,
         );
         pointer(canvas, "pointerup", 300 - distance, 300, 1, true, pointerType);
         expect(setLaunch.mock.calls.at(-1)![1]).toEqual(previewAim);
@@ -198,7 +248,7 @@ describe("Gravity interface", () => {
       factor: Math.sqrt(0.75),
     },
   ])(
-    "keeps $pointerType aim, capped handle and release aligned at $zoom zoom",
+    "keeps $pointerType aim, unrestricted handle and release aligned at $zoom zoom",
     ({ pointerType, width, height, base, zoom, factor }) => {
       vi.spyOn(window, "innerWidth", "get").mockReturnValue(width);
       vi.spyOn(window, "innerHeight", "get").mockReturnValue(height);
@@ -207,11 +257,9 @@ describe("Gravity interface", () => {
       render(<GravityGame onExit={() => {}} />);
       const canvas = field();
       fireEvent.wheel(canvas, { deltaY: -Math.log(zoom) / 0.0012 });
-      for (const [fraction, expectedPower, expectedSpeed] of [
-        [0.5, 0.25, 105],
-        [0.95, 0.9025, 399.79984375],
-        [1.3, 1, 460],
-      ]) {
+      for (const fraction of [0.5, 0.95, 1.3, 3]) {
+        const expectedPower = gravityAim({ power: fraction }).power;
+        const expectedSpeed = gravityLaunchSpeed(expectedPower);
         const distance = base * factor * fraction;
         pointer(canvas, "pointerdown", 300, 300, 1, true, pointerType);
         pointer(
@@ -228,10 +276,7 @@ describe("Gravity interface", () => {
           pull: { x: number; y: number };
         };
         expect(aim.power).toBeCloseTo(expectedPower, 12);
-        expect(Math.hypot(aim.pull.x, aim.pull.y)).toBeCloseTo(
-          Math.min(distance, base * factor),
-          10,
-        );
+        expect(Math.hypot(aim.pull.x, aim.pull.y)).toBeCloseTo(distance, 10);
         pointer(canvas, "pointerup", 300 - distance, 300, 1, true, pointerType);
         expect(setLaunch.mock.calls.at(-1)![1]).toEqual(aim);
         const state = (
@@ -551,7 +596,9 @@ it("Reset level after completion persists the level actually being replayed", ()
 
 it("rejects core-overlapping release and lets the next clear-space drag launch", () => {
   const aim = vi.spyOn(GravityEngine.prototype, "setLaunch");
-  render(<GravityGame onExit={() => {}} />);
+  render(
+    <GravityGame onExit={() => {}} customLevel={toGravityLevel(newDraft())} />,
+  );
   const canvas = field();
   pointer(canvas, "pointerdown", 450, 450, 1, true, "mouse");
   pointer(canvas, "pointermove", 405, 450, 1, true, "mouse");
@@ -587,7 +634,8 @@ it("checks the live core pose when a moving core crosses the held launch point",
     y: 450,
   });
   engine.setTimeScale(1);
-  engine.update(0.25);
+  // Aiming slows playback to 65%, so advance a quarter second physically.
+  for (let frame = 0; frame < 40; frame++) engine.update(0.25 / 0.65 / 40);
   pointer(canvas, "pointerup", 405, 550, 1, true, "mouse");
   expect(engine.getSnapshot().particles).toHaveLength(0);
   expect(screen.getByRole("status").textContent).toBe("Start in clear space");

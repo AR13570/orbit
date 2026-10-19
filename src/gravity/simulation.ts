@@ -1,4 +1,5 @@
 import type { Aim, Vec2 } from "../game/types";
+import { corePositionLabel } from "./core-position-label";
 import { assistGroupSpin } from "./group-spin";
 import { moveWells } from "./motion";
 import { driftWithContacts } from "./contacts";
@@ -38,6 +39,19 @@ const COLORS = [
   "#b44357",
   "#66519e",
 ];
+/** Shared by the held projectile and launch so the preview uses the next planet's color. */
+export function nextProjectileColor(
+  state: Pick<GravityState, "particles" | "nextId">,
+): string {
+  return (
+    COLORS.find(
+      (color) =>
+        !state.particles.some(
+          (particle) => particle.alive && particle.color === color,
+        ),
+    ) ?? `hsl(${(state.nextId * 137.507764) % 360} 72% 28%)`
+  );
+}
 export function createState(level: GravityLevel): GravityState {
   const copy = structuredClone(level);
   copy.objective = { ...copy.objective, hold: 0 };
@@ -59,11 +73,8 @@ export function fireFrom(
   velocity: Vec2,
 ): boolean {
   if (!finiteVector(position) || !finiteVector(velocity)) return false;
+  const color = nextProjectileColor(state);
   const id = state.nextId++;
-  const color =
-    COLORS.find(
-      (c) => !state.particles.some((p) => p.alive && p.color === c),
-    ) ?? `hsl(${(id * 137.507764) % 360} 72% 28%)`;
   state.particles.push({
     id,
     position: { ...position },
@@ -111,7 +122,7 @@ export function step(state: GravityState, dt: number): void {
   dt = Math.min(dt, GRAVITY_FIXED_STEP);
   const live = state.particles.filter((p) => p.alive);
   assistGroupSpin(state, live, dt);
-  recoverSurfaceOverlaps(state, live);
+  recoverSurfaceOverlaps(state, live, dt);
   const before = planetAccelerations(live, state.level.bodies, state.physics);
   const previousBodies = new Map(
     state.level.bodies.map((body) => [body.id, { ...body.position }]),
@@ -171,8 +182,7 @@ export function objectiveText(level: GravityLevel): string {
     level.objective.count === 1
       ? "one planet"
       : `${level.objective.count} planets`;
-  const coreLabel = (id: string) =>
-    String.fromCharCode(65 + level.bodies.findIndex((body) => body.id === id));
+  const coreLabel = (id: string) => corePositionLabel(level, id);
   if (level.journey) {
     const route = level.journey.legs
       .map((leg) => coreLabel(leg.bodyId))
@@ -181,7 +191,7 @@ export function objectiveText(level: GravityLevel): string {
     return `Curve past ${route} with ${planetLabel}.${capture ? ` Finish a full orbit at ${coreLabel(level.journey.legs.at(-1)!.bodyId)}.` : " Keep the same planet."}`;
   }
   if (level.sharedOrbit)
-    return `Loop ${planetLabel} around ${level.sharedOrbit.length === 2 ? "both cores" : `all ${level.sharedOrbit.length} cores`}${level.sharedCounter ? ", in opposite directions" : " in one shared orbit"}.`;
+    return `Loop ${planetLabel} around ${level.sharedOrbit.length === 2 ? "both cores" : `all ${level.sharedOrbit.length} cores`}${level.sharedCounter ? ", in opposite directions" : " in one shared orbit"} for ${level.objective.turns} ${level.objective.turns === 1 ? "revolution" : "revolutions"}.`;
   if (
     level.source === "campaign" &&
     level.requirements?.every(
@@ -211,12 +221,7 @@ export function objectiveText(level: GravityLevel): string {
       return `Keep ${population} planets across ${level.requirements.length} cores${duration}.`;
     }
   }
-  const targetLabel = (id: string) => {
-    const index = level.bodies.findIndex((body) => body.id === id);
-    if (level.bodies.filter((body) => body.kind === "attractor").length === 1)
-      return "the core";
-    return index >= 0 ? `core ${String.fromCharCode(65 + index)}` : "a core";
-  };
+  const targetLabel = coreLabel;
   if (level.requirements?.length) {
     const requirements = level.requirements,
       attractors = level.bodies.filter((body) => body.kind === "attractor");

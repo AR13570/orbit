@@ -4,6 +4,7 @@ import AdvancedSettings from "./AdvancedSettings";
 import { dialogControls } from "./dialogFocus";
 import Icon from "./Icon";
 import Attribution from "./Attribution";
+import ThemeControl from "./ThemeControl";
 export default function PauseMenu({
   onModes,
   onResume,
@@ -70,6 +71,7 @@ export default function PauseMenu({
             <PathAssistControl />
           </AdvancedSettings>
           <div className="pause-options">
+            <ThemeControl />
             <button
               className="pause-option"
               onClick={onSound}

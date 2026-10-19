@@ -50,7 +50,11 @@ for (const viewport of [
         engine.setTimeScale(1);
         const level = engine.getRenderSnapshot().level;
         let shot = 0;
-        for (let n = 0; n < 30 * 120; n++) {
+        for (
+          let n = 0;
+          n < Math.max(90, (level.witness.at(-1)?.time ?? 0) + 60) * 120;
+          n++
+        ) {
           let s = engine.getRenderSnapshot();
           while (
             shot < level.witness.length &&

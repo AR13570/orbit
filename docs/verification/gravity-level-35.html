@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gravity level 35 | Solution replay</title><style>
+@font-face{font-family:Righteous;src:url('/fonts/Righteous-Regular.ttf')}*{box-sizing:border-box}body{margin:0;background:#e9ecef;color:#303943;font-family:'Avenir Next',sans-serif}canvas{position:fixed;inset:0;width:100%;height:100%}header,footer{position:fixed;left:24px;right:24px;text-align:center;pointer-events:none}header{top:24px}h1{font:400 26px Righteous,sans-serif;margin:0 0 12px}p{margin:8px 0;color:#626d78;font-size:14px}footer{bottom:24px}button{pointer-events:auto;border:0;background:#303943;color:#e9ecef;padding:8px 15px;border-radius:9px;font:inherit;cursor:pointer}#status{font-weight:600;color:#245f78}#note{font-size:12px;max-width:550px;margin:10px auto}#error{color:#ad3b2d}
+</style></head><body><canvas class="scene-canvas" aria-label="Level 35 solution replay"></canvas><header><h1>Gravity · Level 35</h1><p id="title"></p><p id="objective"></p><p id="error"></p></header><footer><p id="status">Preparing the replay…</p><button id="replay">Replay solution</button><p id="note">Current game physics and default projectile size. The simulation continues after completion. Long-term sequential stability evidence is recorded separately in stable-campaign.json.</p></footer><script type="module">
+import {getGravityLevel} from '/src/gravity/campaign.ts';
+import {GravityEngine} from '/src/gravity/engine.ts';
+import {objectiveText} from '/src/gravity/simulation.ts';
+import {createGravityRenderer} from '/src/gravity/renderer.ts';
+const canvas=document.querySelector('canvas'),r=createGravityRenderer(canvas),level=getGravityLevel(42,34);
+document.querySelector('#title').textContent=level.title;
+document.querySelector('#objective').textContent=objectiveText(level);
+let engine,shot,done,last,completion;
+function restart(){
+ engine=new GravityEngine(42,undefined,getGravityLevel);engine.goTo(34);engine.setTimeScale(1);
+ r.resize(innerWidth,innerHeight,devicePixelRatio);r.prepareFrame(engine.getRenderSnapshot().level);
+ engine.setDefaultViewScale(r.getDefaultScale());engine.setFlightBounds(r.getFlightBounds());shot=0;done=false;last=undefined;completion=null;
+ document.querySelector('#status').textContent='Launching one planet at a time…';
+}
+function frame(now){
+ if(!done){const dt=last===undefined?0:Math.min(.05,(now-last)/1000);let elapsed=0;
+ while(elapsed<dt){const s=engine.getRenderSnapshot();while(shot<level.witness.length&&level.witness[shot].time<=s.elapsed+1e-8){const w=level.witness[shot++];engine.launchFrom(w.position,w.velocity);}engine.update(1/120);elapsed+=1/120;
+ if(engine.getRenderSnapshot().complete && completion===null){completion=engine.getRenderSnapshot().elapsed;document.querySelector('#status').textContent='Two-orbit goal reached. The system keeps moving.';document.body.dataset.complete='true';document.body.dataset.completionTime=completion.toFixed(3);}
+ }
+ }
+ last=now;r.render(engine.getRenderSnapshot(),[],now/1000,{paused:done,reducedMotion:false,pathAssist:'partial'});requestAnimationFrame(frame);
+}
+document.querySelector('#replay').addEventListener('click',()=>{delete document.body.dataset.complete;restart();});
+window.addEventListener('resize',()=>{r.resize(innerWidth,innerHeight,devicePixelRatio);r.prepareFrame(engine.getRenderSnapshot().level);});
+window.addEventListener('error',e=>document.querySelector('#error').textContent=e.message);
+restart();requestAnimationFrame(frame);
+</script></body></html>

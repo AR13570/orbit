@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { getGravityLevel } from "../../src/gravity/campaign";
 import { fitGravityFrame } from "../../src/gravity/renderer";
 import { worldToClient } from "../../src/render/coordinates";
+import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
 import { objectiveText } from "../../src/gravity/simulation";
+import { corePositionLabel } from "../../src/gravity/core-position-label";
 
 describe("Gravity content framing", () => {
   it.each([0, 1])(
@@ -14,7 +16,9 @@ describe("Gravity content framing", () => {
       for (const body of level.bodies)
         expect(body.radius * frame.camera.scale * 2).toBeGreaterThanOrEqual(48);
       for (const body of level.bodies)
-        expect(body.radius * frame.camera.scale * 2).toBeLessThanOrEqual(100);
+        expect(body.radius * frame.camera.scale * 2).toBeLessThanOrEqual(
+          frame.area.height,
+        );
       expect(level).toEqual(before);
     },
   );
@@ -77,8 +81,22 @@ describe("Gravity content framing", () => {
     });
   }
   it("uses the field height for a square formation rather than shrinking it to a fixed world square", () => {
-    const level = getGravityLevel(42, 17),
-      { camera, area } = fitGravityFrame(level, 1280, 720, false);
+    const level = toGravityLevel(newDraft());
+    const core = level.bodies[0];
+    level.launch = { x: 450, y: 450 };
+    level.orbitPadding = 80;
+    level.bodies = [
+      [300, 300],
+      [600, 300],
+      [300, 600],
+      [600, 600],
+    ].map(([x, y], index) => ({
+      ...core,
+      id: `square-${index}`,
+      radius: 96,
+      position: { x, y },
+    }));
+    const { camera, area } = fitGravityFrame(level, 1280, 720, false);
     const top = Math.min(
       ...level.bodies.map((body) => body.position.y - body.radius),
     );
@@ -89,25 +107,77 @@ describe("Gravity content framing", () => {
   });
 });
 describe("Gravity objective copy", () => {
-  it("summarizes identical goals without repeating every core", () => {
-    const text = objectiveText(getGravityLevel(42, 17));
-    expect(text.startsWith("Keep 1 planet orbiting each core.")).toBe(true);
+  it.each([2, 3, 4])(
+    "states the full %i-revolution shared-orbit demand",
+    (turns) => {
+      const level = Array.from({ length: 45 }, (_, index) =>
+        getGravityLevel(42, index),
+      ).find((candidate) => candidate.sharedOrbit?.length)!;
+      level.source = "procedural";
+      level.objective.turns = turns;
+      const text = objectiveText(level);
+      expect(text).toContain("in one shared orbit");
+      expect(text).toContain(`for ${turns} revolutions.`);
+      level.sharedCounter = true;
+      expect(objectiveText(level)).toContain(
+        `in opposite directions for ${turns} revolutions.`,
+      );
+    },
+  );
+  it("summarizes uniform two-revolution populations without repeating each core", () => {
+    const level = Array.from({ length: 45 }, (_, index) =>
+      getGravityLevel(42, index),
+    ).find((candidate) => (candidate.requirements?.length ?? 0) > 1)!;
+    expect(level).toBeDefined();
+    const count = level.requirements![0].count;
+    const text = objectiveText(level);
+    expect(text).toBe(
+      `Keep ${count} ${count === 1 ? "planet" : "planets"} orbiting each core for 2 revolutions.`,
+    );
     expect(text.length).toBeLessThan(80);
     expect(text).not.toContain(" · ");
   });
-  it("describes the final ordered return and full capture without a timed wait", () => {
-    const text = objectiveText(getGravityLevel(42, 44));
-    expect(text).toContain("A → B → C → A");
-    expect(text).toContain("full orbit at A");
-    expect(text).not.toMatch(/hold|seconds/i);
+  it("describes full campaign orbits without partial-relay instructions or timed waits", () => {
+    for (let index = 0; index < 45; index++) {
+      const level = getGravityLevel(42, index);
+      expect(level.objective.turns).toBeGreaterThanOrEqual(2);
+      expect(
+        level.requirements?.every(
+          (goal) => (goal.turns ?? level.objective.turns) >= 2,
+        ) ?? true,
+      ).toBe(true);
+      expect(level.journey).toBeUndefined();
+      expect(objectiveText(level)).not.toMatch(
+        /curve past|full orbit at|hold|seconds|core [A-Z]/,
+      );
+    }
   });
-  it("identifies the intended central core instead of implying every surrounding core is a target", () => {
-    const text = objectiveText(getGravityLevel(42, 21));
-    expect(text).toContain("around core A");
-    expect(text).not.toContain("each core");
+  it("includes every attractive core without treating surrounding repellers as orbit targets", () => {
+    const level = Array.from({ length: 45 }, (_, index) =>
+      getGravityLevel(42, index),
+    ).find(
+      (candidate) =>
+        candidate.bodies.some((body) => body.kind === "repellent") &&
+        candidate.bodies.filter((body) => body.kind === "attractor").length >
+          1 &&
+        !!candidate.requirements,
+    )!;
+    expect(level).toBeDefined();
+    const targets = level.bodies.filter((body) => body.kind === "attractor");
+    expect(level.requirements!.map((goal) => goal.bodyId).sort()).toEqual(
+      targets.map((body) => body.id).sort(),
+    );
+    expect(objectiveText(level)).toContain("each core for 2 revolutions");
+    expect(objectiveText(level)).not.toMatch(/core [A-Z]|repeller/);
   });
-  it("keeps distinct per-core populations, directions and turn counts explicit", () => {
-    const level = getGravityLevel(42, 6);
+  it("keeps explicitly authored custom populations, directions and turn counts clear", () => {
+    const level = toGravityLevel(newDraft());
+    level.bodies.push({
+      ...structuredClone(level.bodies[0]),
+      id: "second-core",
+      position: { x: 650, y: 450 },
+    });
+    level.objective.turns = 2;
     level.requirements = [
       {
         bodyId: level.bodies[0].id,
@@ -115,12 +185,51 @@ describe("Gravity objective copy", () => {
         turns: 2,
         direction: "clockwise",
       },
-      { bodyId: level.bodies[1].id, count: 3 },
+      {
+        bodyId: level.bodies[1].id,
+        count: 3,
+        turns: 3,
+        direction: "counterclockwise",
+      },
     ];
     const text = objectiveText(level);
     expect(text).toContain(
-      "2 planets around core A clockwise for 2 revolutions",
+      "2 planets around the leftmost core clockwise for 2 revolutions",
     );
-    expect(text).toContain("3 planets around core B");
+    expect(text).toContain(
+      "3 planets around the rightmost core counterclockwise for 3 revolutions",
+    );
+  });
+  it("identifies spatial targets independently of body ordering and ignores repellers", () => {
+    const level = toGravityLevel(newDraft());
+    const core = level.bodies[0];
+    level.bodies = [
+      { ...core, id: "bottom", position: { x: 450, y: 700 } },
+      { ...core, id: "top", position: { x: 450, y: 200 } },
+      { ...core, id: "middle", position: { x: 450, y: 450 } },
+      {
+        ...core,
+        id: "repel",
+        kind: "repellent",
+        position: { x: -2000, y: 300 },
+      },
+    ];
+    const before = structuredClone(level.bodies);
+    expect(corePositionLabel(level, "top")).toBe("the uppermost core");
+    expect(corePositionLabel(level, "middle")).toBe("the middle core");
+    expect(corePositionLabel(level, "bottom")).toBe("the lowermost core");
+    expect(level.bodies).toEqual(before);
+    level.journey = {
+      legs: [
+        { bodyId: "bottom", radius: 100, sweep: Math.PI },
+        { bodyId: "top", radius: 100, sweep: 2 * Math.PI },
+      ],
+    };
+    expect(objectiveText(level)).toContain(
+      "the lowermost core → the uppermost core",
+    );
+    expect(objectiveText(level)).toContain(
+      "Finish a full orbit at the uppermost core.",
+    );
   });
 });

@@ -1,0 +1,862 @@
+{
+  "open-sky:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-sky:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-sky:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "neighbouring-systems:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "neighbouring-systems:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "neighbouring-systems:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "common-centre:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "common-centre:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "common-centre:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "the-shield:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-shield:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-shield:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    }
+  ],
+  "long-channel:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "long-channel:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "long-channel:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "the-divide:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-divide:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-divide:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "open-crown:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-crown:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-crown:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    }
+  ],
+  "closed-garden:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "closed-garden:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "closed-garden:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    }
+  ],
+  "broken-necklace:gentle:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "broken-necklace:gentle:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "broken-necklace:gentle:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "open-sky:deep:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-sky:deep:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-sky:deep:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "common-centre:deep:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "common-centre:deep:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "common-centre:deep:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "the-shield:deep:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-shield:deep:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-shield:deep:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "long-channel:deep:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "long-channel:deep:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "long-channel:deep:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "open-crown:deep:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-crown:deep:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-crown:deep:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "closed-garden:deep:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "closed-garden:deep:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "closed-garden:deep:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "broken-necklace:deep:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "broken-necklace:deep:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "broken-necklace:deep:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "open-sky:broad:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-sky:broad:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "open-sky:broad:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "the-shield:broad:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-shield:broad:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "the-shield:broad:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "long-channel:broad:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "long-channel:broad:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "long-channel:broad:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ],
+  "closed-garden:broad:0": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "closed-garden:broad:1": [
+    {
+      "quarter": 0,
+      "reflected": false
+    }
+  ],
+  "closed-garden:broad:2": [
+    {
+      "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
+      "quarter": 3,
+      "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
+    }
+  ]
+}

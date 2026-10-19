@@ -29,7 +29,9 @@ async function boot(page: Page, mode = "odessey") {
     ) {
       if (
         this.canvas.classList.contains("scene-canvas") &&
-        (this.fillStyle === "#8a0f4b" || this.fillStyle === "#7956cf")
+        ["#8a0f4b", "#7956cf", "#f09bbf", "#bd9cf2"].includes(
+          String(this.fillStyle),
+        )
       )
         probe.assistDots.push({ x, y });
       return original.call(this, x, y, r, start, end, anticlockwise);
@@ -133,26 +135,30 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
       const { getGravityLevel } = await import("/src/gravity/campaign.ts"),
         { fitGravityFrame } = await import("/src/gravity/renderer.ts"),
         { worldToClient } = await import("/src/render/coordinates.ts");
+      const { gravityPullDistance, gravityPullFraction } =
+        await import("/src/gravity/input.ts");
       const level = getGravityLevel(42, 0),
-        core = level.bodies.find((body) => body.kind === "attractor")!;
-      const radius = 75,
-        speed = Math.sqrt(
-          (core.strength * radius) / (radius * radius + 40 * 40),
-        );
+        shot = level.witness[0];
       const { camera, area } = fitGravityFrame(
         level,
-        window.innerWidth,
-        window.innerHeight,
+        innerWidth,
+        innerHeight,
         false,
       );
       const start = worldToClient(
-        { x: core.position.x + radius, y: core.position.y },
+        shot.position!,
         { left: area.x, top: area.y, width: area.width, height: area.height },
         camera,
       );
+      const pull =
+        gravityPullFraction(shot.power) *
+        gravityPullDistance("mouse", innerWidth, innerHeight);
       return {
         start,
-        end: { x: start.x, y: start.y - Math.sqrt(speed / 420) * 180 },
+        end: {
+          x: start.x - Math.cos(shot.angle) * pull,
+          y: start.y - Math.sin(shot.angle) * pull,
+        },
       };
     },
   );
@@ -171,7 +177,9 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
   await page.screenshot({
     path: "/private/tmp/orbit-path-assist-gravity-partial.png",
   });
-  expect(gravityFull).toBeGreaterThan(gravityPartial * 4);
+  expect(gravityPartial).toBeGreaterThanOrEqual(60);
+  expect(gravityFull).toBeGreaterThan(gravityPartial * 3);
+  expect(gravityFull).toBeLessThanOrEqual(240);
   await pauseHeld(page);
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   await page.clock.runFor(32);
@@ -260,6 +268,8 @@ test("mobile Full assist cancels on pinch and keeps comfortable settings targets
 test("128-planet Full prediction finishes a genuinely long path in bounded responsive slices", async ({
   page,
 }) => {
+  // The minute-long, 128-body prediction intentionally spans many real frames.
+  test.setTimeout(120000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   const result = await page.evaluate(async () => {
@@ -287,18 +297,18 @@ test("128-planet Full prediction finishes a genuinely long path in bounded respo
     for (let i = 0; i < 96; i++) engine.update(0.25);
     engine.setLaunch({ x: 130, y: 650 }, { angle: Math.PI, power: 0.3 });
     const partial = engine.predict(0.6),
-      job = engine.beginPrediction(10)!;
+      job = engine.beginPrediction()!;
     const slices: number[] = [],
       frames: number[] = [];
     let count = 0;
-    while (!job.done && count++ < 300) {
+    while (!job.done && count++ < 1800) {
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve()),
       );
       const frame = performance.now();
       engine.update(1 / 60);
       const start = performance.now();
-      job.advance(5);
+      job.advance(4);
       slices.push(performance.now() - start);
       renderer.render(engine.getRenderSnapshot(), job.path, count / 60, {
         paused: false,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GravityEngine } from "../../src/gravity/engine";
+import { gravityForceAt, gravityLaunchPower } from "../../src/gravity/physics";
 import type { GravityLevel } from "../../src/gravity/types";
 
 function orbitEngine() {
@@ -14,17 +15,20 @@ function orbitEngine() {
         id: "well",
         kind: "attractor",
         position: { x: 450, y: 450 },
-        radius: 40,
-        strength: 1440000,
+        radius: 96,
+        strength: 12000000,
+        softening: 180,
       },
     ],
-    objective: { kind: "loop", count: 1, turns: 1, hold: 0 },
+    objective: { kind: "loop", count: 1, turns: 2, hold: 0 },
     witness: [],
   };
   const engine = new GravityEngine(1, level);
   engine.setAim(
     0,
-    Math.sqrt((1440000 * 200) / (200 * 200 + 40 * 40)) / 420,
+    gravityLaunchPower(
+      Math.sqrt(-gravityForceAt(level.launch, level.bodies).y * 200),
+    ),
   );
   engine.launch();
   return engine;
@@ -46,7 +50,9 @@ describe("Gravity playback pace", () => {
     expect(slower.elapsed).toBeCloseTo(2.4, 10);
     expect(faster.elapsed).toBeCloseTo(2.7, 10);
     expect(slower.elapsed).toBeLessThan(faster.elapsed);
-    expect(slower.particles[0].position).not.toEqual(faster.particles[0].position);
+    expect(slower.particles[0].position).not.toEqual(
+      faster.particles[0].position,
+    );
     expect(Math.abs(slower.particles[0].orbits.well.winding)).toBeLessThan(
       Math.abs(faster.particles[0].orbits.well.winding),
     );
@@ -65,7 +71,7 @@ describe("Gravity playback pace", () => {
     expect(slower.elapsed).toBe(faster.elapsed);
     expect(slower.particles[0].alive).toBe(true);
     expect(Math.abs(slower.particles[0].orbits.well.winding)).toBeGreaterThan(
-      2 * Math.PI,
+      4 * Math.PI,
     );
     expect(slower.particles).toEqual(faster.particles);
     expect(slower.physics).toEqual(faster.physics);
@@ -78,23 +84,32 @@ describe("Gravity playback pace", () => {
 function solve(engine: GravityEngine) {
   engine.setTimeScale(1);
   const level = engine.getSnapshot().level;
+  expect(level.witness.length).toBeGreaterThan(0);
+  expect(level.objective.turns).toBeGreaterThanOrEqual(2);
+  const horizon = Math.max(90, (level.witness.at(-1)?.time ?? 0) + 60);
   let shot = 0;
-  for (let n = 0; n < 120 * 85 && !engine.getSnapshot().complete; n++) {
+  for (
+    let n = 0;
+    n < 120 * horizon && !engine.getRenderSnapshot().complete;
+    n++
+  ) {
     while (
       shot < level.witness.length &&
-      level.witness[shot].time <= n / 120 + 1e-8
+      level.witness[shot].time <= engine.getRenderSnapshot().elapsed + 1e-8
     ) {
-      const witness = level.witness[shot];
+      const witness = level.witness[shot++];
       if (witness.position && witness.velocity)
-        engine.launchFrom(witness.position, witness.velocity);
+        expect(engine.launchFrom(witness.position, witness.velocity)).toBe(
+          true,
+        );
       else {
         engine.setAim(witness.angle, witness.power);
-        engine.launch();
+        expect(engine.launch()).toBe(true);
       }
-      shot++;
     }
     engine.update(1 / 120);
   }
+  expect(shot).toBe(level.witness.length);
 }
 describe("Gravity engine lifecycle", () => {
   it("keeps the puzzle on retry and advances a completion exactly once", () => {

@@ -12,8 +12,31 @@ export const GRAVITY_FORCE_SCALE = 1;
 export const GRAVITY_FIXED_STEP = 1 / 120;
 export const WELL_SOFTENING = 40;
 export const PARTICLE_GRAVITY_STRENGTH = 96000;
+/** Broaden only the near field; distant attraction retains the authored strength. */
+export function particleSoftening(
+  a: Pick<GravityParticle, "radius">,
+  b: Pick<GravityParticle, "radius">,
+): number {
+  return Math.max(60, (a.radius + b.radius) * 1.5);
+}
+
+/** Pair potential matching the Plummer force, zero at infinity. */
+export function particlePairPotential(
+  a: GravityParticle,
+  b: GravityParticle,
+  strength: number,
+): number {
+  const dx = b.position.x - a.position.x,
+    dy = b.position.y - a.position.y;
+  return (
+    -(strength * a.mass * b.mass) /
+    Math.sqrt(dx * dx + dy * dy + particleSoftening(a, b) ** 2)
+  );
+}
 const finitePositive = (value: number | undefined, fallback: number) =>
   value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback;
+export const wellSoftening = (body: Pick<Body, "softening">): number =>
+  finitePositive(body.softening, WELL_SOFTENING);
 export function physicsSettings(
   options: GravityPhysicsOptions = {},
 ): GravityPhysicsSettings {
@@ -63,9 +86,10 @@ export function gravityForceAt(position: Vec2, bodies: readonly Body[]): Vec2 {
       dy = body.position.y - position.y;
     const square = dx * dx + dy * dy;
     if (square < 1e-12) continue;
+    const softening = wellSoftening(body);
     const scale =
       ((body.kind === "attractor" ? 1 : -1) * body.strength) /
-      ((square + WELL_SOFTENING ** 2) * Math.sqrt(square));
+      ((square + softening ** 2) * Math.sqrt(square));
     x += dx * scale;
     y += dy * scale;
   }
@@ -74,15 +98,15 @@ export function gravityForceAt(position: Vec2, bodies: readonly Body[]): Vec2 {
 /** Potential matching the softened static well force, zero at infinity. */
 export function wellPotential(position: Vec2, bodies: readonly Body[]): number {
   return bodies.reduce((sum, body) => {
+    const softening = wellSoftening(body);
     const radius = Math.hypot(
       position.x - body.position.x,
       position.y - body.position.y,
     );
     return (
       sum -
-      (((body.kind === "attractor" ? 1 : -1) * body.strength) /
-        WELL_SOFTENING) *
-        Math.atan2(WELL_SOFTENING, radius)
+      (((body.kind === "attractor" ? 1 : -1) * body.strength) / softening) *
+        Math.atan2(softening, radius)
     );
   }, 0);
 }
@@ -100,7 +124,7 @@ export function planetAccelerations(
         b = particles[j];
       const dx = b.position.x - a.position.x,
         dy = b.position.y - a.position.y;
-      const softening = Math.max(2, (a.radius + b.radius) * 0.5);
+      const softening = particleSoftening(a, b);
       const factor =
         settings.planetGravityStrength /
         (dx * dx + dy * dy + softening * softening) ** 1.5;

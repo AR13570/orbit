@@ -1,3 +1,4 @@
+import { MAX_GRAVITY_PREDICTION_SECONDS } from "./prediction-settings";
 import {
   createGravityPrediction,
   type GravityPredictionJob,
@@ -31,6 +32,7 @@ export class GravityEngine {
   private complete = false;
   private completedCount = 0;
   private paused = false;
+  private aiming = false;
   private timeScale = GRAVITY_SPEED_SCALE;
   private customLevel: GravityLevel | undefined;
   private particleInteractionOverride: boolean | undefined;
@@ -81,6 +83,11 @@ export class GravityEngine {
   }
   setPaused(paused: boolean): void {
     this.paused = paused;
+    if (paused) this.aiming = false;
+  }
+  /** Slow only playback, preserving every physical velocity and fixed-step trajectory. */
+  setAiming(aiming: boolean): void {
+    this.aiming = aiming && !this.paused;
   }
   /** The outermost allowed camera view, independent of the player's current zoom. */
   setFlightBounds(bounds: WorldBounds): void {
@@ -164,6 +171,7 @@ export class GravityEngine {
     this.state.sampleClock = 0;
   }
   launchFrom(position: Vec2, velocity: Vec2): boolean {
+    this.aiming = false;
     return fireFrom(this.state, position, velocity);
   }
   launch(): boolean {
@@ -176,7 +184,8 @@ export class GravityEngine {
   }
   update(dt: number): void {
     if (this.paused || !Number.isFinite(dt) || dt <= 0) return;
-    this.accumulator += Math.min(dt, 0.25) * this.timeScale;
+    this.accumulator +=
+      Math.min(dt, 0.25) * this.timeScale * (this.aiming ? 0.65 : 1);
     while (this.accumulator + 1e-9 >= GRAVITY_FIXED_STEP) {
       this.accumulator = Math.max(0, this.accumulator - GRAVITY_FIXED_STEP);
       step(this.state, GRAVITY_FIXED_STEP);
@@ -187,6 +196,7 @@ export class GravityEngine {
     }
   }
   retry(): void {
+    this.aiming = false;
     this.complete = false;
     this.state = createState(this.state.level);
     this.state.groupSpin = { groups: {} };
@@ -203,7 +213,9 @@ export class GravityEngine {
   skip(): void {
     if (!this.customLevel) this.next();
   }
-  beginPrediction(seconds = 10): GravityPredictionJob | null {
+  beginPrediction(
+    seconds = MAX_GRAVITY_PREDICTION_SECONDS,
+  ): GravityPredictionJob | null {
     if (this.aim.power <= 0) return null;
     const speed = gravityLaunchSpeed(this.aim.power);
     return createGravityPrediction(
@@ -238,7 +250,10 @@ export class GravityEngine {
     if (!fireFrom(state, position, velocity)) return [];
     const id = state.nextId - 1,
       path = [{ ...position }],
-      steps = Math.floor(Math.min(10, seconds) / GRAVITY_FIXED_STEP + 1e-9);
+      steps = Math.floor(
+        Math.min(MAX_GRAVITY_PREDICTION_SECONDS, seconds) / GRAVITY_FIXED_STEP +
+          1e-9,
+      );
     for (let n = 0; n < steps; n++) {
       step(state, GRAVITY_FIXED_STEP);
       const p = state.particles.find((p) => p.id === id);
@@ -251,6 +266,7 @@ export class GravityEngine {
   }
   goTo(index: number): void {
     if (this.customLevel || !Number.isFinite(index)) return;
+    this.aiming = false;
     this.state = createState(
       this.levelProvider(this.seed, Math.max(0, Math.floor(index))),
     );

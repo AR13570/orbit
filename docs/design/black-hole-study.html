@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-radiance="restrained">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Orbit | Black hole study</title>
+  <style>
+    @font-face { font-family: Righteous; src: url('/fonts/Righteous-Regular.ttf') format('truetype'), url('../../public/fonts/Righteous-Regular.ttf') format('truetype'); font-display: swap; }
+    :root { color-scheme: dark; --ground:#000; --ink:#e3eaf0; --muted:#8e98a5; --line:#242329; --selected:#211b2b; --lilac:#c9acf5; --wave:#c9acf5; --orbit:#a89abb; --copper:#8f4925; --copper-edge:#dc986b; --quiet:#b298d6; --core-edge:#493460; --core-rim:#c9acf5; --detail-opacity:.65; }
+    :root[data-theme="light"] { color-scheme:light; --ground:#e9ecef; --ink:#303943; --muted:#626d78; --line:#cbd3d9; --selected:#dce1e8; --lilac:#755294; --wave:#9273b4; --orbit:#655079; --copper:#a95724; --copper-edge:#d9925a; --quiet:#715582; --core-edge:#503867; --core-rim:#b391d2; }
+    :root[data-radiance="cinematic"] { --core-edge:#70518d; --core-rim:#e4cef9; --detail-opacity:1; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--ground); color:var(--ink); font-family:'Avenir Next', Avenir, 'Segoe UI', sans-serif; -webkit-font-smoothing:antialiased; transition:background .25s, color .25s; }
+    button { font:inherit; }
+    button:focus-visible { outline:2px solid var(--lilac); outline-offset:4px; }
+    main { max-width:1240px; padding:35px 46px 28px; margin:auto; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .brand { display:flex; align-items:baseline; gap:20px; }
+    .wordmark { font-family:Righteous, sans-serif; font-size:31px; letter-spacing:-1px; }
+    h1 { font-size:13px; font-weight:500; margin:0; color:var(--muted); }
+    .controls { display:flex; gap:20px; align-items:center; }
+    .segmented { display:flex; padding:3px; border:1px solid var(--line); border-radius:30px; gap:2px; }
+    .segmented button { border:0; color:var(--muted); background:transparent; padding:7px 12px; border-radius:24px; font-size:12px; cursor:pointer; line-height:1.3; }
+    .segmented button[aria-pressed="true"] { color:var(--ink); background:var(--selected); }
+    .motion { display:flex; align-items:center; justify-content:center; width:31px; height:31px; color:var(--muted); border:0; background:transparent; border-radius:50%; cursor:pointer; }
+    .motion:hover { color:var(--ink); background:var(--selected); }
+    .motion svg { width:14px; height:14px; }
+    .variants { display:flex; justify-content:center; gap:23px; margin-top:25px; }
+    .variants button { position:relative; display:flex; align-items:center; gap:7px; padding:7px 0 10px; border:0; border-bottom:1px solid transparent; background:none; color:var(--muted); font-size:12px; cursor:pointer; }
+    .variants button[aria-pressed="true"] { color:var(--ink); border-color:var(--lilac); }
+    .variants svg { width:31px; height:25px; overflow:visible; }
+    .recommended { width:3px; height:3px; border-radius:50%; background:var(--lilac); position:absolute; right:-6px; top:9px; }
+    .stage { height:clamp(390px, 56vh, 590px); position:relative; margin-top:12px; }
+    .stage>svg { display:block; width:100%; height:100%; overflow:visible; }
+    .stage-caption { position:absolute; bottom:25px; left:0; font-size:13px; line-height:1.6; color:var(--muted); pointer-events:none; }
+    .stage-caption strong { display:block; color:var(--ink); font-weight:500; }
+    .hint { position:absolute; bottom:25px; right:0; font-size:11px; color:var(--muted); }
+    .scales { border-top:1px solid var(--line); display:flex; align-items:center; gap:40px; padding-top:22px; }
+    .scale-intro { flex:1; max-width:300px; }
+    .scale-intro h2 { font-size:15px; font-weight:500; margin:0 0 8px; }
+    .scale-intro p { font-size:12px; line-height:1.7; color:var(--muted); margin:0; max-width:250px; }
+    .samples { display:flex; justify-content:space-between; flex:1.7; min-width:0; }
+    .sample { margin:0; text-align:center; }
+    .sample svg { width:210px; height:155px; overflow:visible; display:block; }
+    .sample figcaption { color:var(--muted); font-size:11px; }
+    footer { display:flex; justify-content:space-between; gap:24px; font-size:10px; line-height:1.6; color:var(--muted); padding-top:31px; }
+    .core-detail { opacity:var(--detail-opacity); }
+    .projectile { fill:var(--lilac); }
+    .count { fill:#edf7fa; font-size:11px; font-weight:600; text-anchor:middle; dominant-baseline:central; }
+    .chevron { fill:#d9c4f5; font-size:9px; font-weight:400; opacity:.73; text-anchor:middle; dominant-baseline:central; }
+    .repeller { fill:url(#copper); stroke:var(--copper-edge); stroke-width:.6; }
+    .repeller-wave { fill:none; stroke:var(--copper-edge); stroke-width:.6; opacity:.15; }
+    .repeller-count { fill:#fff0dd; }
+    @media(min-width:1400px) { main { padding-top:45px; } .stage { margin-top:25px; } }
+    @media(max-width:900px) { main { padding:25px 26px; } .controls { gap:10px; } .brand { gap:13px; } .sample svg { width:160px; height:145px; } .scales { gap:20px; } }
+    @media(max-width:650px) { main { padding:23px 22px; } header { align-items:flex-start; flex-wrap:wrap; gap:19px; } .brand { width:100%; } .wordmark { font-size:28px; } .controls { width:100%; justify-content:space-between; gap:7px; } .segmented button { padding:7px 11px; font-size:11px; } .variants { margin-top:20px; gap:0; justify-content:space-between; } .variants button { flex-direction:column; gap:3px; font-size:10px; } .variants svg { width:31px; height:22px; } .recommended { right:-5px; top:34px; } .stage { height:390px; margin-top:0; } .stage-caption { bottom:13px; font-size:12px; } .hint { display:none; } .scales { margin-top:8px; display:block; padding-top:20px; } .scale-intro { max-width:none; } .scale-intro p { max-width:290px; } .samples { margin-top:13px; gap:0; margin-left:-6px; margin-right:-6px; flex-wrap:wrap; } .sample { width:50%; } .sample:last-child { width:100%; } .sample svg { width:100%; height:135px; overflow:visible; } .sample figcaption { font-size:10px; } footer { font-size:10px; padding-top:27px; } footer span:last-child { text-align:right; max-width:145px; } }
+    @media(max-width:380px) { .sample { width:100%; } .segmented button { padding-inline:8px; font-size:10px; } .controls { gap:4px; } }
+    @media(prefers-reduced-motion:reduce) { body { transition:none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand"><span class="wordmark">Orbit</span><h1>Black hole study</h1></div>
+      <div class="controls">
+        <div class="segmented" role="group" aria-label="Radiance">
+          <button type="button" data-radiance="restrained" aria-pressed="true">Restrained</button>
+          <button type="button" data-radiance="cinematic" aria-pressed="false">Cinematic</button>
+        </div>
+        <div class="segmented" role="group" aria-label="Background">
+          <button type="button" data-theme="dark" aria-pressed="true">Dark</button>
+          <button type="button" data-theme="light" aria-pressed="false">Light</button>
+        </div>
+        <button class="motion" type="button" aria-label="Pause motion" aria-pressed="false" title="Pause motion"><svg viewBox="0 0 16 16" aria-hidden="true"><path id="motion-icon" d="M5 3v10M11 3v10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </div>
+    </header>
+    <nav class="variants" aria-label="Black hole shading variants">
+      <button type="button" data-variant="abyss" aria-pressed="true" aria-label="Abyss, recommended" title="Recommended: a deep center and gentle violet circumference"><svg viewBox="-48 -48 96 96" aria-hidden="true"><use href="#black-hole-abyss"/></svg>Abyss<span class="recommended" aria-hidden="true"></span></button>
+      <button type="button" data-variant="soft" aria-pressed="false"><svg viewBox="-48 -48 96 96" aria-hidden="true"><use href="#black-hole-soft"/></svg>Soft horizon</button>
+      <button type="button" data-variant="crescent" aria-pressed="false"><svg viewBox="-48 -48 96 96" aria-hidden="true"><use href="#black-hole-crescent"/></svg>Crescent</button>
+      <button type="button" data-variant="dust" aria-pressed="false"><svg viewBox="-48 -48 96 96" aria-hidden="true"><use href="#black-hole-dust"/></svg>Dust</button>
+      <button type="button" data-variant="rim" aria-pressed="false"><svg viewBox="-48 -48 96 96" aria-hidden="true"><use href="#black-hole-rim"/></svg>Quiet rim</button>
+    </nav>
+    <section class="stage" aria-label="Black hole gameplay concept">
+      <svg id="field" role="img" aria-label="A circular black hole with a dark center and violet circumference, a small orbiting projectile, and a copper repeller. All shading stays within the core.">
+        <defs>
+          <clipPath id="core-boundary"><circle r="44"/></clipPath>
+          <radialGradient id="abyss-shade">
+            <stop offset="0" stop-color="#000"/><stop offset=".53" stop-color="#000"/>
+            <stop offset=".76" stop-color="#08030d"/><stop offset=".91" stop-color="#20112e"/>
+            <stop offset="1" stop-color="var(--core-edge)"/>
+          </radialGradient>
+          <radialGradient id="soft-shade">
+            <stop offset="0" stop-color="#000"/><stop offset=".3" stop-color="#020104"/>
+            <stop offset=".58" stop-color="#10091a"/><stop offset=".82" stop-color="#2b1a3d"/>
+            <stop offset="1" stop-color="var(--core-edge)"/>
+          </radialGradient>
+          <radialGradient id="crescent-shade">
+            <stop offset="0" stop-color="#000"/><stop offset=".69" stop-color="#000"/>
+            <stop offset=".86" stop-color="#0a0510"/><stop offset="1" stop-color="#30203f"/>
+          </radialGradient>
+          <linearGradient id="circumference-light" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stop-color="#4e3667" stop-opacity="0"/>
+            <stop offset=".35" stop-color="#71518e" stop-opacity=".05"/>
+            <stop offset=".65" stop-color="#b190ce" stop-opacity=".3"/>
+            <stop offset="1" stop-color="#dbc3ee"/>
+          </linearGradient>
+          <radialGradient id="dust-shade">
+            <stop offset="0" stop-color="#000"/><stop offset=".58" stop-color="#000"/>
+            <stop offset=".79" stop-color="#100919"/><stop offset="1" stop-color="var(--core-edge)"/>
+          </radialGradient>
+          <radialGradient id="dust-opacity">
+            <stop offset="0" stop-color="#000"/><stop offset=".64" stop-color="#000"/>
+            <stop offset=".83" stop-color="#777"/><stop offset="1" stop-color="#fff"/>
+          </radialGradient>
+          <mask id="dust-edge" maskUnits="userSpaceOnUse" x="-44" y="-44" width="88" height="88"><circle r="44" fill="url(#dust-opacity)"/></mask>
+          <filter id="grain" x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency=".78" numOctaves="2" stitchTiles="stitch" seed="18"/>
+            <feColorMatrix type="matrix" values="0 0 0 0 .72 0 0 0 0 .57 0 0 0 0 .84 0 0 0 .37 0"/>
+          </filter>
+          <radialGradient id="rim-shade"><stop offset="0" stop-color="#000"/><stop offset=".91" stop-color="#000"/><stop offset="1" stop-color="#1b1026"/></radialGradient>
+          <radialGradient id="copper" cx=".36" cy=".29"><stop stop-color="#71391c"/><stop offset=".72" stop-color="var(--copper)"/><stop offset="1" stop-color="#a76536"/></radialGradient>
+          <g id="black-hole-abyss" clip-path="url(#core-boundary)">
+            <circle r="44" fill="url(#abyss-shade)"/>
+            <circle class="core-detail" r="43.7" fill="none" stroke="var(--core-rim)" stroke-width=".6" opacity=".22"/>
+          </g>
+          <g id="black-hole-soft" clip-path="url(#core-boundary)">
+            <circle r="44" fill="url(#soft-shade)"/>
+            <circle class="core-detail" r="43.6" fill="none" stroke="var(--core-rim)" stroke-width=".8" opacity=".11"/>
+          </g>
+          <g id="black-hole-crescent" clip-path="url(#core-boundary)">
+            <circle r="44" fill="url(#crescent-shade)"/>
+            <circle class="core-detail" r="42.8" fill="none" stroke="url(#circumference-light)" stroke-width="2.4"/>
+            <circle r="43.7" fill="none" stroke="var(--core-rim)" stroke-width=".6" opacity=".1"/>
+          </g>
+          <g id="black-hole-dust" clip-path="url(#core-boundary)">
+            <circle r="44" fill="url(#dust-shade)"/>
+            <g mask="url(#dust-edge)" class="core-detail"><rect x="-44" y="-44" width="88" height="88" filter="url(#grain)" opacity=".6"/></g>
+            <circle r="43.7" fill="none" stroke="var(--core-rim)" stroke-width=".6" opacity=".18"/>
+          </g>
+          <g id="black-hole-rim" clip-path="url(#core-boundary)">
+            <circle r="44" fill="url(#rim-shade)"/>
+            <circle class="core-detail" r="43.45" fill="none" stroke="var(--core-rim)" stroke-width="1.1" opacity=".6"/>
+            <circle r="42.1" fill="none" stroke="var(--core-rim)" stroke-width=".4" opacity=".1"/>
+          </g>
+        </defs>
+        <g id="field-content"></g>
+      </svg>
+      <div class="stage-caption"><strong>A deep center. A quiet circumference.</strong>Every bit of light stays inside the core.</div>
+      <span class="hint">Motion is illustrative</span>
+    </section>
+    <section class="scales" aria-label="Core size comparison">
+      <div class="scale-intro"><h2>Still a core. Even this small.</h2><p>The count stays in the quiet center. The shading stays inside the playable edge.</p></div>
+      <div class="samples">
+        <figure class="sample"><svg data-radius="24" role="img" aria-label="Black hole with a 24 pixel core radius"></svg><figcaption>24 px radius</figcaption></figure>
+        <figure class="sample"><svg data-radius="36" role="img" aria-label="Black hole with a 36 pixel core radius"></svg><figcaption>36 px radius</figcaption></figure>
+        <figure class="sample"><svg data-radius="48" role="img" aria-label="Black hole with a 48 pixel core radius"></svg><figcaption>48 px radius</figcaption></figure>
+      </div>
+    </section>
+    <footer><span>HTML concept for Orbit</span><span>Five circular shading studies.</span></footer>
+  </main>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const field = document.querySelector('#field');
+      const content = document.querySelector('#field-content');
+      const motionButton = document.querySelector('.motion');
+      const motionIcon = document.querySelector('#motion-icon');
+      const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+      let paused = reducedMotion.matches;
+      let phase = -2.1;
+      let previousTime = 0;
+      let animationId = 0;
+      let orbit = { x:0, y:0, rx:0, ry:0, tilt:0 };
+      let variant = 'abyss';
+      const variants = {
+        abyss: { id:'black-hole-abyss', title:'A deep center. A quiet circumference.', description:'Every bit of light stays inside the core.' },
+        soft: { id:'black-hole-soft', title:'A softer fall into the dark.', description:'A smooth violet gradient, with no extra outline.' },
+        crescent: { id:'black-hole-crescent', title:'A little light along the edge.', description:'One gentle highlight follows the same circular boundary.' },
+        dust: { id:'black-hole-dust', title:'A trace of texture, close to the edge.', description:'Fine violet grain gives the circumference a little depth.' },
+        rim: { id:'black-hole-rim', title:'Just enough light to find the edge.', description:'A fine circular rim around a nearly black center.' }
+      };
+      let projectile, trail;
+      const count = (x, y, value = '0', small = false, repeller = false) => `<g><text class="count ${repeller ? 'repeller-count' : ''}" x="${x}" y="${y}" style="font-size:${small ? 9 : 11}px">${value}</text><text class="chevron" x="${x-12}" y="${y}">${repeller ? '‹' : '›'}</text><text class="chevron" x="${x+12}" y="${y}">${repeller ? '›' : '‹'}</text></g>`;
+      const core = (x,y,r,small=false) => `<use href="#${variants[variant].id}" transform="translate(${x} ${y}) scale(${r/44})"/>${count(x,y,'0',small)}`;
+      function point(angle) {
+        const dx = Math.cos(angle)*orbit.rx;
+        const dy = Math.sin(angle)*orbit.ry;
+        return { x:orbit.x+dx*Math.cos(orbit.tilt)-dy*Math.sin(orbit.tilt), y:orbit.y+dx*Math.sin(orbit.tilt)+dy*Math.cos(orbit.tilt) };
+      }
+      function paintProjectile() {
+        const p = point(phase);
+        projectile.setAttribute('cx',p.x);
+        projectile.setAttribute('cy',p.y);
+        const segments = [];
+        for(let i=0;i<=27;i++) {
+          const p = point(phase-.55+i*.55/27);
+          segments.push(`${i ? 'L' : 'M'}${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+        }
+        trail.setAttribute('d',segments.join(' '));
+      }
+      function layout() {
+        const w = field.clientWidth;
+        const h = field.clientHeight;
+        field.setAttribute('viewBox',`0 0 ${w} ${h}`);
+        const mobile = w < 600;
+        const r = Math.max(43,Math.min(62,w*.061));
+        const x = w * (mobile ? .49 : .5);
+        const y = h * (mobile ? .43 : .46);
+        const repX = w * (mobile ? .81 : .78);
+        const repY = h * (mobile ? .72 : .71);
+        const repR = mobile ? 21 : 27;
+        orbit = {x,y,rx:r*2.25,ry:r*2.25,tilt:0};
+        content.innerHTML = `<g>${core(x,y,r)}</g><g><circle class="repeller-wave" cx="${repX}" cy="${repY}" r="${repR*1.5}"/><circle class="repeller-wave" cx="${repX}" cy="${repY}" r="${repR*1.9}" opacity=".5"/><circle class="repeller" cx="${repX}" cy="${repY}" r="${repR}"/>${count(repX,repY,'0',true,true)}</g><path id="projectile-trail" fill="none" stroke="var(--lilac)" stroke-width="1" stroke-linecap="round" opacity=".32"/><circle id="projectile" class="projectile" r="2.3"/>`;
+        projectile = document.querySelector('#projectile');
+        trail = document.querySelector('#projectile-trail');
+        paintProjectile();
+        document.querySelectorAll('.sample svg').forEach(svg => {
+          const sw = svg.clientWidth;
+          const sh = svg.clientHeight;
+          svg.setAttribute('viewBox',`0 0 ${sw} ${sh}`);
+          svg.innerHTML = core(sw/2,sh/2,Number(svg.dataset.radius),true);
+        });
+      }
+      function animate(time) {
+        if(!paused && !document.hidden) {
+          if(previousTime) phase += Math.min(time-previousTime,60)*.00013;
+          paintProjectile();
+        }
+        previousTime = time;
+        animationId = requestAnimationFrame(animate);
+      }
+      function updateMotion() {
+        motionButton.setAttribute('aria-pressed',String(paused));
+        motionButton.setAttribute('aria-label',paused ? 'Play motion' : 'Pause motion');
+        motionButton.title = paused ? 'Play motion' : 'Pause motion';
+        motionIcon.setAttribute('d',paused ? 'M5 3l7 5-7 5Z' : 'M5 3v10M11 3v10');
+      }
+      document.querySelectorAll('.segmented button').forEach(button => button.addEventListener('click',() => {
+        const key = button.dataset.radiance ? 'radiance' : 'theme';
+        root.dataset[key] = button.dataset[key];
+        button.parentElement.querySelectorAll('button').forEach(sibling => sibling.setAttribute('aria-pressed',String(sibling === button)));
+      }));
+      document.querySelectorAll('.variants button').forEach(button => button.addEventListener('click',() => {
+        variant = button.dataset.variant;
+        document.querySelectorAll('.variants button').forEach(sibling => sibling.setAttribute('aria-pressed',String(sibling === button)));
+        const caption = document.querySelector('.stage-caption');
+        caption.innerHTML = `<strong>${variants[variant].title}</strong>${variants[variant].description}`;
+        field.setAttribute('aria-label',`${button.textContent.trim()} circular black hole shading concept, with a small orbiting projectile and a copper repeller. All shading stays inside the core and the centered count stays visible.`);
+        layout();
+      }));
+      motionButton.addEventListener('click',() => { paused = !paused; updateMotion(); });
+      reducedMotion.addEventListener('change',event => { paused = event.matches; updateMotion(); });
+      new ResizeObserver(layout).observe(document.querySelector('.stage'));
+      document.addEventListener('visibilitychange',() => { previousTime = 0; });
+      window.addEventListener('pagehide',() => cancelAnimationFrame(animationId));
+      updateMotion();
+      layout();
+      animationId = requestAnimationFrame(animate);
+    })();
+  </script>
+</body>
+</html>

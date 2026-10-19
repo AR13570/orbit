@@ -72,7 +72,7 @@ export default function ModePreview({
           height="8"
           patternUnits="userSpaceOnUse"
         >
-          <circle cx="4" cy="4" r="0.8" fill="#527c9a" opacity=".28" />
+          <circle cx="4" cy="4" r="0.8" fill="var(--blue)" opacity=".28" />
         </pattern>
         <radialGradient id={`${id}-fade`}>
           <stop offset=".3" stopColor="white" />
@@ -101,7 +101,7 @@ export default function ModePreview({
             cy="112"
             r="55"
             fill="none"
-            stroke="#245f78"
+            stroke="var(--attractor-body)"
             opacity=".09"
           />
           <circle
@@ -109,30 +109,30 @@ export default function ModePreview({
             cy="112"
             r="44"
             fill="none"
-            stroke="#245f78"
+            stroke="var(--attractor-body)"
             opacity=".14"
           />
-          <circle cx="131" cy="112" r="33" fill="#245f78" />
+          <circle cx="131" cy="112" r="33" fill="var(--attractor-body)" />
           <path
             d="m124 109 5 3-5 3m14-6-5 3 5 3"
             fill="none"
-            stroke="#dce9ed"
+            stroke="var(--attractor-glyph)"
             strokeWidth="1.4"
             strokeLinecap="round"
           />
-          <circle cx="231" cy="63" r="16" fill="#b64d32" />
+          <circle cx="231" cy="63" r="16" fill="var(--repeller-body)" />
           <circle
             cx="231"
             cy="63"
             r="26"
             fill="none"
-            stroke="#b64d32"
+            stroke="var(--repeller-body)"
             opacity=".12"
           />
           <path
             d={journey}
             fill="none"
-            stroke="#527c9a"
+            stroke="var(--blue)"
             strokeWidth="1.5"
             strokeDasharray="1 6"
             strokeLinecap="round"
@@ -143,13 +143,13 @@ export default function ModePreview({
             cy="93"
             r="13"
             fill="none"
-            stroke="#168dff"
+            stroke="var(--checkpoint)"
             strokeWidth="1.2"
           />
           <path
             d="M286 99V87l7 3-7 3"
             fill="none"
-            stroke="#168dff"
+            stroke="var(--checkpoint)"
             strokeWidth="1.1"
             strokeLinejoin="round"
           />
@@ -158,7 +158,7 @@ export default function ModePreview({
             transform={motion ? undefined : "translate(64 156) rotate(-60)"}
             style={motion ? travel(journey, "6.8s", "0s", "auto") : undefined}
           >
-            <path d="M-6-4 9 0-6 4-2 0Z" fill="#8a0f4b" />
+            <path d="M-6-4 9 0-6 4-2 0Z" fill="var(--ship)" />
           </g>
         </>
       ) : (
@@ -168,7 +168,7 @@ export default function ModePreview({
             cy="113"
             r="66"
             fill="none"
-            stroke="#245f78"
+            stroke="var(--attractor-body)"
             opacity=".08"
           />
           <circle
@@ -176,34 +176,34 @@ export default function ModePreview({
             cy="113"
             r="49"
             fill="none"
-            stroke="#245f78"
+            stroke="var(--attractor-body)"
             opacity=".12"
           />
           <path
             d={outerOrbit}
             fill="none"
-            stroke="#007c9e"
+            stroke="var(--planet-cyan)"
             strokeWidth="1.25"
             opacity=".55"
           />
           <path
             d={innerOrbit}
             fill="none"
-            stroke="#cf315c"
+            stroke="var(--planet-pink)"
             strokeWidth="1.25"
             opacity=".45"
           />
-          <circle cx="164" cy="113" r="32" fill="#245f78" />
+          <circle cx="164" cy="113" r="32" fill="var(--attractor-body)" />
           <path
             d="m157 110 5 3-5 3m14-6-5 3 5 3"
             fill="none"
-            stroke="#dce9ed"
+            stroke="var(--attractor-glyph)"
             strokeWidth="1.4"
             strokeLinecap="round"
           />
           <MovingPlanet
             path={outerOrbit}
-            color="#007c9e"
+            color="var(--planet-cyan)"
             radius={7}
             duration="10s"
             motion={motion}
@@ -211,7 +211,7 @@ export default function ModePreview({
           />
           <MovingPlanet
             path={innerOrbit}
-            color="#cf315c"
+            color="var(--planet-pink)"
             radius={8.5}
             duration="8s"
             motion={motion}
@@ -220,7 +220,7 @@ export default function ModePreview({
           />
           <MovingPlanet
             path={outerOrbit}
-            color="#a66b00"
+            color="var(--planet-gold)"
             radius={4.5}
             duration="10s"
             motion={motion}

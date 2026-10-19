@@ -220,11 +220,13 @@ it("lets particles pass through with gravity off and grouping disabled, while gr
   expect(free.particles.map((p) => p.velocity.x)).toEqual([40, -40]);
   expect(grouped.particles.every((p) => p.alive)).toBe(true);
   expect(
-    grouped.particles[1].position.x - grouped.particles[0].position.x,
-  ).toBeCloseTo(16, 6);
-  expect(grouped.particles.every((p) => Math.abs(p.velocity.x) < 1e-6)).toBe(
-    true,
-  );
+    grouped.particles[0].position.x - grouped.particles[1].position.x,
+  ).toBeGreaterThan(16);
+  expect(grouped.particles[0].velocity.x).toBeGreaterThan(30);
+  expect(grouped.particles[0].velocity.x).toBeLessThan(40);
+  expect(
+    grouped.particles[0].velocity.x + grouped.particles[1].velocity.x,
+  ).toBeCloseTo(0, 10);
 });
 
 it("keeps mutual gravity and grouping independent through resets, navigation and predictions", () => {

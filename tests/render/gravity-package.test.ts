@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { it, expect, vi } from "vitest";
 import { createWaveRenderer } from "gravity-wave";
 import {
   createGravitySurface,
@@ -38,6 +38,47 @@ function capture() {
   } as CanvasRenderingContext2D;
   return { ctx, points };
 }
+it("softens both dark wave passes without dimming light mode", () => {
+  const previous = document.documentElement.dataset.theme;
+  const surface = createGravitySurface(capture().ctx);
+  const draw = vi.spyOn(surface, "draw");
+  try {
+    document.documentElement.dataset.theme = "dark";
+    drawGravitySurface(
+      capture().ctx,
+      { x: 100, y: 100 },
+      60,
+      false,
+      1,
+      0,
+      false,
+      "#c9acf5",
+      surface,
+    );
+    expect(draw).toHaveBeenCalledTimes(2);
+    for (const [fields] of draw.mock.calls)
+      expect(fields[0].opacity).toBe(0.78);
+    draw.mockClear();
+    document.documentElement.dataset.theme = "light";
+    drawGravitySurface(
+      capture().ctx,
+      { x: 100, y: 100 },
+      60,
+      false,
+      1,
+      0,
+      false,
+      "#694880",
+      surface,
+    );
+    expect(draw).toHaveBeenCalledTimes(1);
+    expect(draw.mock.calls[0][0][0].opacity).toBeUndefined();
+  } finally {
+    if (previous === undefined) delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = previous;
+    surface.destroy();
+  }
+});
 it.each([
   [false, false, 1],
   [true, false, 0.4],
@@ -65,10 +106,14 @@ it.each([
         {
           center,
           innerRadius: 60,
-          radius: 200,
+          radius: 290,
+          wavelength: (32 + 60 * 0.34) * 1.35,
           direction: repels ? "outward" : "inward",
           color: "#527c9a",
           shadowColor: "#527c9a",
+          mode: "morphing",
+          morphAmount: 0.24,
+          morphSpeed: 0.18,
         },
       ],
       1.25,

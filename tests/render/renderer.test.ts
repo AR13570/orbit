@@ -90,7 +90,7 @@ function surfaceFixture(
   const points: SurfacePoint[] = [];
   (context.rect as ReturnType<typeof vi.fn>).mockImplementation(
     (x, y, width, height) => {
-      if (width < 10 && Math.hypot(x - center.x, y - center.y) < radius + 180)
+      if (width < 10 && Math.hypot(x - center.x, y - center.y) < radius + 280)
         points.push({
           x,
           y,
@@ -110,7 +110,7 @@ function surfaceFixture(
 }
 describe("sampled gravity surface", () => {
   it.each([30, 125])(
-    "keeps circular crests at matching radii in every quadrant for radius %i",
+    "keeps morphing crests bounded while their radii vary by angle for radius %i",
     (radius) => {
       const { frame, center } = surfaceFixture("attractor", 1440, 900, radius);
       const points = frame(1.05).map((p) => ({
@@ -126,7 +126,20 @@ describe("sampled gravity surface", () => {
       expect(axes[0].length).toBeGreaterThan(10);
       for (const axis of axes.slice(1)) {
         expect(axis).toHaveLength(axes[0].length);
-        axis.forEach((value, i) => expect(value).toBeCloseTo(axes[0][i], 3));
+        const deviations = axis.map((value, i) => Math.abs(value - axes[0][i]));
+        expect(Math.max(...deviations)).toBeLessThan(12);
+      }
+      expect(
+        axes
+          .slice(1)
+          .some((axis) =>
+            axis.some((value, i) => Math.abs(value - axes[0][i]) > 0.01),
+          ),
+      ).toBe(true);
+      for (const axis of axes) {
+        expect(
+          axis.every((value) => value > radius && value < radius + 230),
+        ).toBe(true);
       }
     },
   );
@@ -181,7 +194,7 @@ describe("sampled gravity surface", () => {
         for (const p of points) {
           expect(
             Math.hypot(p.x - center.x, p.y - center.y) + p.width,
-          ).toBeLessThan(225);
+          ).toBeLessThan(315);
           expect(p.width * renderer.getViewport().scale).toBeLessThanOrEqual(
             2.9,
           );
@@ -268,19 +281,34 @@ describe("sampled gravity surface", () => {
     expect(frame(200, { reducedMotion: true, paused: true })).toEqual(first);
     expect(frame(201, { reducedMotion: true })).toEqual(first);
   });
-  it("keeps the bounded lattice stable through a complete wave cycle", () => {
-    const { frame } = surfaceFixture("repellent");
+  it("keeps the morphing field occupancy stable through a complete wave cycle", () => {
+    const { frame, center } = surfaceFixture("repellent");
     const initial = frame(1);
-    let final = initial;
+    // Paint order follows changing shade buckets; compare field geometry, not array order.
+    const geometry = (points: SurfacePoint[]) =>
+      points.reduce(
+        (total, p) => {
+          const x = p.x + p.width / 2 - center.x;
+          const y = p.y + p.width * 0.36 - center.y;
+          return {
+            x: total.x + x / points.length,
+            y: total.y + y / points.length,
+            radius: total.radius + Math.hypot(x, y) / points.length,
+          };
+        },
+        { x: 0, y: 0, radius: 0 },
+      );
+    let previous = geometry(initial);
     for (let tick = 1; tick <= 54; tick++) {
-      final = frame(1 + tick * 0.05);
-      expect(final).toHaveLength(initial.length);
+      const points = frame(1 + tick * 0.05);
+      expect(points).toHaveLength(initial.length);
+      const current = geometry(points);
+      expect(
+        Math.hypot(current.x - previous.x, current.y - previous.y),
+      ).toBeLessThan(1);
+      expect(Math.abs(current.radius - previous.radius)).toBeLessThan(1);
+      previous = current;
     }
-    final.forEach((p, i) => {
-      expect(p.x).toBeCloseTo(initial[i].x, 6);
-      expect(p.y).toBeCloseTo(initial[i].y, 6);
-      expect(p.width).toBeCloseTo(initial[i].width, 6);
-    });
   });
 });
 describe("checkpoint sampled surface", () => {

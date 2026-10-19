@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { gravityAim } from "../../src/gravity/input";
 import { markTutorialSeen } from "./tutorial-fixture";
 import {
   bodyRadius,
@@ -57,7 +58,7 @@ for (const device of [
           ) {
             if (
               this.canvas.classList.contains("scene-canvas") &&
-              this.strokeStyle === "#697783"
+              ["#697783", "#a4b2bf"].includes(String(this.strokeStyle))
             ) {
               const transform = this.getTransform();
               if (Math.abs((r * transform.a) / devicePixelRatio - 5) < 0.01)
@@ -68,7 +69,6 @@ for (const device of [
             }
             if (
               this.canvas.classList.contains("scene-canvas") &&
-              this.strokeStyle === "#7a60d6" &&
               Math.abs((r * this.getTransform().a) / devicePixelRatio - 13) <
                 0.01
             )
@@ -88,10 +88,10 @@ for (const device of [
           device.limit * Math.max(0.65, Math.min(1.3, Math.sqrt(zoom)));
         const cdp = device.touch ? await context.newCDPSession(page) : null;
         const start = {
-          x: device.width === 320 ? 260 : Math.min(device.width - 30, 300),
-          y: device.width === 320 ? 180 : device.height < 500 ? 250 : 330,
+          x: device.width - 30,
+          y: device.height * 0.4,
         };
-        for (const distance of [24, 48, 80, limit, limit * 1.08]) {
+        for (const distance of [24, 48, 80, limit, limit * 1.9]) {
           const end = { x: start.x - distance, y: start.y };
           if (cdp) {
             await cdp.send("Input.dispatchTouchEvent", {
@@ -116,13 +116,17 @@ for (const device of [
               arcPower: probe.gravityArcPower,
             };
           });
-          const power = Math.min(1, distance / limit) ** 2;
+          const power = gravityAim({ power: distance / limit }).power;
           // Browser input coordinates and wheel deltas use finite precision.
           expect(aimed.aim.power).toBeCloseTo(power, 6);
           expect(aimed.arcPower).toBeCloseTo(aimed.aim.power, 10);
           expect(
             Math.hypot(aimed.handle.x - start.x, aimed.handle.y - start.y),
-          ).toBeCloseTo(Math.min(distance, limit), 1);
+          ).toBeCloseTo(distance, 1);
+          if (distance === limit * 1.9 && zoom === 1 && device.width === 1280)
+            await page.screenshot({
+              path: "/private/tmp/orbit-unlimited-pull.png",
+            });
           if (cdp)
             await cdp.send("Input.dispatchTouchEvent", {
               type: "touchEnd",

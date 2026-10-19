@@ -20,7 +20,14 @@ describe("launched planet survival", () => {
       engine.setParticleGrouping(true);
       engine.launchFrom({ x: 410, y: 100 }, { x: 0, y: 0 });
       engine.setProjectileSize(2);
-      engine.launchFrom({ x: 470, y: 100 }, { x: 0, y: 0 });
+      const before = engine.getSnapshot();
+      engine.launchFrom(
+        {
+          x: 410 + before.particles[0].radius + before.physics.planetRadius + 8,
+          y: 100,
+        },
+        { x: 0, y: 0 },
+      );
       const original = engine
         .getSnapshot()
         .particles.map(({ id, radius, mass }) => ({ id, radius, mass }));

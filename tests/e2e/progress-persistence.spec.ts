@@ -1,7 +1,10 @@
 import { expect, test, type Page, type CDPSession } from "@playwright/test";
 import { OrbitEngine } from "../../src/game/engine";
 import { MOBILE_PULL_DISTANCE, pullDistance } from "../../src/controls";
-import { gravityPullDistance } from "../../src/gravity/input";
+import {
+  gravityPullDistance,
+  gravityPullFraction,
+} from "../../src/gravity/input";
 import { markTutorialSeen } from "./tutorial-fixture";
 
 async function drag(
@@ -242,7 +245,7 @@ for (const mobile of [false, true]) {
         position.x,
         position.y,
         shot.angle,
-        Math.sqrt(shot.power) *
+        gravityPullFraction(shot.power) *
           gravityPullDistance(
             mobile ? "touch" : "mouse",
             viewport.width,
@@ -272,7 +275,7 @@ for (const mobile of [false, true]) {
         position.x,
         position.y,
         shot.angle,
-        Math.sqrt(shot.power) *
+        gravityPullFraction(shot.power) *
           gravityPullDistance(
             mobile ? "touch" : "mouse",
             viewport.width,

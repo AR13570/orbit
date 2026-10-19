@@ -25,7 +25,7 @@ function separation(state: GravityState, a: number, b: number) {
 }
 
 describe("natural gravitational gathering", () => {
-  it("dissipates only approaching normal velocity while preserving tangential motion and both planets", () => {
+  it("partially dissipates approaching normal velocity in an unbound pass while preserving tangent and identity", () => {
     const state = createState({
       ...empty,
       physics: { ...empty.physics, planetGravity: false },
@@ -37,11 +37,16 @@ describe("natural gravitational gathering", () => {
     expect(state.particles.map((p) => p.alive)).toEqual([true, true]);
     expect(state.particles[0].velocity.y).toBe(7);
     expect(state.particles[1].velocity.y).toBe(-3);
-    expect(state.particles[0].velocity.x).toBe(0);
-    expect(state.particles[1].velocity.x).toBe(0);
+    expect(state.particles[0].velocity.x).toBeGreaterThan(8);
+    expect(state.particles[0].velocity.x).toBeLessThan(10);
+    expect(state.particles[1].velocity.x).toBeLessThan(-8);
     expect(
       state.particles[0].velocity.x + state.particles[1].velocity.x,
     ).toBeCloseTo(0, 10);
+    run(state, 1);
+    expect(state.particles[0].position.x).toBeGreaterThan(
+      state.particles[1].position.x,
+    );
     expect(separation(state, 0, 1)).toBeGreaterThan(8);
   });
 
@@ -84,7 +89,7 @@ describe("natural gravitational gathering", () => {
   it("comes to surface contact under gravity without rebounding", () => {
     const state = createState(empty);
     fireFrom(state, { x: 420, y: 450 }, { x: 0, y: 0 });
-    fireFrom(state, { x: 480, y: 450 }, { x: 0, y: 0 });
+    fireFrom(state, { x: 432, y: 450 }, { x: 0, y: 0 });
     for (let n = 0; n < 600; n++) {
       step(state, 1 / 120);
       expect(
@@ -110,7 +115,8 @@ describe("natural gravitational gathering", () => {
         [0, 2],
       ]) {
         const distance = separation(state, a, b);
-        expect(distance).toBeGreaterThanOrEqual(8 - 1e-6);
+        if (!state.passingContacts?.[`${a}:${b}`])
+          expect(distance).toBeGreaterThanOrEqual(8 - 1e-6);
         closest = Math.min(closest, distance);
       }
     }
@@ -122,7 +128,8 @@ describe("natural gravitational gathering", () => {
       [1, 2],
       [0, 2],
     ]) {
-      expect(separation(state, a, b)).toBeGreaterThanOrEqual(8 - 1e-6);
+      if (!state.passingContacts?.[`${a}:${b}`])
+        expect(separation(state, a, b)).toBeGreaterThanOrEqual(8 - 1e-6);
     }
     expect(
       state.particles.reduce((sum, p) => sum + p.velocity.x, 0),
@@ -146,7 +153,7 @@ describe("natural gravitational gathering", () => {
     expect(state.particles[1].velocity.x).toBeGreaterThan(100);
   });
 
-  it("sweeps fast unequal-mass contacts without tunneling or losing momentum", () => {
+  it("sweeps fast unequal-mass contacts through a dissipative pass without losing momentum", () => {
     const state = createState({
       ...empty,
       physics: { ...empty.physics, planetGravity: false },
@@ -156,7 +163,7 @@ describe("natural gravitational gathering", () => {
     state.particles[0].mass = 2;
     state.particles[1].mass = 5;
     step(state, 1 / 120);
-    expect(state.particles[0].position.x).toBeLessThan(
+    expect(state.particles[0].position.x).toBeGreaterThan(
       state.particles[1].position.x,
     );
     expect(separation(state, 0, 1)).toBeGreaterThanOrEqual(8);
@@ -165,8 +172,9 @@ describe("natural gravitational gathering", () => {
     ).toBeCloseTo(10000, 8);
     expect(
       state.particles[1].velocity.x - state.particles[0].velocity.x,
-    ).toBeCloseTo(0, 8);
-    expect(state.particles[0].velocity.x).toBeCloseTo(10000 / 7, 8);
+    ).toBeLessThan(-30000);
+    expect(state.particles[0].velocity.x).toBeGreaterThan(25000);
+    expect(state.particles[1].velocity.x).toBeLessThan(-8000);
   });
 
   it("resolves coincident planets into finite distinct surfaces", () => {

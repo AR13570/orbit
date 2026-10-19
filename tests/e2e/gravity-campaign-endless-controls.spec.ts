@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { fitGravityFrame } from "../../src/gravity/renderer";
 import { worldToClient } from "../../src/render/coordinates";
-import { gravityPullDistance } from "../../src/gravity/input";
+import {
+  gravityPullDistance,
+  gravityPullFraction,
+} from "../../src/gravity/input";
 import { markTutorialSeen } from "./tutorial-fixture";
 
 for (const device of [
@@ -81,7 +84,7 @@ for (const device of [
           camera,
         );
         const pull =
-          Math.sqrt(shot.power) *
+          gravityPullFraction(shot.power) *
           gravityPullDistance(
             device.touch ? "touch" : "mouse",
             device.width,

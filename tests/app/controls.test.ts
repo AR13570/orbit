@@ -6,6 +6,15 @@ import {
   pullDistance,
 } from "../../src/controls";
 describe("pullback gestures", () => {
+  it("lets an unlimited handle follow the pointer beyond its reference distance", () => {
+    const gesture = new PullGesture(100, { unlimitedPull: true });
+    gesture.begin(1, { x: 200, y: 200 });
+    const aim = gesture.move(1, { x: -100, y: 600 })!;
+    expect(aim.pull).toEqual({ x: -300, y: 400 });
+    expect(aim.distance).toBe(500);
+    expect(aim.power).toBe(5);
+    expect(gesture.end(1, { x: -100, y: 600 })).toEqual(aim);
+  });
   it.each([72, 160])(
     "caps the visible handle at the %ipx full-power extent during move and release",
     (limit) => {
@@ -110,4 +119,13 @@ describe("double-tap mode sequence", () => {
     expect(pull.tapEligible).toBe(false);
     expect(pull.end(1, { x: 100, y: 100 })).toBeNull();
   });
+});
+
+it("allows an explicit no-power tap but never turns an out-and-back drag into one", () => {
+  const gesture = new PullGesture(160);
+  gesture.begin(1, { x: 100, y: 100 });
+  expect(gesture.end(1, { x: 102, y: 101 }, { allowTap: true })?.power).toBe(0);
+  gesture.begin(2, { x: 100, y: 100 });
+  gesture.move(2, { x: 150, y: 100 });
+  expect(gesture.end(2, { x: 100, y: 100 }, { allowTap: true })).toBeNull();
 });

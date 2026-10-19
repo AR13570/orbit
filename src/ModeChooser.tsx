@@ -3,6 +3,7 @@ import { gsap } from "gsap";
 import Icon from "./components/Icon";
 import Attribution from "./components/Attribution";
 import ModePreview from "./home/ModePreview";
+import ThemeControl from "./components/ThemeControl";
 import { readHomeProgress } from "./home/progress";
 
 export type OrbitMode = "odessey" | "gravity" | "creator";
@@ -17,7 +18,7 @@ const modes = [
     id: "gravity",
     name: "Gravity",
     description:
-      "Build shared orbits and guide one planet between cores. Play 45 challenges, then explore an endless sky.",
+      "Build living systems, one planet at a time. Find lasting orbits around cores and through repeller fields, then explore an endless sky.",
   },
 ] as const;
 
@@ -103,9 +104,10 @@ export default function ModeChooser({
   }, []);
   return (
     <main className="home-screen" ref={screen}>
+      <ThemeControl compact />
       <header className="home-header">
         <div className="home-brand">
-          <img src="/orbit.svg" alt="" width="120" height="120" />
+          <img src="/orbit-mark.svg" alt="" width="120" height="120" />
           <div className="home-brand-copy">
             <h1 aria-label="Orbit">
               {Array.from("Orbit", (letter, index) => (

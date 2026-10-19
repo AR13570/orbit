@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useGameplayZoom } from "../useGameplayZoom";
 import { usePathAssist } from "../pathAssist";
 import { useSoundPreference } from "../soundPreference";
+import ThemeControl from "../components/ThemeControl";
 import { MIN_GRAVITY_ZOOM } from "../zoom";
-import type { GravityPredictionJob } from "./prediction";
+import { LiveGravityPreview } from "./live-preview";
+import { corePositionLabel } from "./core-position-label";
+import { AimHaptics } from "../haptics";
 import AdvancedToggle from "../components/AdvancedToggle";
 import AdvancedSettings from "../components/AdvancedSettings";
 import PathAssistControl from "../components/PathAssistControl";
@@ -111,9 +114,8 @@ export default function GravityGame({
   const pathAssist = usePathAssist(),
     pathAssistRef = useRef(pathAssist);
   pathAssistRef.current = pathAssist;
-  const predictionJob = useRef<GravityPredictionJob | null>(null),
-    completedPreview = useRef<Vec2[] | null>(null),
-    previousAim = useRef<{ angle: number; power: number } | null>(null);
+  const livePreview = useRef(new LiveGravityPreview()),
+    haptics = useRef(new AimHaptics());
   const canvas = useRef<HTMLCanvasElement>(null),
     scene = useRef<HTMLElement>(null);
   const renderer = useRef<ReturnType<typeof createGravityRenderer> | null>(
@@ -123,7 +125,6 @@ export default function GravityGame({
     origin = useRef<Vec2 | null>(null),
     pull = useRef<Vec2 | null>(null),
     preview = useRef<Vec2[]>([]);
-  const lastPreview = useRef(-Infinity);
   const pause = useRef(false),
     helpRef = useRef(help);
   const saveCurrent = useCallback(
@@ -162,14 +163,12 @@ export default function GravityGame({
     origin.current = null;
     pull.current = null;
     preview.current = [];
-    lastPreview.current = -Infinity;
-    predictionJob.current?.cancel();
-    predictionJob.current = null;
-    completedPreview.current = null;
-    previousAim.current = null;
+    livePreview.current.cancel();
+    haptics.current.cancel();
+    engine.setAiming(false);
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
-  }, []);
+  }, [engine]);
   useEffect(() => {
     cancel();
   }, [pathAssist, cancel]);
@@ -177,6 +176,7 @@ export default function GravityGame({
     canvas,
     minimum: MIN_GRAVITY_ZOOM,
     restoreView: (fraction) => renderer.current?.resetPan?.(fraction),
+    pan: (x, y) => renderer.current?.panBy?.(x, y),
     blocked: () => helpRef.current || pause.current || document.hidden,
     cancel,
     apply: (value, focus) => renderer.current?.setZoom(value, focus),
@@ -260,37 +260,22 @@ export default function GravityGame({
         origin.current &&
         gravityLaunchIsClear(origin.current, state)
       ) {
-        const full = pathAssistRef.current === "full",
-          job = predictionJob.current;
-        if (
-          !job ||
-          (job.done && time - lastPreview.current >= (full ? 500 : 80))
-        ) {
-          predictionJob.current = engine.beginPrediction(
-            gravityAimPredictionSeconds(
-              pathAssistRef.current,
-              r.getScale(),
-              gravityLaunchSpeed(state.aim.power),
-              state.particles.length,
-            ),
-          );
-          lastPreview.current = time;
-        }
-        const current = predictionJob.current;
-        if (current) {
-          current.advance(5);
-          if (current.done) completedPreview.current = current.path;
-          preview.current = completedPreview.current ?? current.path;
-        }
-      } else if (
-        origin.current &&
-        !gravityLaunchIsClear(origin.current, state)
-      ) {
-        predictionJob.current?.cancel();
-        predictionJob.current = null;
-        completedPreview.current = null;
+        engine.setAiming(true);
+        preview.current = livePreview.current.update(
+          (seconds) => engine.beginPrediction(seconds),
+          gravityAimPredictionSeconds(
+            pathAssistRef.current,
+            r.getScale(),
+            gravityLaunchSpeed(state.aim.power),
+            state.particles.length,
+          ),
+          dt,
+          state.aim,
+        );
+      } else if (origin.current) {
+        livePreview.current.cancel();
         preview.current = [];
-        lastPreview.current = -Infinity;
+        engine.setAiming(false);
       }
       if (!state.complete) completionElapsed.current = 0;
       else if (!lastComplete.current) {
@@ -384,17 +369,14 @@ export default function GravityGame({
     const rawAim = gesture.current.move(id, { x, y });
     if (!rawAim || !origin.current) return;
     const aim = gravityAim(rawAim);
-    if (
-      previousAim.current?.angle !== aim.angle ||
-      previousAim.current?.power !== aim.power
-    ) {
-      predictionJob.current?.cancel();
-      predictionJob.current = null;
-      completedPreview.current = null;
-      preview.current = [];
-      lastPreview.current = -Infinity;
-      previousAim.current = { angle: aim.angle, power: aim.power };
-    }
+    const clear = gravityLaunchIsClear(
+      origin.current,
+      engine.getRenderSnapshot(),
+    );
+    engine.setAiming(
+      clear && !pause.current && !helpRef.current && !document.hidden,
+    );
+    haptics.current.aim(rawAim.distance, clear);
     engine.setLaunch(origin.current, aim);
     pull.current = aim.pull;
   };
@@ -424,8 +406,16 @@ export default function GravityGame({
         <canvas
           ref={canvas}
           className="scene-canvas"
+          style={{
+            cursor: zoom.panning
+              ? "grabbing"
+              : zoom.panReady
+                ? "grab"
+                : undefined,
+          }}
           tabIndex={0}
           aria-label="Gravity orbital field"
+          onBlur={cancel}
           onPointerDown={(e) => {
             if (zoom.down(e)) return;
             if (!e.isPrimary || gesture.current.active) {
@@ -442,12 +432,14 @@ export default function GravityGame({
                 window.innerHeight,
                 zoom.zoom,
               ),
+              { unlimitedPull: true },
             );
             origin.current = renderer.current?.screenToWorld(
               e.clientX,
               e.clientY,
             ) ?? { x: e.clientX, y: e.clientY };
             gesture.current.begin(e.pointerId, { x: e.clientX, y: e.clientY });
+            haptics.current.begin(e.pointerType);
             const rect = e.currentTarget.getBoundingClientRect();
             frameSize.current = {
               width: rect.width,
@@ -474,19 +466,22 @@ export default function GravityGame({
               return;
             }
             const position = origin.current,
-              shot = gesture.current.end(e.pointerId, {
-                x: e.clientX,
-                y: e.clientY,
-              });
+              shot = gesture.current.end(
+                e.pointerId,
+                {
+                  x: e.clientX,
+                  y: e.clientY,
+                },
+                { allowTap: true },
+              );
             pull.current = null;
             preview.current = [];
-            predictionJob.current?.cancel();
-            predictionJob.current = null;
-            completedPreview.current = null;
-            previousAim.current = null;
+            livePreview.current.cancel();
+            engine.setAiming(false);
             origin.current = null;
             if (e.currentTarget.hasPointerCapture?.(e.pointerId))
               e.currentTarget.releasePointerCapture(e.pointerId);
+            let launched = false;
             if (
               shot &&
               position &&
@@ -497,10 +492,14 @@ export default function GravityGame({
               syncWorldFrame();
               if (gravityLaunchIsClear(position, engine.getRenderSnapshot())) {
                 engine.setLaunch(position, gravityAim(shot));
-                engine.launch();
+                launched =
+                  shot.power === 0
+                    ? engine.launchFrom(position, { x: 0, y: 0 })
+                    : engine.launch();
               } else setBlockedLaunch(true);
               refresh();
             }
+            haptics.current.release(launched);
           }}
           onPointerCancel={(e) => {
             zoom.end(e);
@@ -566,9 +565,10 @@ export default function GravityGame({
           </button>
         </div>
         <div className="gravity-objective">
-          {snapshot.level.orbitPadding !== undefined && snapshot.level.title && (
-            <h1 className="gravity-stage-title">{snapshot.level.title}</h1>
-          )}
+          {snapshot.level.orbitPadding !== undefined &&
+            snapshot.level.title && (
+              <h1 className="gravity-stage-title">{snapshot.level.title}</h1>
+            )}
           {snapshot.level.requirements?.some(
             (goal) => goal.direction && goal.direction !== "either",
           ) && (
@@ -576,7 +576,7 @@ export default function GravityGame({
               {snapshot.level.requirements
                 .map(
                   (goal) =>
-                    `Core ${String.fromCharCode(65 + snapshot.level.bodies.findIndex((body) => body.id === goal.bodyId))}: ${goal.direction ?? "either direction"}`,
+                    `${corePositionLabel(snapshot.level, goal.bodyId)}: ${goal.direction ?? "either direction"}`,
                 )
                 .join(". ")}
             </span>
@@ -593,18 +593,13 @@ export default function GravityGame({
                       .filter((p) => p.alive)
                       .map((p) => p.journey?.leg ?? 0),
                   );
-                  const name = String.fromCharCode(
-                    65 +
-                      snapshot.level.bodies.findIndex(
-                        (body) => body.id === leg.bodyId,
-                      ),
-                  );
+                  const name = corePositionLabel(snapshot.level, leg.bodyId);
                   return (
                     <li
                       key={index}
                       data-complete={index < best}
                       data-active={index === best}
-                      aria-label={`Core ${name}${index < best ? ": passed" : index === best ? ": next" : ""}`}
+                      aria-label={`${name}${index < best ? ": passed" : index === best ? ": next" : ""}`}
                     >
                       {name}
                     </li>
@@ -778,7 +773,7 @@ export default function GravityGame({
             />
             <AdvancedToggle
               label="Particle grouping"
-              description="On lets planets transfer momentum on contact and settle together as a group. Off lets them pass through each other. Their mutual pull is controlled separately by Particle Interaction."
+              description="On lets slow bound encounters settle together. Fast or glancing encounters transfer momentum and can separate. Off lets planets pass through each other. Particle Interaction controls their mutual pull separately."
               enabled={snapshot.physics.planetCollisions === "soft"}
               onToggle={() => {
                 cancel();
@@ -804,6 +799,7 @@ export default function GravityGame({
             />
           </AdvancedSettings>
           <div className="pause-options">
+            <ThemeControl />
             <button
               className="pause-option"
               aria-pressed={!muted}

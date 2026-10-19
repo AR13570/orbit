@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { fitGravityFrame } from "../../src/gravity/renderer";
 import { worldToClient } from "../../src/render/coordinates";
-import { gravityPullDistance } from "../../src/gravity/input";
+import {
+  gravityPullDistance,
+  gravityPullFraction,
+} from "../../src/gravity/input";
 import { markTutorialSeen } from "./tutorial-fixture";
 
 for (const device of [
@@ -60,13 +63,17 @@ for (const device of [
         device.height,
       );
       const cdp = device.touch ? await context.newCDPSession(page) : null;
+      const launchEpoch = await page.evaluate(
+        () => (window as any).inputEngine.getSnapshot().elapsed,
+      );
+      let launched = 0;
       for (const shot of level.witness) {
         const elapsed = await page.evaluate(
           () => (window as any).inputEngine.getSnapshot().elapsed,
         );
-        if (shot.time > elapsed)
+        if (launchEpoch + shot.time > elapsed)
           await page.clock.runFor(
-            Math.ceil(((shot.time - elapsed) / 1.2) * 1000),
+            Math.ceil(((launchEpoch + shot.time - elapsed) / 1.2) * 1000),
           );
         const start = worldToClient(
           shot.position,
@@ -74,7 +81,7 @@ for (const device of [
           camera,
         );
         const pull =
-          Math.sqrt(shot.power) *
+          gravityPullFraction(shot.power) *
           gravityPullDistance(
             device.touch ? "touch" : "mouse",
             device.width,
@@ -109,12 +116,18 @@ for (const device of [
           await page.mouse.move(end.x, end.y);
           await page.mouse.up();
         }
+        launched++;
+        expect(
+          await page.evaluate(
+            () => (window as any).inputEngine.getSnapshot().nextId,
+          ),
+        ).toBe(launched);
       }
       const next = page.getByRole("button", {
         name: "Next level",
         exact: true,
       });
-      for (let n = 0; n < 300 && !(await next.count()); n++)
+      for (let n = 0; n < 900 && !(await next.count()); n++)
         await page.clock.runFor(100);
       await expect(next).toBeVisible();
       if (index === 44)

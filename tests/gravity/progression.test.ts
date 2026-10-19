@@ -1,129 +1,198 @@
 import { it, expect } from "vitest";
 import {
   generateGravityLevel,
+  mixGravitySeed,
   verifyGeneratedLevel,
+  verifyLevel,
 } from "../../src/gravity/generator";
-import { CAMPAIGN_DESIGNS } from "../../src/gravity/campaign-design";
+import {
+  CAMPAIGN_DESIGNS,
+  STABLE_CAMPAIGN_STRUCTURES,
+} from "../../src/gravity/campaign-design";
 import {
   buildCampaignEndlessLevel,
   campaignEndlessBlueprint,
   campaignEndlessDifficulty,
   campaignEndlessLayoutId,
+  campaignEndlessTransforms,
   ENDLESS_CAMPAIGN_TEMPLATES,
   CAMPAIGN_ENDLESS_IDS,
 } from "../../src/gravity/campaign-endless";
+import { GRAVITY_SPEED_SCALE } from "../../src/gravity/physics";
 import {
   createState,
   goalProgress,
   objectiveText,
 } from "../../src/gravity/simulation";
-it("reshuffles developed campaign templates while alternating actual goal families", () => {
+
+const profileId = (template: number) =>
+  `${CAMPAIGN_DESIGNS[template].layout}:${CAMPAIGN_DESIGNS[template].field}`;
+const bandIndices = [45, 85, 125];
+
+it("reshuffles all nine base structures without immediate repeats and cycles every field profile", () => {
+  const bases = new Set(
+    STABLE_CAMPAIGN_STRUCTURES.map((design) => design.layout),
+  );
+  expect(bases.size).toBe(9);
+  expect(CAMPAIGN_ENDLESS_IDS).toHaveLength(20);
+  const seedSequences: string[][] = [];
   for (const seed of [0, 7, 42, 137, 0xffffffff]) {
-    const last = new Map<string, string>(),
-      seen = new Set<string>(),
-      recent: string[] = [];
-    for (let index = 45; index < 165; index++) {
-      const id = campaignEndlessLayoutId(seed, index);
-      const template = CAMPAIGN_DESIGNS.findIndex((d) => d.layout === id);
-      expect(template).toBeGreaterThanOrEqual(0);
-      const goal = CAMPAIGN_DESIGNS[template].goal;
-      const family = goal === "orbit" || goal === "counter" ? "local" : goal;
-      expect(last.get(family)).not.toBe(id);
-      last.set(family, id);
-      seen.add(id);
-      recent.push(family);
-      if (recent.length >= 6)
-        expect(new Set(recent.slice(-6))).toEqual(
-          new Set(["local", "shared", "relay"]),
-        );
-    }
-    expect(seen).toEqual(new Set(CAMPAIGN_ENDLESS_IDS));
+    const seenProfiles = new Set<string>();
+    const sequence = Array.from({ length: bases.size * 6 }, (_, offset) =>
+      campaignEndlessLayoutId(seed, 45 + offset),
+    );
+    sequence.forEach((id, index) => {
+      expect(CAMPAIGN_ENDLESS_IDS).toContain(id);
+      expect(campaignEndlessLayoutId(seed, 45 + index)).toBe(id);
+      if (index)
+        expect(id.split(":")[0]).not.toBe(sequence[index - 1].split(":")[0]);
+      seenProfiles.add(id);
+    });
+    for (let start = 0; start < sequence.length; start += bases.size)
+      expect(
+        new Set(
+          sequence
+            .slice(start, start + bases.size)
+            .map((id) => id.split(":")[0]),
+        ),
+      ).toEqual(bases);
+    expect(seenProfiles).toEqual(new Set(CAMPAIGN_ENDLESS_IDS));
+    seedSequences.push(sequence);
   }
-});
-it("raises a global bounded demand without increasing population or physical speed", () => {
   expect(
-    [45, 75, 105, Number.MAX_SAFE_INTEGER - 1].map(
-      (i) => campaignEndlessDifficulty(i).band,
+    new Set(seedSequences.map((sequence) => JSON.stringify(sequence))).size,
+  ).toBe(seedSequences.length);
+});
+
+it("raises bounded population and complete-turn demand without changing each profile's force field", () => {
+  expect(
+    [45, 84, 85, 124, 125, Number.MAX_SAFE_INTEGER - 1].map(
+      (index) => campaignEndlessDifficulty(index).band,
     ),
-  ).toEqual([0, 1, 2, 2]);
+  ).toEqual([0, 0, 1, 1, 2, 2]);
+  let growsPopulation = false;
+  let highestPopulation = 0;
   for (const template of ENDLESS_CAMPAIGN_TEMPLATES) {
+    const field = CAMPAIGN_DESIGNS[template].field;
     let previous = campaignEndlessBlueprint(template, 0);
-    for (const band of [1, 2]) {
+    for (const band of [0, 1, 2]) {
       const next = campaignEndlessBlueprint(template, band);
       expect(next.bodies).toEqual(previous.bodies);
       expect(next.physics).toEqual(previous.physics);
       expect(next.motions).toEqual(previous.motions);
-      expect(next.objective.count).toBe(previous.objective.count);
-      expect(next.objective.turns).toBeGreaterThanOrEqual(
-        previous.objective.turns,
+      expect(next.objective.count).toBeGreaterThanOrEqual(
+        previous.objective.count,
       );
-      expect(next.objective.turns).toBeLessThanOrEqual(3);
-      for (let i = 0; i < (next.journey?.legs.length ?? 0); i++) {
-        const leg = next.journey!.legs[i];
-        expect(leg.sweep).toBeGreaterThanOrEqual(
-          previous.journey!.legs[i].sweep,
-        );
-        if (previous.journey!.legs[i].sweep === Math.PI * 2)
-          expect(leg.sweep).toBe(Math.PI * 2);
-      }
+      expect(next.objective.count).toBeGreaterThanOrEqual(1);
+      expect(next.objective.count).toBeLessThanOrEqual(3);
+      expect(goalProgress(createState(next)).target).toBeGreaterThanOrEqual(
+        goalProgress(createState(previous)).target,
+      );
+      expect(next.objective.turns).toBe(field === "gentle" ? 2 : 2 + band);
+      expect(next.journey).toBeUndefined();
+      for (const requirement of next.requirements ?? [])
+        expect(requirement.turns).toBe(next.objective.turns);
+      growsPopulation ||= next.objective.count > previous.objective.count;
+      highestPopulation = Math.max(highestPopulation, next.objective.count);
       previous = next;
     }
   }
+  expect(growsPopulation).toBe(true);
+  expect(highestPopulation).toBe(3);
 });
-it("verifies every template and difficulty band at calibrated sizes and outermost bounds", () => {
+
+it("physically replays every current field and difficulty band at calibrated sizes and outermost bounds", () => {
   for (const id of CAMPAIGN_ENDLESS_IDS)
-    for (const index of [45, 75, 105]) {
-      const level = buildCampaignEndlessLevel(42, index, id, 0);
+    for (const index of bandIndices) {
+      const transform = campaignEndlessTransforms(id, index)[0];
+      const level = buildCampaignEndlessLevel(
+        42,
+        index,
+        id,
+        (transform.quarter * Math.PI) / 2,
+        transform.reflected,
+      );
       expect(verifyGeneratedLevel(level), `${id}/${index}`).toBe(true);
-      expect(goalProgress(createState(level)).target).toBeLessThanOrEqual(4);
+      expect(level.witness).toHaveLength(
+        goalProgress(createState(level)).target,
+      );
       expect(level.objective.hold).toBe(0);
       expect(level.physics?.planetGravity).toBe(true);
       expect(level.physics?.planetCollisions).toBe("none");
       expect(objectiveText(level)).not.toMatch(/seconds|hold/i);
       level.witness.forEach((shot, i) => {
+        expect(shot.power).toBeGreaterThanOrEqual(0);
         expect(shot.power).toBeLessThanOrEqual(1);
         if (i)
-          expect(shot.time - level.witness[i - 1].time).toBeGreaterThanOrEqual(
-            0.3 - 1e-9,
-          );
+          expect(
+            (shot.time - level.witness[i - 1].time) / GRAVITY_SPEED_SCALE,
+          ).toBeGreaterThanOrEqual(4 - 1e-9);
       });
     }
-}, 60000);
-it("preserves relays, captures, directions and shared goals under rotation and reflection", () => {
-  for (const id of CAMPAIGN_ENDLESS_IDS)
-    for (const reflected of [false, true]) {
-      const level = buildCampaignEndlessLevel(137, 105, id, 0.731, reflected);
-      expect(verifyGeneratedLevel(level), `${id}/${reflected}`).toBe(true);
-      const normal = buildCampaignEndlessLevel(137, 105, id, 0.731);
-      expect(level.journey).toEqual(normal.journey);
-      expect(level.sharedOrbit).toEqual(normal.sharedOrbit);
-      expect(level.sharedCounter).toBe(normal.sharedCounter);
-      for (let i = 0; i < (level.requirements?.length ?? 0); i++) {
-        const direction = normal.requirements![i].direction;
-        expect(level.requirements![i].direction).toBe(
-          reflected && direction
-            ? direction === "clockwise"
-              ? "counterclockwise"
-              : "clockwise"
-            : direction,
-        );
+}, 120000);
+
+it("generates only manifest-approved rotations and reflections for the selected profile and band", () => {
+  for (const seed of [7, 42, 137])
+    for (const index of [...bandIndices, 10000]) {
+      const id = campaignEndlessLayoutId(mixGravitySeed(seed, 0), index);
+      const approved = campaignEndlessTransforms(id, index);
+      expect(approved.length).toBeGreaterThan(0);
+      const candidates = approved.map((transform) =>
+        buildCampaignEndlessLevel(
+          seed,
+          index,
+          id,
+          (transform.quarter * Math.PI) / 2,
+          transform.reflected,
+        ),
+      );
+      expect(candidates, `${seed}/${index}/${id}`).toContainEqual(
+        generateGravityLevel(seed, index),
+      );
+      for (const candidate of candidates) {
+        expect(candidate.journey).toBeUndefined();
+        expect(candidate.objective.turns).toBeGreaterThanOrEqual(2);
+        expect(candidate.sharedOrbit).toEqual(candidates[0].sharedOrbit);
+        expect(candidate.requirements).toEqual(candidates[0].requirements);
       }
     }
-}, 60000);
-it("continues through distant indices with new campaign mechanics and no easier fallback", () => {
+});
+
+it("continues through distant indices with the selected proved demand and no easier fallback", () => {
   for (const index of [
     45,
     46,
-    75,
-    105,
-    106,
+    85,
+    125,
+    126,
     1000,
     10000,
     65535,
     Number.MAX_SAFE_INTEGER - 1,
   ]) {
+    const id = campaignEndlessLayoutId(mixGravitySeed(42, 0), index);
+    expect(CAMPAIGN_ENDLESS_IDS).toContain(id);
+    const template = ENDLESS_CAMPAIGN_TEMPLATES.find(
+      (candidate) => profileId(candidate) === id,
+    )!;
+    const expected = campaignEndlessBlueprint(
+      template,
+      campaignEndlessDifficulty(index).band,
+    );
     const level = generateGravityLevel(42, index);
-    expect(CAMPAIGN_ENDLESS_IDS).toContain(level.layout);
-    expect(verifyGeneratedLevel(level), `${index}/${level.layout}`).toBe(true);
+    expect(level).toMatchObject({
+      index,
+      seed: 42,
+      source: "procedural",
+      layout: id.split(":")[0],
+    });
+    expect(level.objective).toEqual(expected.objective);
+    expect(level.requirements).toEqual(expected.requirements);
+    expect(level.physics).toEqual(expected.physics);
+    expect(level.bodies).toHaveLength(expected.bodies.length);
+    expect(goalProgress(createState(level)).target).toBe(
+      goalProgress(createState(expected)).target,
+    );
+    expect(verifyLevel(level), `${index}/${id}`).toBe(true);
   }
 }, 60000);

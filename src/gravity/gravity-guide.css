@@ -19,11 +19,11 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #697783;
+  color: var(--muted);
   font-size: 12px;
 }
 .gravity-guide-actions .gravity-guide-skip:focus-visible {
-  outline: 1px solid #89949d;
+  outline: 1px solid var(--border);
   outline-offset: 2px;
 }
 .gravity-guide-actions .pause-resume {
@@ -43,7 +43,7 @@
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
-  color: #a34f48;
+  color: var(--danger);
   font-size: 12px;
   white-space: nowrap;
   pointer-events: none;

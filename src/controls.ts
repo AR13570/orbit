@@ -31,7 +31,10 @@ export class PullGesture {
   private origin: Vec2 | null = null;
   private furthestDistance = 0;
   private startedAt = 0;
-  constructor(private fullDistance: number) {}
+  constructor(
+    private fullDistance: number,
+    private options: { unlimitedPull?: boolean } = {},
+  ) {}
   get active() {
     return this.pointer !== null;
   }
@@ -60,19 +63,24 @@ export class PullGesture {
     const distance = Math.hypot(dx, dy);
     this.furthestDistance = Math.max(this.furthestDistance, distance);
     const visualScale =
-      distance > this.fullDistance ? this.fullDistance / distance : 1;
+      !this.options.unlimitedPull && distance > this.fullDistance
+        ? this.fullDistance / distance
+        : 1;
     return {
       angle: Math.atan2(dy, dx),
-      power: Math.min(1, distance / this.fullDistance),
+      power: this.options.unlimitedPull
+        ? distance / this.fullDistance
+        : Math.min(1, distance / this.fullDistance),
       distance,
       pull: { x: -dx * visualScale, y: -dy * visualScale },
     };
   }
-  end(pointer: number, point: Vec2) {
+  end(pointer: number, point: Vec2, options: { allowTap?: boolean } = {}) {
     const aim = this.move(pointer, point);
     if (!aim) return null;
+    const tap = options.allowTap && this.furthestDistance < 8;
     this.cancel();
-    return aim.distance >= 8 ? aim : null;
+    return aim.distance >= 8 ? aim : tap ? { ...aim, power: 0 } : null;
   }
   cancel() {
     this.pointer = null;

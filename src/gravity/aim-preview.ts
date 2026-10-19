@@ -1,3 +1,4 @@
+import { MAX_GRAVITY_PREDICTION_SECONDS } from "./prediction-settings";
 import type { Vec2 } from "../game/types";
 import type { PathAssist } from "../pathAssist";
 
@@ -8,11 +9,11 @@ export function gravityAimPredictionSeconds(
   launchSpeed: number,
   particleCount = 0,
 ): number {
-  if (pathAssist === "full") return 10;
-  const baseline = particleCount > 64 ? 0.6 : particleCount > 24 ? 0.9 : 1.4;
-  const limit = particleCount > 64 ? 1.4 : particleCount > 24 ? 2.4 : 4;
+  if (pathAssist === "full") return MAX_GRAVITY_PREDICTION_SECONDS;
+  const baseline = particleCount > 64 ? 1.8 : particleCount > 24 ? 2.7 : 4.2;
+  const limit = particleCount > 64 ? 4.2 : particleCount > 24 ? 7.2 : 12;
   const screenSpeed = Math.max(0, renderScale) * Math.max(0, launchSpeed);
-  return Math.min(limit, Math.max(baseline, 160 / screenSpeed));
+  return Math.min(limit, Math.max(baseline, 480 / screenSpeed));
 }
 
 /** Resample the predicted polyline, keeping dots on the simulated route at CSS-pixel intervals. */
@@ -23,7 +24,7 @@ export function sampleGravityAimPreview(
 ): { dots: (Vec2 & { distance: number })[]; length: number } {
   const dots: (Vec2 & { distance: number })[] = [];
   if (points.length < 2 || !(renderScale > 0)) return { dots, length: 0 };
-  const limit = pathAssist === "full" ? Infinity : 200;
+  const limit = pathAssist === "full" ? Infinity : 600;
   let totalLength = 0;
   for (let i = 1; i < points.length; i++) {
     const segment =

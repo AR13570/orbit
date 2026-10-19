@@ -1,3 +1,4 @@
+import { canvasColors, visibleParticleColor } from "../theme";
 import {
   clampGameplayZoom,
   MIN_GRAVITY_ZOOM,
@@ -6,8 +7,9 @@ import {
 } from "../zoom";
 import { createGravitySurface } from "../render/gravity-surface";
 import { FORCE_PALETTE } from "../render/force-palette";
-import { drawBody, drawGravitySurface } from "../render/renderer";
-import { orbitFraction } from "./simulation";
+import { drawGravitySurface } from "../render/renderer";
+import { drawGravityCore } from "./core-label";
+import { nextProjectileColor, orbitFraction } from "./simulation";
 import type { GravitySnapshot, TrailPoint, GravityLevel } from "./types";
 import {
   contentBounds,
@@ -109,7 +111,9 @@ function rgba(color: string, alpha: number): string {
     }
     return `rgba(82, 124, 154, ${alpha})`;
   }
-  const ground = [233, 236, 239];
+  const ground = [1, 3, 5].map((index) =>
+    parseInt(canvasColors().ground.slice(index, index + 2), 16),
+  );
   const channels = match.slice(1).map((channel, index) => {
     const value = parseInt(channel, 16);
     return Math.round(value + (ground[index] - value) * 0.28);
@@ -117,7 +121,7 @@ function rgba(color: string, alpha: number): string {
   return `rgba(${channels.join(", ")}, ${alpha})`;
 }
 function drawTrail(
-  ctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   points: TrailPoint[],
   elapsed: number,
   width: number,
@@ -126,31 +130,6 @@ function drawTrail(
   dense = false,
 ) {
   if (points.length < 2) return;
-  if (dense || points.length > 160) {
-    // Long, busy skies use eight continuous opacity bands instead of a gradient per segment.
-    ctx.lineWidth = width;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    const size = Math.max(1, Math.ceil((points.length - 1) / 8));
-    for (let start = 0; start < points.length - 1; start += size) {
-      const end = Math.min(points.length - 1, start + size),
-        middle = points[Math.floor((start + end) / 2)];
-      const alpha = trailOpacity(
-        middle,
-        elapsed,
-        seconds,
-        Math.floor((start + end) / 2) / (points.length - 1),
-      );
-      if (alpha <= 0) continue;
-      ctx.strokeStyle = rgba(color, alpha);
-      ctx.beginPath();
-      ctx.moveTo(points[start].x, points[start].y);
-      for (let index = start + 1; index <= end; index++)
-        ctx.lineTo(points[index].x, points[index].y);
-      ctx.stroke();
-    }
-    return;
-  }
   const halfWidth = width / 2;
   const edges = points.map((point, index) => {
     const previous = points[Math.max(0, index - 1)],
@@ -200,18 +179,23 @@ function drawTrail(
     const offset = { x: ux * length, y: uy * length };
     return { left: offset, right: { x: -offset.x, y: -offset.y } };
   });
-  for (let index = 1; index < points.length; index++) {
-    const from = points[index - 1],
-      to = points[index],
-      fromEdge = edges[index - 1],
+  // Preserve every curve sample while bounding gradients in long, busy skies.
+  const stride = Math.max(
+    1,
+    Math.ceil((points.length - 1) / (dense ? 32 : 96)),
+  );
+  for (let start = 0; start < points.length - 1; start += stride) {
+    const index = Math.min(points.length - 1, start + stride);
+    const from = points[start],
+      to = points[index];
+    const fromEdge = edges[start],
       toEdge = edges[index];
-    if (!fromEdge || !toEdge || Math.hypot(to.x - from.x, to.y - from.y) < 1e-6)
-      continue;
+    if (!fromEdge || !toEdge) continue;
     const startAlpha = trailOpacity(
         from,
         elapsed,
         seconds,
-        (index - 1) / (points.length - 1),
+        start / (points.length - 1),
       ),
       endAlpha = trailOpacity(
         to,
@@ -222,9 +206,16 @@ function drawTrail(
     if (startAlpha <= 0 && endAlpha <= 0) continue;
     ctx.beginPath();
     ctx.moveTo(from.x + fromEdge.left.x, from.y + fromEdge.left.y);
-    ctx.lineTo(to.x + toEdge.left.x, to.y + toEdge.left.y);
-    ctx.lineTo(to.x + toEdge.right.x, to.y + toEdge.right.y);
-    ctx.lineTo(from.x + fromEdge.right.x, from.y + fromEdge.right.y);
+    for (let i = start + 1; i <= index; i++) {
+      const edge = edges[i];
+      if (edge)
+        ctx.lineTo(points[i].x + edge.left.x, points[i].y + edge.left.y);
+    }
+    for (let i = index; i >= start; i--) {
+      const edge = edges[i];
+      if (edge)
+        ctx.lineTo(points[i].x + edge.right.x, points[i].y + edge.right.y);
+    }
     ctx.closePath();
     const gradient = ctx.createLinearGradient(from.x, from.y, to.x, to.y);
     gradient.addColorStop(0, rgba(color, startAlpha));
@@ -240,6 +231,12 @@ export function createGravityRenderer(
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Canvas2D is unavailable.");
   const ctx = context;
+  const trailCanvas =
+    typeof OffscreenCanvas !== "undefined"
+      ? new OffscreenCanvas(1, 1)
+      : canvas.ownerDocument.createElement("canvas");
+  const trailContext = trailCanvas.getContext("2d") as
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   let width = 1,
     height = 1,
     scale = 1,
@@ -345,6 +342,13 @@ export function createGravityRenderer(
     getZoom() {
       return gameplayZoom;
     },
+    panBy(x: number, y: number) {
+      if (walkthroughFocus || !Number.isFinite(x) || !Number.isFinite(y))
+        return;
+      const current = displayCamera();
+      viewOffset.x -= x / current.scale;
+      viewOffset.y -= y / current.scale;
+    },
     resetPan(fraction = 1) {
       const remaining = 1 - Math.max(0, Math.min(1, fraction));
       viewOffset = { x: viewOffset.x * remaining, y: viewOffset.y * remaining };
@@ -390,6 +394,8 @@ export function createGravityRenderer(
       dpr = Math.min(2, Math.max(1, pixelRatio));
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
+      trailCanvas.width = canvas.width;
+      trailCanvas.height = canvas.height;
       if (lastLevel) frame(lastLevel);
     },
     getDefaultScale() {
@@ -428,7 +434,7 @@ export function createGravityRenderer(
       lastTime = time;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = "#e9ecef";
+      ctx.fillStyle = canvasColors().ground;
       ctx.fillRect(0, 0, width, height);
       const renderCamera = displayCamera();
       const renderScale = renderCamera.scale;
@@ -450,16 +456,39 @@ export function createGravityRenderer(
           FORCE_PALETTE[body.kind].wave,
           scratch,
         );
+      if (trailContext) {
+        trailContext.setTransform(1, 0, 0, 1, 0, 0);
+        trailContext.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+        trailContext.setTransform(
+          dpr * renderScale,
+          0,
+          0,
+          dpr * renderScale,
+          dpr * (centerX - renderCamera.center.x * renderScale),
+          dpr * (centerY - renderCamera.center.y * renderScale),
+        );
+        // Add adjacent coverage on a transparent layer, then composite once.
+        // Source-over per piece leaves antialiased gaps at shared ribbon edges.
+        trailContext.globalCompositeOperation = "lighter";
+        trailContext.globalAlpha = 1;
+      }
       for (const particle of snapshot.particles)
         drawTrail(
-          ctx,
+          trailContext ?? ctx,
           particle.trail,
           snapshot.elapsed,
           2.4 / renderScale,
-          particle.color,
+          visibleParticleColor(particle.color),
           snapshot.physics.trailSeconds,
           snapshot.particles.length > 12,
         );
+      if (trailContext) {
+        trailContext.globalCompositeOperation = "source-over";
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(trailCanvas, 0, 0);
+        ctx.restore();
+      }
       // Opaque surfaces use the physical world radius at every camera scale.
       const visiblePlanets = snapshot.particles
         .filter((particle) => particle.alive)
@@ -470,7 +499,7 @@ export function createGravityRenderer(
         .sort((a, b) => b.radius - a.radius || a.particle.id - b.particle.id);
       ctx.globalAlpha = 1;
       for (const { particle, radius } of visiblePlanets) {
-        planet(particle.position, radius, particle.color);
+        planet(particle.position, radius, visibleParticleColor(particle.color));
       }
       const journey = snapshot.level.journey;
       if (journey) {
@@ -487,7 +516,7 @@ export function createGravityRenderer(
           (body) => body.id === leg?.bodyId,
         );
         if (leg && body) {
-          ctx.strokeStyle = "#527c9a";
+          ctx.strokeStyle = canvasColors().blue;
           ctx.lineWidth = 1 / renderScale;
           ctx.globalAlpha = 0.25;
           ctx.setLineDash([3 / renderScale, 6 / renderScale]);
@@ -514,68 +543,17 @@ export function createGravityRenderer(
           ctx.globalAlpha = 1;
         }
       }
-      const showBodyLabels =
-        snapshot.level.bodies.filter((b) => b.kind === "attractor").length > 1;
-      snapshot.level.bodies.forEach((body, index) => {
-        const insideLabel = body.radius * renderScale >= 16;
-        drawBody(
-          ctx,
-          body,
-          renderScale,
-          showBodyLabels && insideLabel ? 7 / renderScale : 0,
-        );
-        if (options.attention) {
-          ctx.globalAlpha = options.reducedMotion
-            ? 0.6
-            : 0.35 + 0.25 * Math.sin(motion * 2.5);
-          ctx.strokeStyle = FORCE_PALETTE[body.kind].body;
-          ctx.lineWidth = 2 / renderScale;
-          circle(body.position, body.radius + 16 / renderScale);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
-        if (body.kind === "repellent") return;
-        if (!snapshot.level.sharedOrbit) {
-          const best = Math.max(
-            0,
-            ...snapshot.particles
-              .filter((p) => p.alive)
-              .map((p) => orbitFraction(snapshot, p, body.id)),
-          );
-          ctx.strokeStyle = "#527c9a";
-          ctx.globalAlpha = 0.22;
-          ctx.lineWidth = 1 / renderScale;
-          circle(body.position, body.radius + 8 / renderScale);
-          ctx.stroke();
-          if (best > 0) {
-            ctx.globalAlpha = 0.8;
-            ctx.lineWidth = 2 / renderScale;
-            ctx.beginPath();
-            ctx.arc(
-              body.position.x,
-              body.position.y,
-              body.radius + 8 / renderScale,
-              -Math.PI / 2,
-              -Math.PI / 2 + best * TAU,
-            );
-            ctx.stroke();
-          }
-          ctx.globalAlpha = 1;
-        }
+      snapshot.level.bodies.forEach((body) => {
         const goal = snapshot.progress.bodies?.find(
           (item) => item.bodyId === body.id,
         );
-        if (goal) {
-          ctx.fillStyle = "#455c70";
-          ctx.font = `600 ${11 / renderScale}px "Avenir Next",sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-          ctx.fillText(
-            `${goal.current}/${goal.target}`,
-            body.position.x,
-            body.position.y + body.radius + 16 / renderScale,
-          );
-        }
+        const count =
+          goal?.current ??
+          snapshot.particles.filter(
+            (p) => p.alive && orbitFraction(snapshot, p, body.id) >= 1,
+          ).length;
+        drawGravityCore(ctx, body, renderScale, count);
+        if (body.kind === "repellent") return;
         const direction = snapshot.level.requirements?.find(
           (goal) => goal.bodyId === body.id,
         )?.direction;
@@ -586,7 +564,7 @@ export function createGravityRenderer(
           const r = 6 / renderScale,
             start = -Math.PI * 0.7,
             end = start + sign * Math.PI * 1.5;
-          ctx.strokeStyle = "#527c9a";
+          ctx.strokeStyle = canvasColors().blue;
           ctx.lineWidth = 1.3 / renderScale;
           ctx.globalAlpha = 0.9;
           ctx.beginPath();
@@ -608,100 +586,21 @@ export function createGravityRenderer(
           ctx.stroke();
           ctx.globalAlpha = 1;
         }
-        if (showBodyLabels) {
-          ctx.fillStyle = insideLabel ? "#e9ecef" : "#455c70";
-          ctx.font = `700 ${11 / renderScale}px "Avenir Next",sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "alphabetic";
-          const label = String.fromCharCode(65 + index);
-          const metrics = ctx.measureText(label);
-          const ascent = metrics?.actualBoundingBoxAscent ?? 8 / renderScale;
-          const descent = metrics?.actualBoundingBoxDescent ?? 0;
-          ctx.fillText(
-            label,
-            body.position.x,
-            insideLabel
-              ? body.position.y + (ascent - descent) / 2
-              : body.position.y - body.radius - 12 / renderScale,
-          );
-        }
       });
-      if (snapshot.level.objective.kind === "tour" && !snapshot.level.journey) {
-        const bodies = snapshot.level.bodies.filter(
-          (b) => b.kind === "attractor",
-        );
-        const center = {
-          x:
-            bodies.reduce((sum, body) => sum + body.position.x, 0) /
-            bodies.length,
-          y:
-            bodies.reduce((sum, body) => sum + body.position.y, 0) /
-            bodies.length,
-        };
-        const best = Math.max(
-          0,
-          ...snapshot.particles
-            .filter((p) => p.alive)
-            .map((p) =>
-              snapshot.level.sharedOrbit
-                ? Math.min(
-                    ...snapshot.level.sharedOrbit.map((id) =>
-                      Math.min(
-                        1,
-                        Math.abs(p.orbits[id]?.winding ?? 0) /
-                          (TAU * snapshot.level.objective.turns),
-                      ),
-                    ),
-                  )
-                : orbitFraction(snapshot, p, "pair"),
-            ),
-        );
-        ctx.globalAlpha = 0.45;
-        ctx.strokeStyle = "#527c9a";
-        ctx.lineWidth = 1.5 / renderScale;
-        ctx.setLineDash([2 / renderScale, 5 / renderScale]);
-        const sharedRadius =
-          Math.max(
-            ...bodies.map(
-              (body) =>
-                Math.hypot(
-                  body.position.x - center.x,
-                  body.position.y - center.y,
-                ) + body.radius,
-            ),
-          ) +
-          20 / renderScale;
-        circle(center, sharedRadius);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        if (best > 0) {
-          ctx.beginPath();
-          ctx.arc(
-            center.x,
-            center.y,
-            sharedRadius,
-            -Math.PI / 2,
-            -Math.PI / 2 + best * TAU,
-          );
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-      }
       // A planet exists at the chosen position only while aiming. The field has no fixed launcher.
       const anchor = snapshot.launchPosition;
       const blockedLaunch =
         !!options.pull && !gravityLaunchIsClear(anchor, snapshot);
       if (options.pull) {
-        planet(
-          anchor,
-          snapshot.physics.planetRadius,
-          blockedLaunch ? "#c9675e" : "#7a60d6",
-        );
+        const heldColor = blockedLaunch
+          ? canvasColors().danger
+          : visibleParticleColor(nextProjectileColor(snapshot));
+        planet(anchor, snapshot.physics.planetRadius, heldColor);
         const ghost = {
           x: anchor.x + options.pull.x / renderScale,
           y: anchor.y + options.pull.y / renderScale,
         };
-        ctx.strokeStyle = "#697783";
+        ctx.strokeStyle = canvasColors().handle;
         ctx.globalAlpha = 0.65;
         ctx.lineWidth = 1 / renderScale;
         ctx.beginPath();
@@ -711,7 +610,7 @@ export function createGravityRenderer(
         circle(ghost, 5 / renderScale);
         ctx.stroke();
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = blockedLaunch ? "#c9675e" : "#7a60d6";
+        ctx.strokeStyle = heldColor;
         ctx.lineWidth = 2 / renderScale;
         ctx.beginPath();
         ctx.arc(
@@ -723,11 +622,11 @@ export function createGravityRenderer(
         );
         ctx.stroke();
         if (blockedLaunch) {
-          ctx.fillStyle = "#a34f48";
+          ctx.fillStyle = canvasColors().danger;
           ctx.font = `${12 / renderScale}px "Avenir Next",sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "bottom";
-          ctx.strokeStyle = "#e9ecef";
+          ctx.strokeStyle = canvasColors().ground;
           ctx.lineWidth = 4 / renderScale;
           ctx.lineJoin = "round";
           ctx.strokeText(
@@ -742,7 +641,7 @@ export function createGravityRenderer(
           );
         }
       }
-      ctx.fillStyle = "#7956cf";
+      ctx.fillStyle = canvasColors().aimPath;
       const aimPreview = sampleGravityAimPreview(
         blockedLaunch ? [] : preview,
         renderScale,
@@ -751,7 +650,7 @@ export function createGravityRenderer(
       for (const dot of aimPreview.dots) {
         const fade = 1 - dot.distance / aimPreview.length;
         ctx.globalAlpha = fade * fade * 0.98;
-        circle(dot, 2.3 / renderScale);
+        circle(dot, 1.5 / renderScale);
         ctx.fill();
       }
       if (options.ghostCue) {
@@ -768,7 +667,7 @@ export function createGravityRenderer(
             (cue.pull.y / renderScale) * (0.3 + 0.7 * fraction),
         };
         ctx.globalAlpha = 0.65;
-        ctx.strokeStyle = "#7956cf";
+        ctx.strokeStyle = canvasColors().aimPath;
         ctx.lineWidth = 1.5 / renderScale;
         ctx.setLineDash([3 / renderScale, 5 / renderScale]);
         ctx.beginPath();
@@ -780,7 +679,7 @@ export function createGravityRenderer(
         ctx.stroke();
         circle(handle, 10 / renderScale);
         ctx.stroke();
-        ctx.fillStyle = "#697783";
+        ctx.fillStyle = canvasColors().handle;
         ctx.font = `${11 / renderScale}px "Avenir Next",sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
@@ -795,6 +694,7 @@ export function createGravityRenderer(
     },
     destroy() {
       scratch.destroy();
+      trailCanvas.width = trailCanvas.height = 1;
       destroyed = true;
     },
   };

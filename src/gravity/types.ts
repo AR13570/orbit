@@ -108,6 +108,11 @@ export interface GravityParticle {
   journey?: { leg: number; sweep: number; angle?: number };
 }
 export interface GravityState {
+  /** Fast soft encounters exchange momentum once, then cross freely until clear. */
+  passingContacts?: Record<
+    string,
+    { slowSince?: number; recovering?: boolean }
+  >;
   /** Opt-in gameplay torque history. Absent in pure authored/reference worlds. */
   groupSpin?: {
     groups: Record<string, number>;

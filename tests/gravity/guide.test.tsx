@@ -61,7 +61,7 @@ function pointer(
 }
 
 describe("Gravity guide", () => {
-  it("keeps unequal practice planets alive and separate through mutual attraction", () => {
+  it("keeps slowly settling unequal practice planets alive on separate surfaces", () => {
     const launch = vi.spyOn(GravityEngine.prototype, "launch");
     render(<GravityGuide onFinish={() => {}} />);
     fireEvent.keyDown(screen.getByLabelText("Gravity practice field"), {
@@ -73,7 +73,7 @@ describe("Gravity guide", () => {
     engine.setTimeScale(1);
     engine.launchFrom({ x: 410, y: 100 }, { x: 0, y: 0 });
     engine.setProjectileSize(2);
-    engine.launchFrom({ x: 470, y: 100 }, { x: 0, y: 0 });
+    engine.launchFrom({ x: 436, y: 100 }, { x: 0, y: 0 });
     let closest = Infinity;
     for (let frame = 0; frame < 240; frame++) {
       engine.update(1 / 120);

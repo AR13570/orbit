@@ -168,7 +168,7 @@ for (const device of [
       ) => {
         const gesture = await page.evaluate(
           async ({ position, velocity, touch }) => {
-            const { gravityPullDistance } =
+            const { gravityPullDistance, gravityPullFraction } =
               await import("/src/gravity/input.ts");
             const { gravityLaunchPower } =
               await import("/src/gravity/physics.ts");
@@ -180,7 +180,7 @@ for (const device of [
                 innerWidth,
                 innerHeight,
                 2,
-              ) * Math.sqrt(gravityLaunchPower(speed));
+              ) * gravityPullFraction(gravityLaunchPower(speed));
             return {
               start: {
                 x: position.x * t.scale + t.tx,

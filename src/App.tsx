@@ -1,3 +1,4 @@
+import { AimHaptics } from "./haptics";
 import { MIN_ODESSEY_ZOOM, MAX_ODESSEY_ZOOM } from "./zoom";
 import { useGameplayZoom } from "./useGameplayZoom";
 import { usePathAssist } from "./pathAssist";
@@ -60,8 +61,7 @@ export function OdesseyGame({
   const pathAssist = usePathAssist(),
     pathAssistRef = useRef(pathAssist);
   pathAssistRef.current = pathAssist;
-  const previewDirty = useRef(false),
-    lastPreview = useRef(-Infinity);
+  const previewDirty = useRef(false);
   const canvas = useRef<HTMLCanvasElement>(null),
     scene = useRef<HTMLElement>(null),
     renderer = useRef<ReturnType<typeof createRenderer> | null>(null);
@@ -110,7 +110,9 @@ export function OdesseyGame({
     }
     setSnapshot(s);
   }, [engine, persistCheckpoint]);
+  const haptics = useRef(new AimHaptics());
   const cancel = useCallback(() => {
+    haptics.current.cancel();
     taps.current.reset();
     const id = gesture.current.pointerId ?? flightTap.current.pointerId;
     gesture.current.cancel();
@@ -119,7 +121,6 @@ export function OdesseyGame({
     sling.current = null;
     preview.current = [];
     previewDirty.current = false;
-    lastPreview.current = -Infinity;
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
   }, []);
@@ -270,12 +271,10 @@ export function OdesseyGame({
         active &&
         gesture.current.active &&
         pathAssistRef.current === "full" &&
-        previewDirty.current &&
-        time - lastPreview.current >= 80
+        previewDirty.current
       ) {
         preview.current = engine.predict(MAX_FLIGHT_SECONDS);
         previewDirty.current = false;
-        lastPreview.current = time;
       }
       if (!helpRef.current)
         r.render(
@@ -342,6 +341,13 @@ export function OdesseyGame({
   const updatePull = (id: number, x: number, y: number) => {
     const aim = gesture.current.move(id, { x, y });
     if (!aim) return;
+    haptics.current.aim(
+      aim.distance,
+      !pauseRef.current &&
+        !helpRef.current &&
+        !document.hidden &&
+        engine.getSnapshot().status === "aiming",
+    );
     if (!gesture.current.tapEligible) taps.current.reset();
     const current = engine.getSnapshot(),
       launch = current.sector.launch;
@@ -362,8 +368,9 @@ export function OdesseyGame({
     if (renderer.current)
       engine.setFlightBounds(renderer.current.getVisibleBounds());
     if (pathAssistRef.current === "full") {
-      if (changed) preview.current = [];
-      previewDirty.current = true;
+      // Coalesce pointer events into one exact prediction before the next draw.
+      // Clearing here would blink the path off between pointer and render frames.
+      if (changed) previewDirty.current = true;
     } else preview.current = engine.predict(1.6);
   };
   const restoreTutorialFocus = useRef(false);
@@ -534,6 +541,7 @@ export function OdesseyGame({
               })
             )
               return;
+            haptics.current.begin(e.pointerType);
             tapInterrupted.current = false;
             gestureScale.current = renderer.current?.getViewport().scale ?? 1;
             const frame = e.currentTarget.getBoundingClientRect();
@@ -643,12 +651,8 @@ export function OdesseyGame({
                 refresh();
               }
             } else taps.current.reset();
-            if (
-              shot &&
-              !pauseRef.current &&
-              !helpRef.current &&
-              engine.getSnapshot().status === "aiming"
-            ) {
+            let launched = false;
+            if (shot && canAct && !document.hidden) {
               engine.setAim(
                 shot.angle - (renderer.current?.getViewport().rotation ?? 0),
                 shot.power,
@@ -656,8 +660,10 @@ export function OdesseyGame({
               if (renderer.current)
                 engine.setFlightBounds(renderer.current.getVisibleBounds());
               engine.launch();
+              launched = engine.getSnapshot().status === "flying";
               refresh();
             }
+            haptics.current.release(launched);
           }}
           onPointerCancel={(e) => {
             if (zoom.end(e)) return;

@@ -42,11 +42,13 @@ it("keeps a moving twenty-planet collapse accurate without repeating whole-world
     );
   const before = totals();
   let minimumGap = Infinity,
-    maximumCenterError = 0;
+    maximumCenterError = 0,
+    lastPassageTime = 0;
   const recovery = vi.spyOn(surfaces, "recoverSurfaceOverlaps");
   try {
-    for (let frame = 0; frame < 600; frame++) {
+    for (let frame = 0; frame < 1800; frame++) {
       step(state, 1 / 120);
+      if (state.passingContacts) lastPassageTime = state.elapsed;
       const now = totals(),
         time = (frame + 1) / 120;
       maximumCenterError = Math.max(
@@ -60,21 +62,26 @@ it("keeps a moving twenty-planet collapse accurate without repeating whole-world
         for (let j = i + 1; j < 20; j++) {
           const a = state.particles[i],
             b = state.particles[j];
-          minimumGap = Math.min(
-            minimumGap,
-            Math.hypot(
-              a.position.x - b.position.x,
-              a.position.y - b.position.y,
-            ) -
-              a.radius -
-              b.radius,
-          );
+          if (
+            !state.passingContacts?.[
+              `${Math.min(a.id, b.id)}:${Math.max(a.id, b.id)}`
+            ]
+          )
+            minimumGap = Math.min(
+              minimumGap,
+              Math.hypot(
+                a.position.x - b.position.x,
+                a.position.y - b.position.y,
+              ) -
+                a.radius -
+                b.radius,
+            );
         }
     }
     // Operation-count guard, not a machine-dependent wall-clock assertion.
     // Initial overlap recovery is allowed once per step; CCD reuses supported
     // chords instead of repeatedly repairing the entire world after impacts.
-    expect(recovery).toHaveBeenCalledTimes(600);
+    expect(recovery).toHaveBeenCalledTimes(1800);
   } finally {
     recovery.mockRestore();
   }
@@ -85,4 +92,14 @@ it("keeps a moving twenty-planet collapse accurate without repeating whole-world
   expect(after.px).toBeCloseTo(before.px, 7);
   expect(after.py).toBeCloseTo(before.py, 7);
   expect(after.angular).toBeCloseTo(before.angular, 6);
+  expect(state.passingContacts).toBeUndefined();
+  expect(lastPassageTime).toBeLessThan(10);
+  for (let i = 0; i < 20; i++)
+    for (let j = i + 1; j < 20; j++) {
+      const a = state.particles[i],
+        b = state.particles[j];
+      expect(
+        Math.hypot(b.position.x - a.position.x, b.position.y - a.position.y),
+      ).toBeGreaterThanOrEqual(a.radius + b.radius - 1e-6);
+    }
 });

@@ -16,7 +16,7 @@ export function gravityLaunchIsClear(
   );
 }
 
-/** Deliberate full-power pulls remain reachable with one thumb or a mouse. */
+/** Screen-space reference reach for the launch response, not a drag limit. */
 export function gravityPullDistance(
   pointerType: string,
   width: number,
@@ -33,6 +33,24 @@ export function gravityPullDistance(
 
 /** The same response drives the power arc, prediction, and released velocity. */
 export function gravityAim<T extends { power: number }>(aim: T): T {
-  const fraction = Math.max(0, Math.min(1, aim.power));
-  return { ...aim, power: fraction * fraction };
+  const fraction = Math.max(0, aim.power);
+  // Keep precise low-power shots unchanged. Match the slope at the knee,
+  // then add progressively less power without limiting the visible tether.
+  const knee = 0.8;
+  const remaining = 1 - knee * knee;
+  const power =
+    fraction <= knee
+      ? fraction * fraction
+      : 1 - remaining * Math.exp((-2 * knee * (fraction - knee)) / remaining);
+  return { ...aim, power };
+}
+
+/** Recover a drag fraction for authored shots and browser playthroughs. */
+export function gravityPullFraction(power: number): number {
+  const bounded = Math.max(0, Math.min(1 - Number.EPSILON, power));
+  const knee = 0.8;
+  const remaining = 1 - knee * knee;
+  return bounded <= knee * knee
+    ? Math.sqrt(bounded)
+    : knee - (remaining / (2 * knee)) * Math.log((1 - bounded) / remaining);
 }

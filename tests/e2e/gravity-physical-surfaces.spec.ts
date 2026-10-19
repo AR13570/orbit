@@ -66,7 +66,7 @@ for (const device of [
             circle = { x, y, radius };
             if (
               this.canvas.classList.contains("scene-canvas") &&
-              this.fillStyle === "#245f78"
+              ["#303943", "#dedde5"].includes(String(this.fillStyle))
             ) {
               const matrix = this.getTransform();
               const dpr =

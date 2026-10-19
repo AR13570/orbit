@@ -9,6 +9,56 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import GravityGame from "../../src/gravity/GravityGame";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
+import { gravityForceAt, gravityLaunchPower } from "../../src/gravity/physics";
+import type { GravityLevel } from "../../src/gravity/types";
+
+function hudLevel(index: number): GravityLevel {
+  const body = {
+    id: "fixture-core",
+    kind: "attractor" as const,
+    position: { x: 600, y: 600 },
+    radius: 96,
+    strength: 12000000,
+    softening: 180,
+  };
+  const position = { x: 790, y: 600 };
+  const speed = Math.sqrt(-gravityForceAt(position, [body]).x * 190);
+  return {
+    seed: 42,
+    index,
+    source: "campaign",
+    title: `Countdown fixture ${index + 1}`,
+    family: "loop",
+    bounds: { x: 0, y: 0, width: 1200, height: 1200 },
+    launch: position,
+    bodies: [body],
+    orbitPadding: 210,
+    objective: { kind: "loop", count: 1, turns: 2, hold: 0 },
+    requirements: [{ bodyId: body.id, count: 1, turns: 2 }],
+    physics: {
+      planetRadius: 6,
+      planetMass: 1,
+      planetGravity: true,
+      planetCollisions: "none",
+      bodyCollisions: true,
+    },
+    witness: [
+      {
+        time: 0,
+        position,
+        velocity: { x: 0, y: speed },
+        angle: Math.PI / 2,
+        power: gravityLaunchPower(speed),
+      },
+    ],
+  };
+}
+// Isolate lifecycle UI from campaign authoring while retaining the real engine,
+// two full physical revolutions, saved progress and next-level navigation.
+vi.mock("../../src/gravity/campaign", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/gravity/campaign")>()),
+  getGravityLevel: (_seed: number, index: number) => hudLevel(index),
+}));
 
 vi.mock("../../src/gravity/renderer", () => ({
   createGravityRenderer: () => ({
@@ -74,28 +124,14 @@ it("keeps skip and completed next actions in the footer through real completion"
   expect(progressAfterSkip.completedIndices).toEqual([]);
 
   engine.goTo(0);
-  const witness = engine.getSnapshot().level.witness;
-  let shot = 0;
-  for (
-    let tick = 0;
-    tick < 85 * 120 && !engine.getRenderSnapshot().complete;
-    tick++
-  ) {
-    while (
-      shot < witness.length &&
-      witness[shot].time <= engine.getRenderSnapshot().elapsed + 1e-8
-    ) {
-      const launch = witness[shot++];
-      if (launch.position && launch.velocity)
-        engine.launchFrom(launch.position, launch.velocity);
-      else {
-        engine.setAim(launch.angle, launch.power);
-        engine.launch();
-      }
-    }
-    engine.update(1 / 120);
-  }
-  expect(engine.getSnapshot().complete).toBe(true);
+  finish(engine);
+  expect(engine.getRenderSnapshot().progress.complete).toBe(true);
+  // Losing the actual orbit after earning success must not revoke the UI win.
+  engine.setFlightBounds({ x: -10000, y: -10000, width: 1, height: 1 });
+  engine.update(1 / 120);
+  expect(engine.getRenderSnapshot().progress.complete).toBe(false);
+  expect(engine.getRenderSnapshot().complete).toBe(true);
+  expect(engine.getRenderSnapshot().completedCount).toBe(1);
   act(() => frame(100));
   const next = screen.getByRole("button", { name: "Next level" });
   expect(objective.contains(next)).toBe(false);
@@ -127,24 +163,28 @@ it("places the playtest return below its objective and exits once", () => {
 });
 
 function finish(engine: GravityEngine) {
-  const witness = engine.getRenderSnapshot().level.witness;
+  engine.setTimeScale(1);
+  const level = engine.getRenderSnapshot().level;
+  const witness = level.witness;
+  expect(level.objective.turns).toBe(2);
   let shot = 0;
-  for (let n = 0; n < 85 * 120 && !engine.getRenderSnapshot().complete; n++) {
+  for (let n = 0; n < 60 * 120 && !engine.getRenderSnapshot().complete; n++) {
     while (
       shot < witness.length &&
       witness[shot].time <= engine.getRenderSnapshot().elapsed + 1e-8
     ) {
       const launch = witness[shot++];
-      if (launch.position && launch.velocity)
-        engine.launchFrom(launch.position, launch.velocity);
-      else {
-        engine.setAim(launch.angle, launch.power);
-        engine.launch();
-      }
+      expect(engine.launchFrom(launch.position!, launch.velocity!)).toBe(true);
     }
     engine.update(1 / 120);
   }
-  expect(engine.getRenderSnapshot().complete).toBe(true);
+  const completed = engine.getRenderSnapshot();
+  expect(shot).toBe(witness.length);
+  expect(completed.complete).toBe(true);
+  expect(completed.progress.complete).toBe(true);
+  expect(
+    Math.abs(completed.particles[0].orbits[level.bodies[0].id].localWinding),
+  ).toBeGreaterThanOrEqual(4 * Math.PI - 1e-9);
 }
 
 it("fills the border and advances once after three active seconds, pausing with the menu", () => {

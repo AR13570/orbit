@@ -48,7 +48,7 @@ for (const device of [
         ) {
           if (
             this.canvas.classList.contains("scene-canvas") &&
-            this.fillStyle === "#245f78"
+            ["#303943", "#dedde5"].includes(String(this.fillStyle))
           ) {
             const matrix = this.getTransform(),
               box = this.canvas.getBoundingClientRect();
@@ -84,7 +84,7 @@ for (const device of [
       ) => {
         const gesture = await page.evaluate(
           async ({ position, velocity, touch }) => {
-            const { gravityPullDistance } =
+            const { gravityPullDistance, gravityPullFraction } =
               await import("/src/gravity/input.ts");
             const { gravityLaunchPower } =
               await import("/src/gravity/physics.ts");
@@ -95,7 +95,7 @@ for (const device of [
                 touch ? "touch" : "mouse",
                 innerWidth,
                 innerHeight,
-              ) * Math.sqrt(gravityLaunchPower(speed));
+              ) * gravityPullFraction(gravityLaunchPower(speed));
             const start = {
               x: position.x * t.scale + t.tx,
               y: position.y * t.scale + t.ty,

@@ -3,6 +3,7 @@ import { createState, fire, fireFrom, goalProgress, step } from "./simulation";
 import {
   buildCampaignEndlessLevel,
   campaignEndlessLayoutId,
+  campaignEndlessTransforms,
 } from "./campaign-endless";
 import { fitGravityFrame } from "./renderer";
 import type { GravityLevel, GravityState } from "./types";
@@ -43,7 +44,11 @@ export function witnessCompletionTime(
     Number.isFinite(dt) && dt > 0
       ? Math.min(dt, GRAVITY_FIXED_STEP)
       : GRAVITY_FIXED_STEP;
-  for (let n = 0; n < 30 / interval; n++) {
+  for (
+    let n = 0;
+    n < Math.max(90, (level.witness.at(-1)?.time ?? 0) + 60) / interval;
+    n++
+  ) {
     while (
       shot < level.witness.length &&
       level.witness[shot].time <= state.elapsed + 1e-8
@@ -63,7 +68,7 @@ export function witnessCompletionTime(
 export function verifyLevel(level: GravityLevel): boolean {
   return witnessCompletionTime(level) !== null;
 }
-/** Generated campaign variants must survive both size extremes and actual viewport removal bounds. */
+/** Quick reachability smoke check. Sustained survival is proved offline by stable-authoring.test.ts. */
 export function verifyGeneratedLevel(level: GravityLevel): boolean {
   for (const radius of [4, 16])
     if (witnessCompletionTime(level, GRAVITY_FIXED_STEP, { radius }) === null)
@@ -104,35 +109,19 @@ export function generateGravityLevel(
   const key = `${seed}:${index}`,
     cached = cache.get(key);
   if (cached) return structuredClone(cached);
-  const random = gravityRandom(mixGravitySeed(seed, index));
   const layoutId = campaignEndlessLayoutId(mixGravitySeed(seed, 0), index);
-  const rotation = random() * Math.PI * 2,
-    reflected = random() < 0.5;
-  let chosen = buildCampaignEndlessLevel(
+  // Only offline-proved geometry and populations enter play. Startup never runs
+  // a numerical search or silently substitutes an easier objective.
+  const random = gravityRandom(mixGravitySeed(seed, index));
+  const variants = campaignEndlessTransforms(layoutId, index);
+  const variant = variants[Math.floor(random() * variants.length)];
+  const chosen = buildCampaignEndlessLevel(
     seed,
     index,
     layoutId,
-    rotation,
-    reflected,
-    true,
+    (variant.quarter * Math.PI) / 2,
+    variant.reflected,
   );
-  // Failed perturbations retain the same mechanic, template and exact difficulty.
-  if (!verifyGeneratedLevel(chosen)) {
-    chosen = buildCampaignEndlessLevel(
-      seed,
-      index,
-      layoutId,
-      rotation,
-      reflected,
-    );
-    if (!verifyGeneratedLevel(chosen)) {
-      chosen = buildCampaignEndlessLevel(seed, index, layoutId, 0);
-      if (!verifyGeneratedLevel(chosen))
-        throw new Error(
-          `Campaign endless solution no longer validates: ${layoutId}`,
-        );
-    }
-  }
   if (cache.size >= 96) cache.delete(cache.keys().next().value!);
   cache.set(key, structuredClone(chosen));
   return chosen;

@@ -1,4 +1,10 @@
-import { planetAccelerations, WELL_SOFTENING } from "./physics";
+import {
+  particlePairPotential,
+  particleSoftening,
+  planetAccelerations,
+  wellSoftening,
+} from "./physics";
+import { contactKey } from "./surface-support";
 import type { GravityParticle, GravityState } from "./types";
 
 // Visible, gentle orientation drift: one revolution in about 52 physical seconds.
@@ -41,6 +47,7 @@ export function assistGroupSpin(
     for (let b = a + 1; b < particles.length; b++) {
       const p = particles[a],
         q = particles[b];
+      if (state.passingContacts?.[contactKey(p, q)]) continue;
       const dx = q.position.x - p.position.x,
         dy = q.position.y - p.position.y;
       const distance = Math.hypot(dx, dy);
@@ -172,7 +179,8 @@ export function assistGroupSpin(
         if (body.kind !== "attractor") continue;
         const x = cx - body.position.x,
           y = cy - body.position.y;
-        const force = body.strength / (x * x + y * y + WELL_SOFTENING ** 2);
+        const force =
+          body.strength / (x * x + y * y + wellSoftening(body) ** 2);
         if (force > strongest) {
           strongest = force;
           direction = Math.sign(x * vy - y * vx) || 1;
@@ -209,12 +217,11 @@ export function assistGroupSpin(
       fullKinetic += 0.5 * p.mass * (fullX * fullX + fullY * fullY);
       for (let other = index + 1; other < members.length; other++) {
         const q = particles[members[other]];
-        const dx = q.position.x - p.position.x,
-          dy = q.position.y - p.position.y;
-        const softening = Math.max(2, (p.radius + q.radius) * 0.5);
-        potential -=
-          (state.physics.planetGravityStrength * p.mass * q.mass) /
-          Math.sqrt(dx * dx + dy * dy + softening * softening);
+        potential += particlePairPotential(
+          p,
+          q,
+          state.physics.planetGravityStrength,
+        );
       }
     }
     if (1.25 * fullKinetic + potential >= 0) continue;
@@ -229,7 +236,7 @@ export function assistGroupSpin(
         (q.velocity.x - p.velocity.x) * c.nx +
         (q.velocity.y - p.velocity.y) * c.ny;
 
-      const softening = Math.max(2, (p.radius + q.radius) * 0.5);
+      const softening = particleSoftening(p, q);
       const escapeSquared =
         (2 * state.physics.planetGravityStrength * (p.mass + q.mass)) /
         Math.sqrt(c.distance ** 2 + softening ** 2);

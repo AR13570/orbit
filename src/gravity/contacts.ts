@@ -3,11 +3,13 @@ import type { Vec2 } from "../game/types";
 import type { GravityParticle, GravityState } from "./types";
 import { initialOrbits } from "./orbits";
 import {
+  canSettle,
   contactKey,
   separateSurfaces,
   surfaceContacts,
   supportSurfaces,
 } from "./surface-support";
+import { particlePairPotential } from "./physics";
 
 const ORIGIN = { x: 0, y: 0 };
 const CONTACT_EPSILON = 1e-9;
@@ -79,17 +81,42 @@ function resolvePlanet(
     ny = length > CONTACT_EPSILON ? dy / length : 0;
   const relative =
     (b.velocity.x - a.velocity.x) * nx + (b.velocity.y - a.velocity.y) * ny;
+  const soft = state.physics.planetCollisions === "soft";
+  const settling = soft && canSettle(state, a, b);
+  if (soft && !settling) (state.passingContacts ??= {})[contactKey(a, b)] = {};
   if (relative < 0) {
     // Soft contacts transfer approaching normal momentum without rebound.
     // Tangential motion remains free, so sliding and separation are possible.
-    const restitution = state.physics.planetCollisions === "soft" ? 0 : 1;
-    const impulse = (-(1 + restitution) * relative) / (1 / a.mass + 1 / b.mass);
+    const inverseMass = 1 / a.mass + 1 / b.mass;
+    let impulse = (-(soft ? 1 : 2) * relative) / inverseMass;
+    if (soft && !settling) {
+      // A fast soft encounter is a dissipative passage, not a hard-sphere
+      // rebound. Transfer at most 20% of inward relative momentum once, then
+      // allow these independent bodies to cross without positional repair.
+      const kinetic =
+        (0.5 / inverseMass) *
+        ((b.velocity.x - a.velocity.x) ** 2 +
+          (b.velocity.y - a.velocity.y) ** 2);
+      const potential = state.physics.planetGravity
+        ? particlePairPotential(a, b, state.physics.planetGravityStrength)
+        : 0;
+      const excess = kinetic + potential;
+      const normalEnergy = (0.5 / inverseMass) * relative * relative;
+      // An unbound pair must stay unbound after dissipation. Spend at most
+      // 15% of its positive energy, preserving near-escape grazing passes.
+      const retained =
+        excess > 0
+          ? Math.sqrt(Math.max(0.64, 1 - (0.15 * excess) / normalEnergy))
+          : 0.8;
+      impulse *= 1 - retained;
+    }
     a.velocity.x -= (impulse * nx) / a.mass;
     a.velocity.y -= (impulse * ny) / a.mass;
     b.velocity.x += (impulse * nx) / b.mass;
     b.velocity.y += (impulse * ny) / b.mass;
   }
   if (state.physics.planetCollisions === "soft") {
+    if (state.passingContacts?.[contactKey(a, b)]) return;
     separateSurfaces(a, b);
     return;
   }
@@ -165,6 +192,7 @@ export function driftWithContacts(
         for (let j = i + 1; j < particles.length; j++) {
           const other = particles[j];
           if (!other.alive) continue;
+          if (state.passingContacts?.[contactKey(p, other)]) continue;
           if (supported.has(contactKey(p, other))) continue;
           const time = planetContact(
             p,

@@ -1,4 +1,9 @@
-import { createWaveRenderer, type WaveRenderer } from "gravity-wave";
+import { isDarkTheme } from "../theme";
+import {
+  createWaveRenderer,
+  type WaveField,
+  type WaveRenderer,
+} from "gravity-wave";
 import type { Vec2 } from "../game/types";
 
 export { sampleGravityWave } from "gravity-wave";
@@ -17,18 +22,41 @@ export function drawGravitySurface(
   color: string,
   surface: WaveRenderer,
 ): void {
-  surface.draw(
-    [
-      {
-        center: position,
-        innerRadius: radius,
-        radius: radius + 140,
-        direction: repels ? "outward" : "inward",
-        color,
-        shadowColor: color,
-      },
-    ],
-    motionTime,
-    { scale, reducedMotion },
-  );
+  const dark = isDarkTheme();
+  const shadowColor =
+    dark && /^#[0-9a-f]{6}$/i.test(color)
+      ? "#" +
+        [1, 3, 5]
+          .map((start) => {
+            const channel = parseInt(color.slice(start, start + 2), 16);
+            return Math.round(channel + (255 - channel) * 0.65)
+              .toString(16)
+              .padStart(2, "0");
+          })
+          .join("")
+      : color;
+  const fields: WaveField[] = [
+    {
+      center: position,
+      innerRadius: radius,
+      radius: radius + 230,
+      wavelength: (32 + radius * 0.34) * 1.35,
+      direction: repels ? "outward" : "inward",
+      color,
+      shadowColor,
+      mode: "morphing",
+      morphAmount: 0.24,
+      morphSpeed: 0.18,
+      ...(dark
+        ? {
+            pointSize: 1.08,
+            opacity: 0.78,
+          }
+        : {}),
+    },
+  ];
+  surface.draw(fields, motionTime, { scale, reducedMotion });
+  // A bounded second pass lifts faint crests on black without a blurred halo,
+  // larger footprints or more points in the lattice. Light keeps its original pass.
+  if (dark) surface.draw(fields, motionTime, { scale, reducedMotion });
 }

@@ -73,13 +73,13 @@ describe("gravitational surface support", () => {
     },
   );
 
-  it("transfers an energetic radial impact into shared motion without rebound", () => {
-    const state = pair(-200);
+  it("transfers a bound radial impact into shared motion without rebound", () => {
+    const state = pair(-50);
     run(state, 5);
     expect(distance(state)).toBeCloseTo(12, 7);
-    expect(state.particles[0].velocity.x).toBeCloseTo(-40, 8);
-    expect(state.particles[1].velocity.x).toBeCloseTo(-40, 8);
-    expect(conserved(state).x).toBeCloseTo(-200, 8);
+    expect(state.particles[0].velocity.x).toBeCloseTo(-10, 8);
+    expect(state.particles[1].velocity.x).toBeCloseTo(-10, 8);
+    expect(conserved(state).x).toBeCloseTo(-50, 8);
     expect(conserved(state).angular).toBeCloseTo(0, 8);
   });
 
@@ -105,7 +105,7 @@ describe("gravitational surface support", () => {
   });
 
   it("preserves sideways momentum while supported surfaces move around their shared center", () => {
-    const state = pair(0, 30);
+    const state = pair(0, 10);
     const initial = conserved(state);
     run(state, 2);
     expect(distance(state)).toBeGreaterThanOrEqual(12 - 1e-6);
@@ -119,11 +119,11 @@ describe("gravitational surface support", () => {
   });
 
   it("releases touching surfaces when sideways momentum exceeds the gravity needed for a circular path", () => {
-    // 220 is between this pair's circular speed (169.18) and escape speed (267.5).
-    const state = pair(0, 220);
+    // 50 lies above this pair's circular speed (17.37) and below escape speed (125.26).
+    const state = pair(0, 50);
     run(state, 0.5);
     expect(distance(state)).toBeGreaterThan(20);
-    expect(conserved(state).angular).toBeCloseTo(2640, 7);
+    expect(conserved(state).angular).toBeCloseTo(600, 7);
   });
 
   it("allows an already separating surface contact to leave without a pull from contact support", () => {
@@ -211,8 +211,8 @@ describe("unattached orbital motion and aggregate gravity", () => {
   });
 
   it("keeps a bound near circular pair apart without attaching or damping its orbit", () => {
-    const state = pair(0, 88.2287619256);
-    // Relative circular speed at separation 60 for masses 4+1 and softening 6.
+    const state = pair(0, 53.182958969449885);
+    // Relative circular speed at separation 60 for masses 4+1 and softening 60.
     state.particles[1].position.x = 60;
     let closest = Infinity,
       farthest = 0;
@@ -223,7 +223,7 @@ describe("unattached orbital motion and aggregate gravity", () => {
     }
     expect(closest).toBeGreaterThan(58);
     expect(farthest).toBeLessThan(62);
-    expect(conserved(state).angular).toBeCloseTo(5293.725715536, 6);
+    expect(conserved(state).angular).toBeCloseTo(3190.9775381669933, 6);
   });
 
   it("combines incoming momentum and lets a third planet feel every member's gravity", () => {

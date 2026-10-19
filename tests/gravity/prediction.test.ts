@@ -74,6 +74,9 @@ describe("incremental Gravity aim prediction", () => {
     try {
       job.advance(5);
       expect(job.done).toBe(false);
+      // A strict per-step budget may yield before the next four-step sample.
+      job.advance(5);
+      job.advance(5);
       expect(job.path.length).toBeGreaterThan(1);
       expect(job.path.length).toBeLessThan(20);
       job.cancel();
@@ -100,5 +103,55 @@ describe("incremental Gravity aim prediction", () => {
         (point, index) => index > 0 && point.x < job.path[index - 1].x,
       ),
     ).toBe(true);
+  });
+  it("simulates the actual sixty-second Full horizon and caps longer requests consistently", () => {
+    const draft = newDraft();
+    draft.bodies = [];
+    draft.physics = {
+      bodyCollisions: false,
+      planetGravity: false,
+      escapeDistance: 100000,
+    };
+    const engine = new GravityEngine(42, toGravityLevel(draft));
+    engine.setTimeScale(1);
+    engine.setLaunch({ x: 100, y: 400 }, { angle: 0, power: 0.25 });
+    const expected = engine.predict(60),
+      job = engine.beginPrediction()!;
+    while (!job.done) job.advance(2);
+    expect(job.path).toHaveLength(1801);
+    expect(job.path).toEqual(expected);
+    expect(engine.predict(100)).toEqual(expected);
+    const direct = engine.predictFrom({ x: 100, y: 400 }, { x: 10, y: 0 }, 60);
+    expect(direct).toHaveLength(1801);
+    expect(direct.at(-1)!.x).toBeCloseTo(700, 8);
+    engine.launch();
+    for (let i = 0; i < 7200; i++) engine.update(1 / 120);
+    expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(
+      job.path.at(-1)!.x,
+      10,
+    );
+  });
+  it("reports a terminal collision even when it lands on the prefix horizon's final sample", () => {
+    const draft = newDraft();
+    draft.bodies = [
+      {
+        id: "wall",
+        kind: "attractor",
+        position: { x: 128.99, y: 450 },
+        radius: 20,
+        strength: 0,
+      },
+    ];
+    draft.physics = {
+      planetRadius: 4,
+      planetGravity: false,
+      bodyCollisions: true,
+    };
+    const engine = new GravityEngine(42, toGravityLevel(draft));
+    engine.setLaunch({ x: 100, y: 450 }, { angle: 0, power: 10 / 420 });
+    const job = engine.beginPrediction(0.5)!;
+    while (!job.done) job.advance(2);
+    expect(job.path).toHaveLength(16);
+    expect(job.terminated).toBe(true);
   });
 });

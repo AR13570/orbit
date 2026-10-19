@@ -1,9 +1,12 @@
+import { MAX_GRAVITY_PREDICTION_SECONDS } from "./prediction-settings";
 import { GRAVITY_FIXED_STEP } from "./physics";
 import { fireFrom, step } from "./simulation";
 import type { GravityState, Vec2 } from "./types";
 export interface GravityPredictionJob {
   readonly path: Vec2[];
   readonly done: boolean;
+  /** True when the launched body was lost, including on the horizon boundary. */
+  readonly terminated?: boolean;
   advance(budgetMs?: number): void;
   cancel(): void;
 }
@@ -25,30 +28,39 @@ export function createGravityPrediction(
   const id = state.nextId - 1,
     path: Vec2[] = valid ? [{ ...position }] : [];
   const steps = valid
-    ? Math.floor(Math.min(10, seconds) / GRAVITY_FIXED_STEP + 1e-9)
+    ? Math.floor(
+        Math.min(MAX_GRAVITY_PREDICTION_SECONDS, seconds) / GRAVITY_FIXED_STEP +
+          1e-9,
+      )
     : 0;
   let count = 0,
+    terminated = false,
     done = steps === 0;
   return {
     path,
     get done() {
       return done;
     },
+    get terminated() {
+      return terminated;
+    },
     advance(budgetMs = 5) {
       if (done || !state || !Number.isFinite(budgetMs) || budgetMs <= 0) return;
       const deadline = performance.now() + Math.min(8, budgetMs);
       while (count < steps) {
-        if (count % 4 === 0 && performance.now() >= deadline) break;
+        if (performance.now() >= deadline) break;
         step(state, GRAVITY_FIXED_STEP);
         count++;
         const planet = state.particles.find((planet) => planet.id === id);
         if (!planet) {
+          terminated = true;
           done = true;
           break;
         }
         if (count % 4 === 0 || count === steps || !planet.alive)
           path.push({ ...planet.position });
         if (!planet.alive) {
+          terminated = true;
           done = true;
           break;
         }

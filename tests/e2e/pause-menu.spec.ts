@@ -27,6 +27,8 @@ for (const mode of ["odessey", "gravity"])
       await page.keyboard.press("Tab");
       await expect(advanced).toBeFocused();
       await page.keyboard.press("Tab");
+      await expect(menu.getByRole("button", { name: "Dark mode", exact: true })).toBeFocused();
+      await page.keyboard.press("Tab");
       await expect(
         menu.getByRole("button", { name: "Sound on", exact: true }),
       ).toBeFocused();
@@ -69,6 +71,7 @@ for (const mode of ["odessey", "gravity"])
         "Advanced",
         "Path assist",
         ...(mode === "gravity" ? ["Particle Interaction"] : []),
+        "Dark mode",
         "Sound on",
         "How to play",
         "Restart level",

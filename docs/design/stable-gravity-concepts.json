@@ -1,0 +1,699 @@
+[
+  {
+    "id": 1,
+    "name": "Open sky",
+    "group": 1,
+    "cores": [
+      [
+        0,
+        0,
+        48,
+        4
+      ]
+    ],
+    "repels": [],
+    "orbits": [
+      [
+        0,
+        0,
+        104,
+        98,
+        0
+      ],
+      [
+        0,
+        0,
+        145,
+        125,
+        25
+      ],
+      [
+        0,
+        0,
+        190,
+        166,
+        -20
+      ],
+      [
+        0,
+        0,
+        218,
+        190,
+        48
+      ]
+    ],
+    "objective": "Keep four planets in lasting orbits around one core.",
+    "idea": "One uninterrupted gravity well. Build separate inner and outer lanes instead of stacking identical shots.",
+    "order": "Start with a broad orbit, watch it settle, then add planets at different radii. Earlier planets must survive each addition.",
+    "risk": ""
+  },
+  {
+    "id": 2,
+    "name": "Neighbouring systems",
+    "group": 1,
+    "cores": [
+      [
+        -112,
+        0,
+        48,
+        2
+      ],
+      [
+        112,
+        0,
+        48,
+        2
+      ]
+    ],
+    "repels": [],
+    "orbits": [
+      [
+        -112,
+        0,
+        98,
+        88,
+        0
+      ],
+      [
+        -112,
+        0,
+        108,
+        92,
+        40
+      ],
+      [
+        112,
+        0,
+        98,
+        88,
+        0
+      ],
+      [
+        112,
+        0,
+        108,
+        92,
+        -40
+      ]
+    ],
+    "objective": "Establish two orbiting planets around each core.",
+    "idea": "Two local systems share a boundary. Choose compact orbits that resist the neighbouring well rather than making one large loop around both.",
+    "order": "Complete the first local system, then build the second. Test the reverse order and long pauses between launches.",
+    "risk": ""
+  },
+  {
+    "id": 3,
+    "name": "A common centre",
+    "group": 1,
+    "cores": [
+      [
+        0,
+        -112,
+        48,
+        2
+      ],
+      [
+        -100,
+        66,
+        48,
+        2
+      ],
+      [
+        100,
+        66,
+        48,
+        2
+      ]
+    ],
+    "repels": [],
+    "orbits": [
+      [
+        0,
+        0,
+        215,
+        220,
+        0
+      ],
+      [
+        0,
+        0,
+        224,
+        211,
+        20
+      ]
+    ],
+    "objective": "Keep two planets orbiting the entire three-core cluster.",
+    "idea": "A triangular cluster behaves as one combined field at a distance. Broad enclosing orbits replace separate local pockets. The same two planets contribute to all three core counts.",
+    "order": "Add one planet outside the entire cluster. Only add its companion after several complete laps around all three cores.",
+    "risk": "The combined-field orbit must remain outside every enlarged core and be tolerant of launch errors."
+  },
+  {
+    "id": 4,
+    "name": "Giant and companions",
+    "group": 1,
+    "cores": [
+      [
+        -62,
+        0,
+        60,
+        3
+      ],
+      [
+        118,
+        -113,
+        48,
+        1
+      ],
+      [
+        118,
+        113,
+        48,
+        1
+      ]
+    ],
+    "repels": [],
+    "orbits": [
+      [
+        -62,
+        0,
+        113,
+        104,
+        0
+      ],
+      [
+        -62,
+        0,
+        128,
+        111,
+        35
+      ],
+      [
+        118,
+        -113,
+        94,
+        90,
+        0
+      ],
+      [
+        118,
+        113,
+        94,
+        90,
+        0
+      ]
+    ],
+    "objective": "Build three orbits around the large well and one around each companion.",
+    "idea": "An unequal three-body field. The dominant core pulls strongly across two smaller systems, so each region needs a different speed and orbit radius.",
+    "order": "Populate the dominant well first, then test each companion independently before adding the last planet.",
+    "risk": "Core size and attraction strength are separate authoring choices; this sketch proposes unequal strengths, pending simulation."
+  },
+  {
+    "id": 5,
+    "name": "The shield",
+    "group": 2,
+    "cores": [
+      [
+        -65,
+        35,
+        48,
+        3
+      ]
+    ],
+    "repels": [
+      [
+        112,
+        -85,
+        42
+      ]
+    ],
+    "orbits": [
+      [
+        -65,
+        35,
+        106,
+        99,
+        -20
+      ],
+      [
+        -85,
+        47,
+        135,
+        112,
+        -30
+      ],
+      [
+        -90,
+        55,
+        160,
+        130,
+        -35
+      ]
+    ],
+    "objective": "Maintain three orbits beside a repelling obstacle.",
+    "idea": "One offset repeller removes a quadrant of usable space. Build asymmetric orbits on the open side of the attractor.",
+    "order": "Establish the inner orbit first, then add wider paths that curve away from the shield. A close pass is not enough to win.",
+    "risk": ""
+  },
+  {
+    "id": 6,
+    "name": "Long channel",
+    "group": 2,
+    "cores": [
+      [
+        0,
+        0,
+        48,
+        3
+      ]
+    ],
+    "repels": [
+      [
+        -158,
+        0,
+        40
+      ],
+      [
+        158,
+        0,
+        40
+      ]
+    ],
+    "orbits": [
+      [
+        0,
+        0,
+        95,
+        175,
+        0
+      ],
+      [
+        0,
+        0,
+        103,
+        201,
+        0
+      ],
+      [
+        0,
+        0,
+        111,
+        219,
+        0
+      ]
+    ],
+    "objective": "Keep three planets orbiting through a narrow channel.",
+    "idea": "Opposing repellers compress the usable field sideways. Long vertical loops demand a different speed profile from an open circular system.",
+    "order": "Place one elongated orbit through both open ends, then add the next two with generous spacing.",
+    "risk": "Elongated loops are intended shapes, not simulated trajectories. Repeller strength needs tuning for bounded, forgiving paths."
+  },
+  {
+    "id": 7,
+    "name": "Three harbours",
+    "group": 2,
+    "cores": [
+      [
+        0,
+        -150,
+        48,
+        1
+      ],
+      [
+        -130,
+        75,
+        48,
+        1
+      ],
+      [
+        130,
+        75,
+        48,
+        1
+      ]
+    ],
+    "repels": [
+      [
+        0,
+        0,
+        42
+      ]
+    ],
+    "orbits": [
+      [
+        0,
+        -150,
+        93,
+        87,
+        0
+      ],
+      [
+        -130,
+        75,
+        94,
+        87,
+        25
+      ],
+      [
+        130,
+        75,
+        94,
+        87,
+        -25
+      ]
+    ],
+    "objective": "Establish a lasting orbit in each of the three outer wells.",
+    "idea": "A central repeller separates three attractive harbours. Unlike the shared triangular field, the centre is forbidden and each planet stays local.",
+    "order": "Fill the easiest harbour, pause, then work around the central barrier one harbour at a time.",
+    "risk": "Verify full loops in each harbour without a core or repeller obstructing the visible orbit."
+  },
+  {
+    "id": 8,
+    "name": "The divide",
+    "group": 2,
+    "cores": [
+      [
+        -145,
+        0,
+        48,
+        2
+      ],
+      [
+        145,
+        0,
+        48,
+        2
+      ]
+    ],
+    "repels": [
+      [
+        0,
+        -155,
+        38
+      ],
+      [
+        0,
+        0,
+        38
+      ],
+      [
+        0,
+        155,
+        38
+      ]
+    ],
+    "orbits": [
+      [
+        -145,
+        0,
+        91,
+        99,
+        0
+      ],
+      [
+        -145,
+        0,
+        89,
+        116,
+        0
+      ],
+      [
+        145,
+        0,
+        91,
+        99,
+        0
+      ],
+      [
+        145,
+        0,
+        89,
+        116,
+        0
+      ]
+    ],
+    "objective": "Maintain two planets on each side of the repeller wall.",
+    "idea": "A continuous repelling spine separates two systems. Tight local trajectories must avoid both the wall and the outside edge.",
+    "order": "Build one side completely before crossing to the other. The wall should make the two systems readable without requiring timed shots.",
+    "risk": ""
+  },
+  {
+    "id": 9,
+    "name": "Open crown",
+    "group": 3,
+    "cores": [
+      [
+        0,
+        42,
+        48,
+        4
+      ]
+    ],
+    "repels": [
+      [
+        -165,
+        80,
+        38
+      ],
+      [
+        -155,
+        -100,
+        38
+      ],
+      [
+        0,
+        -165,
+        38
+      ],
+      [
+        155,
+        -100,
+        38
+      ],
+      [
+        165,
+        80,
+        38
+      ]
+    ],
+    "orbits": [
+      [
+        0,
+        42,
+        94,
+        92,
+        0
+      ],
+      [
+        0,
+        58,
+        107,
+        110,
+        0
+      ],
+      [
+        0,
+        85,
+        112,
+        133,
+        0
+      ]
+    ],
+    "objective": "Build four lasting orbits inside an open repeller crown.",
+    "idea": "Five repellers form a shelter with one broad entrance below. Use that opening to populate the sheltered well, without turning the level into a timed gate.",
+    "order": "Start with the most compact orbit inside the crown. Add broader orbits through the opening after the existing system settles.",
+    "risk": "Every completed path must return through the opening and remain bounded, rather than escaping after a single pass."
+  },
+  {
+    "id": 10,
+    "name": "Closed garden",
+    "group": 3,
+    "cores": [
+      [
+        0,
+        0,
+        48,
+        4
+      ]
+    ],
+    "repels": [
+      [
+        175,
+        0,
+        38
+      ],
+      [
+        87.5,
+        151.6,
+        38
+      ],
+      [
+        -87.5,
+        151.6,
+        38
+      ],
+      [
+        -175,
+        0,
+        38
+      ],
+      [
+        -87.5,
+        -151.6,
+        38
+      ],
+      [
+        87.5,
+        -151.6,
+        38
+      ]
+    ],
+    "orbits": [
+      [
+        0,
+        0,
+        95,
+        92,
+        0
+      ],
+      [
+        0,
+        0,
+        108,
+        100,
+        30
+      ],
+      [
+        0,
+        0,
+        111,
+        106,
+        65
+      ]
+    ],
+    "objective": "Sustain four planets inside the surrounding repeller ring.",
+    "idea": "A closed six-sided enclosure changes the field in every direction. It creates a compact orbital garden rather than the open crown\u2019s one-sided escape route.",
+    "order": "Launch inside the enclosure. Start with modest power and add one planet per settled orbit.",
+    "risk": "Check that repellers create a usable stable band instead of an excessively narrow speed requirement."
+  },
+  {
+    "id": 11,
+    "name": "Broken necklace",
+    "group": 3,
+    "cores": [
+      [
+        -80,
+        -80,
+        48,
+        2
+      ],
+      [
+        80,
+        80,
+        48,
+        2
+      ]
+    ],
+    "repels": [
+      [
+        -155,
+        105,
+        38
+      ],
+      [
+        5,
+        -175,
+        38
+      ],
+      [
+        175,
+        -5,
+        38
+      ]
+    ],
+    "orbits": [
+      [
+        0,
+        0,
+        215,
+        207,
+        -45
+      ],
+      [
+        0,
+        0,
+        221,
+        213,
+        -35
+      ]
+    ],
+    "objective": "Keep two planets in full orbits around both attractive cores.",
+    "idea": "An alternating five-body necklace combines two attractive wells with three repellers. Outer shared paths must balance both kinds of field, not simply circle an isolated centre.",
+    "order": "Establish one orbit enclosing both attractive wells and all repellers, then add the second after several complete laps.",
+    "risk": "An outer shared family must be validated against the repellers\u2019 net outward force and the supported camera bounds."
+  },
+  {
+    "id": 12,
+    "name": "Uneven constellation",
+    "group": 3,
+    "cores": [
+      [
+        -140,
+        -120,
+        48,
+        1
+      ],
+      [
+        65,
+        -125,
+        48,
+        1
+      ],
+      [
+        140,
+        80,
+        48,
+        1
+      ],
+      [
+        -65,
+        125,
+        48,
+        1
+      ]
+    ],
+    "repels": [],
+    "orbits": [
+      [
+        -140,
+        -120,
+        91,
+        91,
+        0
+      ],
+      [
+        65,
+        -125,
+        91,
+        91,
+        0
+      ],
+      [
+        140,
+        80,
+        91,
+        91,
+        0
+      ],
+      [
+        -65,
+        125,
+        91,
+        91,
+        0
+      ]
+    ],
+    "objective": "Establish one stable local orbit around each of four wells.",
+    "idea": "Four wells form an irregular chain with unequal gaps. Each local orbit experiences a different neighbouring pull; one repeated launch recipe should not solve every position.",
+    "order": "Work from the most isolated end toward the denser middle. Verify every earlier orbit survives while completing the chain.",
+    "risk": "Local lanes need physical clearance and a forgiving speed range around all four cores."
+  }
+]

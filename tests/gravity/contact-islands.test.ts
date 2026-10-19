@@ -114,15 +114,20 @@ it.each([1 / 120, 1 / 240])(
         maxSpeed = Math.max(maxSpeed, Math.hypot(p.velocity.x, p.velocity.y));
       for (let i = 0; i < live.length; i++)
         for (let j = i + 1; j < live.length; j++)
-          minGap = Math.min(
-            minGap,
-            Math.hypot(
-              live[i].position.x - live[j].position.x,
-              live[i].position.y - live[j].position.y,
-            ) -
-              live[i].radius -
-              live[j].radius,
-          );
+          if (
+            !state.passingContacts?.[
+              `${Math.min(live[i].id, live[j].id)}:${Math.max(live[i].id, live[j].id)}`
+            ]
+          )
+            minGap = Math.min(
+              minGap,
+              Math.hypot(
+                live[i].position.x - live[j].position.x,
+                live[i].position.y - live[j].position.y,
+              ) -
+                live[i].radius -
+                live[j].radius,
+            );
     }
     expect(frozen).toBe(0);
     expect(maxCenterError).toBeLessThan(1e-7);

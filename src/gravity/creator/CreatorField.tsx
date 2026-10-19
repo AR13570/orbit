@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { bodyStrength, distance } from "../../game/physics";
 import type { Body, Vec2 } from "../../game/types";
-import { FORCE_PALETTE } from "../../render/force-palette";
 import {
   clampPosition,
   gravityRing,
@@ -293,8 +292,8 @@ export default function CreatorField({
           cx={x}
           cy={y}
           r={8 / scale}
-          fill={kind === "size" ? "#303943" : "#527c9a"}
-          stroke="#f4f6f8"
+          fill={kind === "size" ? "var(--charcoal)" : "var(--blue)"}
+          stroke="var(--ground)"
           strokeWidth={2 / scale}
         />
         <text
@@ -302,7 +301,7 @@ export default function CreatorField({
           y={y + (kind === "size" ? -19 : 27) / scale}
           textAnchor="middle"
           fontSize={11 / scale}
-          fill={kind === "size" ? "#303943" : "#527c9a"}
+          fill={kind === "size" ? "var(--charcoal)" : "var(--blue)"}
           pointerEvents="none"
         >
           {kind === "size" ? "Size" : "Gravity"}
@@ -360,21 +359,21 @@ export default function CreatorField({
     >
       <defs>
         <pattern id={grid} width="50" height="50" patternUnits="userSpaceOnUse">
-          <circle cx="25" cy="25" r="1.2" fill="#bdc7cf" />
+          <circle cx="25" cy="25" r="1.2" fill="var(--track)" />
         </pattern>
       </defs>
       <rect
         width="900"
         height="900"
         fill={`url(#${grid})`}
-        stroke="#cbd3d9"
+        stroke="var(--border)"
         strokeDasharray="3 12"
         rx="8"
       />
       <g
         aria-hidden="true"
         pointerEvents="none"
-        stroke="#527c9a"
+        stroke="var(--blue)"
         strokeWidth={1 / scale}
         strokeDasharray={`${5 / scale} ${5 / scale}`}
         opacity=".7"
@@ -412,7 +411,7 @@ export default function CreatorField({
             cy={body.position.y}
             r={gravityRing(body.strength)}
             fill="none"
-            stroke={FORCE_PALETTE[body.kind].wave}
+            stroke={`var(--${body.kind === "repellent" ? "repeller" : "attractor"}-wave)`}
             strokeWidth={selected === body.id ? 1.5 / scale : 1 / scale}
             opacity={selected === body.id ? 0.6 : 0.14}
             pointerEvents="none"
@@ -427,7 +426,7 @@ export default function CreatorField({
             cx={body.position.x}
             cy={body.position.y}
             r={body.radius}
-            fill={FORCE_PALETTE[body.kind].body}
+            fill={`var(--${body.kind === "repellent" ? "repeller" : "attractor"}-body)`}
           />
           {selected === body.id && (
             <circle
@@ -435,7 +434,7 @@ export default function CreatorField({
               cy={body.position.y}
               r={body.radius + 6 / scale}
               fill="none"
-              stroke="#527c9a"
+              stroke="var(--blue)"
               strokeDasharray="4 5"
               strokeWidth={1 / scale}
               pointerEvents="none"
@@ -444,7 +443,7 @@ export default function CreatorField({
           {body.kind === "repellent" && (
             <path
               d={`M${body.position.x - 8} ${body.position.y}h16`}
-              stroke={FORCE_PALETTE[body.kind].glyph}
+              stroke={"var(--force-glyph)"}
               strokeWidth="2"
               pointerEvents="none"
             />
@@ -465,12 +464,17 @@ export default function CreatorField({
           cx={level.launch.x}
           cy={level.launch.y}
           r="25"
-          fill="#e9ecef"
-          stroke="#527c9a"
+          fill="var(--ground)"
+          stroke="var(--blue)"
           strokeWidth={selected === "launcher" ? 3 : 1}
           strokeDasharray="4 5"
         />
-        <circle cx={level.launch.x} cy={level.launch.y} r="7" fill="#527c9a" />
+        <circle
+          cx={level.launch.x}
+          cy={level.launch.y}
+          r="7"
+          fill="var(--blue)"
+        />
       </g>
       {selectedBody &&
         (() => {
@@ -485,7 +489,7 @@ export default function CreatorField({
             <g>
               <path
                 d={`M${b.position.x} ${b.position.y}H${sx}`}
-                stroke="#303943"
+                stroke="var(--charcoal)"
                 opacity=".35"
                 strokeWidth={1 / scale}
                 pointerEvents="none"
@@ -493,7 +497,7 @@ export default function CreatorField({
               {gravityRing(b.strength) < 44 / scale && (
                 <path
                   d={`M${b.position.x} ${b.position.y + (b.position.y < 450 ? 1 : -1) * gravityRing(b.strength)}V${gy}`}
-                  stroke="#527c9a"
+                  stroke="var(--blue)"
                   opacity=".6"
                   strokeWidth={1 / scale}
                   pointerEvents="none"

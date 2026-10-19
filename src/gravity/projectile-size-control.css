@@ -37,7 +37,7 @@
 .projectile-size-control input::-webkit-slider-runnable-track {
   width: 3px;
   border-radius: 2px;
-  background: #bac7d0;
+  background: var(--track);
 }
 .projectile-size-control input::-webkit-slider-thumb {
   appearance: none;
@@ -53,7 +53,7 @@
 .projectile-size-control input::-moz-range-track {
   width: 3px;
   border-radius: 2px;
-  background: #bac7d0;
+  background: var(--track);
 }
 .projectile-size-control input::-moz-range-thumb {
   box-sizing: border-box;

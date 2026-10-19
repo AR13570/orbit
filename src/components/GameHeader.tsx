@@ -20,10 +20,10 @@ export default function GameHeader({
           title="Main menu"
           onClick={onHome}
         >
-          <img className="game-header-mark" src="/orbit.svg" alt="" />
+          <img className="game-header-mark" src="/orbit-mark.svg" alt="" />
         </button>
       ) : (
-        <img className="game-header-mark" src="/orbit.svg" alt="" />
+        <img className="game-header-mark" src="/orbit-mark.svg" alt="" />
       )}
       <div className="game-header-copy">
         <span className="game-header-title" title={title}>

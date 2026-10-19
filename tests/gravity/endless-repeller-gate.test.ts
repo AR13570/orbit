@@ -1,18 +1,17 @@
 import { expect, it } from "vitest";
-import {
-  buildEndlessGravityLevel,
-  endlessLayoutId,
-  ENDLESS_LAYOUT_IDS,
-} from "../../src/gravity/endless";
+import { buildEndlessGravityLevel } from "../../src/gravity/endless";
 import {
   generateGravityLevel,
   mixGravitySeed,
-  verifyLevel,
 } from "../../src/gravity/generator";
+import { getGravityLevel } from "../../src/gravity/campaign";
 import { createState, goalProgress } from "../../src/gravity/simulation";
-import { CAMPAIGN_ENDLESS_IDS } from "../../src/gravity/campaign-endless";
+import {
+  campaignEndlessLayoutId,
+  CAMPAIGN_ENDLESS_IDS,
+} from "../../src/gravity/campaign-endless";
 
-const authoringOnly = [
+const legacyAuthoringLayouts = [
   "unequal-binary",
   "triple-line",
   "broken-ring",
@@ -20,41 +19,50 @@ const authoringOnly = [
   "unequal-chain",
 ];
 
-it("retains unfinished fixtures for authoring while scheduling only verified ENDLESS formations", () => {
-  expect(ENDLESS_LAYOUT_IDS).toHaveLength(24);
-  for (const id of authoringOnly) {
-    expect(ENDLESS_LAYOUT_IDS, id).not.toContain(id);
+it("retains legacy fixtures for authoring without treating their solvability as a runtime gate", () => {
+  for (const id of legacyAuthoringLayouts) {
     const retained = buildEndlessGravityLevel(42, 90, id, 0);
     const state = createState(retained);
-    expect(retained.witness, id).toHaveLength(8);
-    expect(goalProgress(state).target, id).toBe(8);
-    expect(retained.objective.turns, id).toBe(3);
-    expect(state.physics.planetGravity, id).toBe(true);
-    expect(state.physics.planetCollisions, id).toBe("soft");
-    expect(state.physics.planetRadius, id).toBe(6);
-    expect(state.physics.planetGravityStrength, id).toBe(96000);
-    expect(verifyLevel(retained), id).toBe(false);
-  }
-  for (const seed of [0, 7, 42, 137, 4294967295]) {
-    const selected = Array.from(
-      { length: ENDLESS_LAYOUT_IDS.length },
-      (_, offset) => endlessLayoutId(mixGravitySeed(seed, 0), 45 + offset),
-    );
-    expect(new Set(selected), `${seed} formation cycle`).toEqual(
-      new Set(ENDLESS_LAYOUT_IDS),
-    );
+    expect(retained.layout).toBe(id);
+    expect(retained.witness).toHaveLength(8);
+    expect(goalProgress(state).target).toBe(8);
+    expect(retained.objective.turns).toBe(3);
+    expect(state.physics).toMatchObject({
+      planetGravity: true,
+      planetCollisions: "soft",
+      planetRadius: 6,
+      planetGravityStrength: 96000,
+    });
     expect(
-      selected.some((id) => authoringOnly.includes(id)),
-      `${seed} selection`,
-    ).toBe(false);
+      retained.witness.every((shot) =>
+        [
+          shot.position!.x,
+          shot.position!.y,
+          shot.velocity!.x,
+          shot.velocity!.y,
+        ].every(Number.isFinite),
+      ),
+    ).toBe(true);
   }
-}, 10000);
+});
 
-it("boots the saved seed 42 and index 45 with a verified ENDLESS formation", () => {
+it("loads saved endless progress through the current field-profile runtime API", () => {
+  const profile = campaignEndlessLayoutId(mixGravitySeed(42, 0), 45);
+  expect(CAMPAIGN_ENDLESS_IDS).toContain(profile);
   const level = generateGravityLevel(42, 45);
-  expect(level.index).toBe(45);
-  expect(level.seed).toBe(42);
-  expect(CAMPAIGN_ENDLESS_IDS).toContain(level.layout);
-  expect(authoringOnly).not.toContain(level.layout);
-  expect(verifyLevel(level)).toBe(true);
+  expect(level).toEqual(getGravityLevel(42, 45));
+  expect(level).toMatchObject({
+    index: 45,
+    seed: 42,
+    source: "procedural",
+    layout: profile.split(":")[0],
+  });
+  expect(legacyAuthoringLayouts).not.toContain(level.layout);
+  expect(level.objective.turns).toBeGreaterThanOrEqual(2);
+  expect(level.journey).toBeUndefined();
+  expect(level.witness.length).toBeGreaterThan(0);
+  expect(createState(level).physics).toMatchObject({
+    planetGravity: true,
+    planetCollisions: "none",
+  });
 });

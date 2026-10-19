@@ -18,34 +18,48 @@ import {
   exportDraft,
 } from "../../src/gravity/creator/model";
 import GravityCreator from "../../src/gravity/creator/GravityCreator";
+import { gravityForceAt } from "../../src/gravity/physics";
 import { gravityDifficulty } from "../../src/gravity/difficulty";
 afterEach(() => {
   cleanup();
   localStorage.clear();
 });
 describe("untimed Gravity orbit goals", () => {
-  it("completes on the first valid orbit even when legacy data requests a 100 second hold", () => {
-    const level = getGravityLevel(42, 0);
-    level.objective.hold = 100;
-    const state = createState(level),
-      shot = level.witness[0];
+  it("completes after two full revolutions without waiting for a legacy 100-second hold", () => {
+    const level = toGravityLevel(newDraft());
+    const core = level.bodies[0];
+    Object.assign(core, { radius: 96, strength: 12000000, softening: 180 });
+    level.objective = { kind: "loop", count: 1, turns: 2, hold: 100 };
+    level.requirements = [{ bodyId: core.id, count: 1, turns: 2 }];
+    const position = { x: core.position.x + 190, y: core.position.y };
+    const speed = Math.sqrt(-gravityForceAt(position, level.bodies).x * 190);
+    const state = createState(level);
     expect(state.level.objective.hold).toBe(0);
     expect(level.objective.hold).toBe(100);
     expect(objectiveText(level)).not.toMatch(/hold|seconds/i);
-    fireFrom(state, shot.position!, shot.velocity!);
-    // Also cover a legacy state restored without passing through createState normalization.
+    expect(fireFrom(state, position, { x: 0, y: speed })).toBe(true);
+    // Cover a legacy state restored without createState normalization too.
     state.level.objective.hold = 100;
-    for (let n = 0; n < 120 * 15; n++) {
+    let observedFirstRevolution = false;
+    for (let n = 0; n < 120 * 60; n++) {
       step(state, 1 / 120);
       const progress = goalProgress(state);
-      if (progress.current === progress.target) {
-        expect(progress.complete).toBe(true);
+      const winding = Math.abs(state.particles[0].orbits[core.id].localWinding);
+      if (winding >= 2 * Math.PI && winding < 4 * Math.PI - 1e-9) {
+        observedFirstRevolution = true;
+        expect(progress.complete).toBe(false);
+      }
+      if (progress.complete) {
+        expect(observedFirstRevolution).toBe(true);
+        expect(winding).toBeGreaterThanOrEqual(4 * Math.PI - 1e-9);
+        expect(state.elapsed).toBeLessThan(100);
+        expect(progress.current).toBe(progress.target);
         expect(progress.hold).toBe(0);
         expect(progress.held).toBe(0);
         return;
       }
     }
-    throw new Error("Expected a valid completed orbit");
+    throw new Error("Expected two full revolutions without a timed hold");
   });
   it("normalizes legacy saved hold fields without rejecting otherwise valid v1 levels", () => {
     const draft = newDraft();

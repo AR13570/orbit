@@ -285,12 +285,13 @@ describe("gentle gameplay group spin", () => {
   it("does not count internal shear as settled rotation", () => {
     const state = pair().getSnapshot();
     fireFrom(state, { x: 12, y: 0 }, { x: 5, y: 20 });
+    assistGroupSpin(state, state.particles, 1 / 120);
+    expect(state.groupSpin?.groups).toEqual({});
     const reference = structuredClone(state);
     delete reference.groupSpin;
     run(state, 0.3);
     run(reference, 0.3);
     expect(state.particles).toEqual(reference.particles);
-    expect(state.groupSpin?.groups).toEqual({});
   });
 
   it("spins a settled three-planet component without projecting its positions", () => {
@@ -350,9 +351,17 @@ describe("gentle gameplay group spin", () => {
       for (let j = i + 1; j < 20; j++) {
         const a = state.particles[i],
           b = state.particles[j];
-        expect(
-          Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y),
-        ).toBeGreaterThanOrEqual(8 - 1e-6);
+        if (
+          !state.passingContacts?.[
+            `${Math.min(a.id, b.id)}:${Math.max(a.id, b.id)}`
+          ]
+        )
+          expect(
+            Math.hypot(
+              a.position.x - b.position.x,
+              a.position.y - b.position.y,
+            ),
+          ).toBeGreaterThanOrEqual(8 - 1e-6);
       }
   });
 
