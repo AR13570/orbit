@@ -107,7 +107,12 @@ export default function ModeChooser({
       <ThemeControl compact />
       <header className="home-header">
         <div className="home-brand">
-          <img src="/orbit-mark.svg" alt="" width="120" height="120" />
+          <img
+            src={`${import.meta.env.BASE_URL}orbit-mark.svg`}
+            alt=""
+            width="120"
+            height="120"
+          />
           <div className="home-brand-copy">
             <h1 aria-label="Orbit">
               {Array.from("Orbit", (letter, index) => (

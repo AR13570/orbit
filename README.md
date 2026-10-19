@@ -80,10 +80,13 @@ Open [localhost:5173](http://localhost:5173). No account, backend, or API keys a
 npm test             # Unit and component tests
 npm run build        # TypeScript checks and production build
 npm run test:e2e     # Browser tests against the running server on port 5173
+npm run test:production # Build and test the /orbit/ production deployment
 npm run preview     # Preview the production build locally
 ```
 
 Browser tests need Chromium installed through `npx playwright install chromium`. The production build is written to `dist` for static hosting.
+
+Production assets use the `/orbit/` base path for portfolio hosting. Run `npm run preview` and open `/orbit/` to check the built site. For a standalone root deployment, build with `npm run build -- --base=/`. Local development continues to use `/`.
 
 The included container builds the app and serves it with nginx on port 80. Use its explicit filename:
 

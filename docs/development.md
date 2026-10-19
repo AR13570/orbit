@@ -11,6 +11,12 @@ npm run dev
 
 Open http://localhost:5173. Phones on the same network can use the Network URL printed by Vite. No backend, keys, remote fonts or images are needed. Add `?seed=42` to share the initial field of a deterministic run.
 
+## Production asset paths
+
+The default production base is `/orbit/`, matching the portfolio URL. Publish `dist` at that mount point, or proxy `/orbit/*` to the build's corresponding static files. Logos, favicons, fonts, stylesheets and script bundles use this base. `npm run preview` serves the built app at http://localhost:4173/orbit/; the development server continues to use `/`.
+
+For a standalone deployment at `/`, use `npm run build -- --base=/`. The container includes the static files at both `/` and `/orbit/` so either direct access or a portfolio proxy works.
+
 ## Deploy with Docker on Vercel
 
 Import this repository into Vercel and set the project root to the directory containing `Dockerfile.vercel`. Vercel automatically detects that filename, builds the container and routes requests to its HTTP server on port 80. See [Vercel's Docker deployment guide](https://vercel.com/kb/guide/does-vercel-support-docker-deployments) and [Docker documentation](https://vercel.com/kb/guide/docker).
