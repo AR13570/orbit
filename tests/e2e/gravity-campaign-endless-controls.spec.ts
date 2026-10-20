@@ -5,6 +5,7 @@ import {
   gravityPullDistance,
   gravityPullFraction,
 } from "../../src/gravity/input";
+import { GRAVITY_SPEED_SCALE } from "../../src/gravity/physics";
 import { markTutorialSeen } from "./tutorial-fixture";
 
 for (const device of [
@@ -76,7 +77,7 @@ for (const device of [
         );
         if (shot.time > elapsed)
           await page.clock.runFor(
-            Math.ceil(((shot.time - elapsed) / 1.2) * 1000),
+            Math.ceil(((shot.time - elapsed) / GRAVITY_SPEED_SCALE) * 1000),
           );
         const start = worldToClient(
           shot.position,

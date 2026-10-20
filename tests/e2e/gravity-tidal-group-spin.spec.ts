@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { GRAVITY_SPEED_SCALE } from "../../src/gravity/physics";
 import { wheelZoom } from "./zoom-fixture";
 
 for (const fixture of [
@@ -267,8 +268,8 @@ for (const fixture of [
           });
         };
       });
-      // 100 wall seconds at the normal 1.2 playback rate is 120 physical seconds.
-      await page.clock.runFor(100000);
+      // Keep the physical survival window independent of the playback setting.
+      await page.clock.runFor((120 / GRAVITY_SPEED_SCALE) * 1000);
       const result = await page.evaluate(() => ({
         state: (window as any).tidalEngine.getSnapshot(),
         samples: (window as any).tidalSamples,

@@ -39,16 +39,16 @@ function advanceFrames(engine: GravityEngine, frames: number) {
 }
 
 describe("Gravity playback pace", () => {
-  it("advances fewer physical steps at 1.2 than the previous pace over equal wall time", () => {
+  it("advances at 1.4x instead of the previous 1.2x over equal wall time", () => {
     const current = orbitEngine();
     const previous = orbitEngine();
-    previous.setTimeScale(1.35);
+    previous.setTimeScale(1.2);
     advanceFrames(current, 120);
     advanceFrames(previous, 120);
-    const slower = current.getSnapshot();
-    const faster = previous.getSnapshot();
+    const faster = current.getSnapshot();
+    const slower = previous.getSnapshot();
     expect(slower.elapsed).toBeCloseTo(2.4, 10);
-    expect(faster.elapsed).toBeCloseTo(2.7, 10);
+    expect(faster.elapsed).toBeCloseTo(2.8, 10);
     expect(slower.elapsed).toBeLessThan(faster.elapsed);
     expect(slower.particles[0].position).not.toEqual(
       faster.particles[0].position,
@@ -61,23 +61,23 @@ describe("Gravity playback pace", () => {
   it("preserves the full orbit and trajectory at matched physical time", () => {
     const current = orbitEngine();
     const previous = orbitEngine();
-    previous.setTimeScale(1.35);
-    // 15 seconds at 1.2 and 40/3 seconds at 1.35 both simulate 18 seconds.
+    previous.setTimeScale(1.2);
+    // 15 seconds at 1.4 and 17.5 seconds at 1.2 both simulate 21 seconds.
     advanceFrames(current, 900);
-    advanceFrames(previous, 800);
-    const slower = current.getSnapshot();
-    const faster = previous.getSnapshot();
-    expect(slower.elapsed).toBeCloseTo(18, 10);
-    expect(slower.elapsed).toBe(faster.elapsed);
-    expect(slower.particles[0].alive).toBe(true);
-    expect(Math.abs(slower.particles[0].orbits.well.winding)).toBeGreaterThan(
-      4 * Math.PI,
-    );
-    expect(slower.particles).toEqual(faster.particles);
-    expect(slower.physics).toEqual(faster.physics);
-    expect(slower.progress).toEqual(faster.progress);
-    expect(slower.complete).toBe(true);
-    expect(slower.complete).toBe(faster.complete);
+    advanceFrames(previous, 1050);
+    const currentState = current.getSnapshot();
+    const previousState = previous.getSnapshot();
+    expect(currentState.elapsed).toBeCloseTo(21, 10);
+    expect(currentState.elapsed).toBe(previousState.elapsed);
+    expect(currentState.particles[0].alive).toBe(true);
+    expect(
+      Math.abs(currentState.particles[0].orbits.well.winding),
+    ).toBeGreaterThan(4 * Math.PI);
+    expect(currentState.particles).toEqual(previousState.particles);
+    expect(currentState.physics).toEqual(previousState.physics);
+    expect(currentState.progress).toEqual(previousState.progress);
+    expect(currentState.complete).toBe(true);
+    expect(currentState.complete).toBe(previousState.complete);
   });
 });
 
