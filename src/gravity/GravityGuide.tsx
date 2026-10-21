@@ -73,7 +73,7 @@ const lessons = [
   ],
   [
     "Let gravity draw",
-    "Blue cores pull. Coral cores push. The number inside a core counts established orbiters. Each challenge needs at least two full laps. In Advanced, Particle Interaction controls mutual pull. Grouping is off by default; when enabled, slow encounters can settle together while faster planets can separate.",
+    "Blue cores pull. Purple cores push. The number inside a core counts established orbiters. The first lap is recognized after 1.2 turns; each later lap takes one complete turn. Each challenge needs at least two full laps. In Advanced, Particle Interaction controls mutual pull. Grouping is off by default; when enabled, slow encounters can settle together while faster planets can separate.",
   ],
   [
     "Choose a size",
@@ -81,7 +81,7 @@ const lessons = [
   ],
   [
     "Keep a sky you love",
-    "Skip a level from the bottom of the screen after confirming. Complete a goal to advance automatically after three seconds, or tap Next level to go sooner. Pinch to zoom; scroll on desktop.",
+    "Skip a level from the bottom of the screen after confirming. Complete a goal to advance automatically after ten seconds, tap Next level to go sooner, or Cancel to stay. Pinch to zoom; scroll on desktop.",
   ],
 ];
 export default function GravityGuide({

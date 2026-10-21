@@ -55,7 +55,7 @@ for (const device of [
           ) {
             if (
               this.canvas.classList.contains("scene-canvas") &&
-              this.fillStyle === "#7956cf"
+              ["#7956cf", "#bd9cf2"].includes(String(this.fillStyle))
             ) {
               const transform = this.getTransform();
               probe.previewDots.push({
@@ -103,9 +103,9 @@ for (const device of [
         const dots: { x: number; y: number; radius: number; alpha: number }[] =
           await page.evaluate(() => (window as any).previewDots);
         expect(dots.length).toBeGreaterThanOrEqual(12);
-        expect(dots.length).toBeLessThanOrEqual(23);
+        expect(dots.length).toBeLessThanOrEqual(50);
         expect(dots[0].alpha).toBeGreaterThan(0.75);
-        expect(dots[0].radius).toBeCloseTo(2.3, 2);
+        expect(dots[0].radius).toBeCloseTo(1.5, 2);
         expect(
           dots.filter(
             (dot) =>
@@ -119,7 +119,7 @@ for (const device of [
         for (let i = 1; i < dots.length; i++)
           expect(
             Math.hypot(dots[i].x - dots[i - 1].x, dots[i].y - dots[i - 1].y),
-          ).toBeLessThanOrEqual(9.01);
+          ).toBeLessThanOrEqual(12.01);
         await expect(page.locator(".game-surface [role=status]")).toHaveText(
           "0 planets in motion",
         );

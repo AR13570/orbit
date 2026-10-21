@@ -7,10 +7,10 @@ const light = {
     wave: "#694880",
   },
   repellent: {
-    body: "#a95724",
-    rim: "#c67d48",
-    glyph: "#fff0df",
-    wave: "#965a2c",
+    body: "#7043a2",
+    rim: "#9565c4",
+    glyph: "#f4ebff",
+    wave: "#765298",
   },
 } as const;
 const dark = {
@@ -21,10 +21,10 @@ const dark = {
     wave: "#c9acf5",
   },
   repellent: {
-    body: "#8f4925",
-    rim: "#c88950",
-    glyph: "#fff2e5",
-    wave: "#ffc27d",
+    body: "#56316e",
+    rim: "#8d63ac",
+    glyph: "#f2e8ff",
+    wave: "#bd93dc",
   },
 };
 /** Keep force identity consistent while canvas renderers follow live theme changes. */

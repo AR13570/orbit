@@ -187,7 +187,7 @@ function finish(engine: GravityEngine) {
   ).toBeGreaterThanOrEqual(4 * Math.PI - 1e-9);
 }
 
-it("fills the border and advances once after three active seconds, pausing with the menu", () => {
+it("fills the border and advances once after ten active seconds, pausing with the menu", () => {
   const setSize = vi.spyOn(GravityEngine.prototype, "setProjectileSize");
   render(<GravityGame onExit={() => {}} />);
   const engine = setSize.mock.instances[0] as GravityEngine;
@@ -198,17 +198,17 @@ it("fills the border and advances once after three active seconds, pausing with 
   )!;
   expect(border).toBeTruthy();
   act(() => frame(1100));
-  expect(Number(border.style.strokeDashoffset)).toBeCloseTo(2 / 3, 3);
+  expect(Number(border.style.strokeDashoffset)).toBeCloseTo(0.9, 3);
   fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
   act(() => frame(7100));
   expect(engine.getRenderSnapshot().level.index).toBe(0);
-  expect(Number(border.style.strokeDashoffset)).toBeCloseTo(2 / 3, 3);
+  expect(Number(border.style.strokeDashoffset)).toBeCloseTo(0.9, 3);
   fireEvent.click(screen.getByRole("button", { name: "Resume", exact: true }));
-  act(() => frame(9099));
+  act(() => frame(16099));
   expect(engine.getRenderSnapshot().level.index).toBe(0);
-  act(() => frame(9100));
+  act(() => frame(16100));
   expect(engine.getRenderSnapshot().level.index).toBe(1);
-  act(() => frame(12100));
+  act(() => frame(19100));
   expect(engine.getRenderSnapshot().level.index).toBe(1);
 });
 
@@ -236,4 +236,40 @@ it("keeps the level when a skip is cancelled and clears a pending countdown on r
   expect(
     screen.getByRole("button", { name: "Skip level", exact: true }),
   ).toBeTruthy();
+});
+
+it("cancels automatic advancement while keeping manual Next available, then resets for a new win", () => {
+  const setSize = vi.spyOn(GravityEngine.prototype, "setProjectileSize");
+  render(<GravityGame onExit={() => {}} />);
+  const engine = setSize.mock.instances[0] as GravityEngine;
+  finish(engine);
+  act(() => frame(100));
+  act(() => frame(2100));
+  const cancel = screen.getByRole("button", {
+    name: "Cancel automatic next level",
+  });
+  expect(cancel.textContent).toBe("Cancel");
+  fireEvent.click(cancel);
+  expect(
+    screen.queryByRole("button", { name: "Cancel automatic next level" }),
+  ).toBeNull();
+  expect(document.querySelector(".gravity-next-progress")).toBeNull();
+  expect(
+    screen.getByText(
+      "Automatic advancement cancelled. Choose Next level when ready.",
+    ),
+  ).toBeTruthy();
+  act(() => frame(30100));
+  expect(engine.getRenderSnapshot().level.index).toBe(0);
+  fireEvent.click(screen.getByRole("button", { name: "Next level" }));
+  expect(engine.getRenderSnapshot().level.index).toBe(1);
+  act(() => frame(30200));
+  finish(engine);
+  act(() => frame(30300));
+  expect(
+    screen.getByRole("button", { name: "Cancel automatic next level" }),
+  ).toBeTruthy();
+  expect(document.querySelector(".gravity-next-progress")).toBeTruthy();
+  act(() => frame(40300));
+  expect(engine.getRenderSnapshot().level.index).toBe(2);
 });

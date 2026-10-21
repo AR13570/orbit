@@ -7,7 +7,7 @@ import {
 import { worldToClient } from "../../src/render/coordinates";
 import { markTutorialSeen } from "./tutorial-fixture";
 
-test("footer skip confirms and completed levels advance with a paused three-second border", async ({
+test("footer skip confirms and completed levels advance with a paused ten-second border", async ({
   page,
 }) => {
   test.setTimeout(90000);
@@ -85,8 +85,8 @@ test("footer skip confirms and completed levels advance with a paused three-seco
   const offset = await border.evaluate((element) =>
     Number((element as SVGElement).style.strokeDashoffset),
   );
-  expect(offset).toBeGreaterThan(0.5);
-  expect(offset).toBeLessThan(0.75);
+  expect(offset).toBeGreaterThan(0.88);
+  expect(offset).toBeLessThan(0.91);
   await page.screenshot({
     path: "/private/tmp/orbit-gravity-next-progress.png",
   });
@@ -99,7 +99,9 @@ test("footer skip confirms and completed levels advance with a paused three-seco
     ),
   ).toBe(offset);
   await page.getByRole("button", { name: "Resume", exact: true }).click();
-  await page.clock.runFor(2100);
+  await page.clock.runFor(8500);
+  await expect(page.locator(".gravity-level")).toHaveText("Level 1");
+  await page.clock.runFor(600);
   await expect(page.locator(".gravity-level")).toHaveText("Level 2");
   await page.clock.runFor(5000);
   await expect(page.locator(".gravity-level")).toHaveText("Level 2");

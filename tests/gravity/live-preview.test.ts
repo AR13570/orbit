@@ -3,6 +3,7 @@ import { MAX_GRAVITY_PREDICTION_SECONDS as horizon } from "../../src/gravity/pre
 import { LiveGravityPreview } from "../../src/gravity/live-preview";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
+import { GRAVITY_FIXED_STEP } from "../../src/gravity/physics";
 
 function fixture() {
   const draft = newDraft();
@@ -15,6 +16,60 @@ function fixture() {
   return engine;
 }
 describe("continuous Gravity preview", () => {
+  it("reuses each easing weight per frame while preserving every coordinate and path ownership", () => {
+    const preview = new LiveGravityPreview();
+    const source = Array.from({ length: 601 }, (_, index) => ({
+      x: index * 1.37,
+      y: index * -0.73,
+    }));
+    const create = () => ({
+      path: source,
+      done: false,
+      advance() {},
+      cancel() {},
+    });
+    const first = preview.update(create, 4.2, 1 / 60);
+    expect(first).toEqual(source);
+    expect(first).not.toBe(source);
+    expect(first[0]).not.toBe(source[0]);
+    for (const dt of [1 / 60, 0.04, 1, 0, -1, Infinity, -Infinity, NaN]) {
+      const previous = preview.path;
+      const previousCopy = structuredClone(previous);
+      for (let index = 0; index < source.length; index++) {
+        source[index].x += index * 0.11;
+        source[index].y -= index * 0.29;
+      }
+      // Characterize the original per-point easing independently of caching.
+      const expected = source.map((point, index) => {
+        if (index === 0) return { ...point };
+        const weight = Math.max(
+          0,
+          Math.min(1, (index - 0.5 / GRAVITY_FIXED_STEP / 4) / 5),
+        );
+        const blend =
+          1 -
+          Math.exp(-Math.max(0, Math.min(dt, 0.05)) / (0.045 + 0.035 * weight));
+        return {
+          x: previous[index].x + (point.x - previous[index].x) * blend,
+          y: previous[index].y + (point.y - previous[index].y) * blend,
+        };
+      });
+      const exp = vi.spyOn(Math, "exp");
+      try {
+        const actual = preview.update(create, 4.2, dt);
+        expect(actual).toEqual(expected);
+        expect(previous).toEqual(previousCopy);
+        expect(actual).not.toBe(previous);
+        for (let index = 0; index < actual.length; index++) {
+          expect(actual[index]).not.toBe(previous[index]);
+          expect(actual[index]).not.toBe(source[index]);
+        }
+        expect(exp).toHaveBeenCalledTimes(6);
+      } finally {
+        exp.mockRestore();
+      }
+    }
+  });
   it("finishes the far path during continuous pointer changes while refreshing the moving-world prefix", () => {
     const engine = fixture(),
       preview = new LiveGravityPreview();

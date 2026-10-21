@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GravityEngine } from "../../src/gravity/engine";
+import { getGravityLevel } from "../../src/gravity/campaign";
 import { gravityForceAt, gravityLaunchPower } from "../../src/gravity/physics";
 import type { GravityLevel } from "../../src/gravity/types";
 
@@ -39,16 +40,71 @@ function advanceFrames(engine: GravityEngine, frames: number) {
 }
 
 describe("Gravity playback pace", () => {
-  it("advances at 1.4x instead of the previous 1.2x over equal wall time", () => {
+  it("restores a roughly 2-second first orbit while keeping the enlarged cores", () => {
+    const level = getGravityLevel(42, 0);
+    const game = new GravityEngine(42, level);
+    const shot = level.witness[0];
+    game.launchFrom(shot.position!, shot.velocity!);
+    let frames = 0;
+    while (
+      frames < 300 &&
+      Math.abs(game.getRenderSnapshot().particles[0].orbits["well-1"].winding) <
+        2 * Math.PI
+    ) {
+      game.update(1 / 60);
+      frames++;
+    }
+    expect(frames / 60).toBeGreaterThan(1.9);
+    expect(frames / 60).toBeLessThan(2.1);
+    expect(game.getSnapshot().level.bodies).toEqual(level.bodies);
+    expect(game.getSnapshot().level.bodies[0].radius).toBe(96);
+  });
+  it("retains a long frame's time and catches up over bounded fixed-step batches", () => {
+    const delayed = orbitEngine();
+    const regular = orbitEngine();
+    delayed.setTimeScale(1);
+    regular.setTimeScale(1);
+    delayed.update(1);
+    expect(delayed.getSnapshot().elapsed).toBeCloseTo(0.5, 10);
+    for (let i = 0; i < 4; i++) delayed.update(1 / 120);
+    for (let i = 0; i < 124; i++) regular.update(1 / 120);
+    expect(delayed.getSnapshot().elapsed).toBe(regular.getSnapshot().elapsed);
+    expect(delayed.getSnapshot().particles).toEqual(
+      regular.getSnapshot().particles,
+    );
+  });
+
+  it("discards pending catch-up when paused instead of jumping forward on resume", () => {
+    const game = orbitEngine();
+    game.setTimeScale(1);
+    game.update(1);
+    const beforePause = game.getSnapshot().elapsed;
+    game.setPaused(true);
+    game.update(60);
+    game.setPaused(false);
+    game.update(1 / 60);
+    expect(game.getSnapshot().elapsed - beforePause).toBeCloseTo(1 / 60, 10);
+  });
+
+  it("bounds accumulated work after an extreme stall", () => {
+    const game = orbitEngine();
+    game.setTimeScale(1);
+    game.update(1000000);
+    expect(game.getSnapshot().elapsed).toBeCloseTo(0.5, 10);
+    for (let i = 0; i < 4; i++) game.update(1 / 120);
+    expect(game.getSnapshot().elapsed).toBeCloseTo(2 + 4 / 120, 10);
+  });
+
+  it("advances at the calibrated pace instead of the previous 1.7x over equal wall time", () => {
     const current = orbitEngine();
     const previous = orbitEngine();
-    previous.setTimeScale(1.2);
+    previous.setTimeScale(1.7);
     advanceFrames(current, 120);
     advanceFrames(previous, 120);
     const faster = current.getSnapshot();
     const slower = previous.getSnapshot();
-    expect(slower.elapsed).toBeCloseTo(2.4, 10);
-    expect(faster.elapsed).toBeCloseTo(2.8, 10);
+    expect(slower.elapsed).toBeCloseTo(3.4, 10);
+    expect(faster.elapsed).toBeCloseTo(6, 10);
     expect(slower.elapsed).toBeLessThan(faster.elapsed);
     expect(slower.particles[0].position).not.toEqual(
       faster.particles[0].position,
@@ -61,13 +117,13 @@ describe("Gravity playback pace", () => {
   it("preserves the full orbit and trajectory at matched physical time", () => {
     const current = orbitEngine();
     const previous = orbitEngine();
-    previous.setTimeScale(1.2);
-    // 15 seconds at 1.4 and 17.5 seconds at 1.2 both simulate 21 seconds.
-    advanceFrames(current, 900);
-    advanceFrames(previous, 1050);
+    previous.setTimeScale(1.7);
+    // 6.8 seconds at 3 and 12 seconds at 1.7 both simulate 20.4 seconds.
+    advanceFrames(current, 408);
+    advanceFrames(previous, 720);
     const currentState = current.getSnapshot();
     const previousState = previous.getSnapshot();
-    expect(currentState.elapsed).toBeCloseTo(21, 10);
+    expect(currentState.elapsed).toBeCloseTo(20.4, 10);
     expect(currentState.elapsed).toBe(previousState.elapsed);
     expect(currentState.particles[0].alive).toBe(true);
     expect(

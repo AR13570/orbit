@@ -1,6 +1,5 @@
 import {
   particlePairPotential,
-  particleSoftening,
   planetAccelerations,
   wellSoftening,
 } from "./physics";
@@ -47,12 +46,17 @@ export function assistGroupSpin(
     for (let b = a + 1; b < particles.length; b++) {
       const p = particles[a],
         q = particles[b];
-      if (state.passingContacts?.[contactKey(p, q)]) continue;
       const dx = q.position.x - p.position.x,
         dy = q.position.y - p.position.y;
+      const radius = p.radius + q.radius;
+      const maximumGap = Math.max(
+        SURFACE_TOLERANCE,
+        radius * (MINIMUM_SPIN * dt) ** 2 * 0.5 + 1e-7,
+      );
+      if (dx * dx + dy * dy > (radius + maximumGap) ** 2) continue;
+      if (state.passingContacts?.[contactKey(p, q)]) continue;
       const distance = Math.hypot(dx, dy);
       if (distance < 1e-12) continue;
-      const radius = p.radius + q.radius;
       const tangent =
         ((q.velocity.y - p.velocity.y) * dx -
           (q.velocity.x - p.velocity.x) * dy) /
@@ -236,10 +240,11 @@ export function assistGroupSpin(
         (q.velocity.x - p.velocity.x) * c.nx +
         (q.velocity.y - p.velocity.y) * c.ny;
 
-      const softening = particleSoftening(p, q);
+      const reducedMass = (p.mass * q.mass) / (p.mass + q.mass);
       const escapeSquared =
-        (2 * state.physics.planetGravityStrength * (p.mass + q.mass)) /
-        Math.sqrt(c.distance ** 2 + softening ** 2);
+        (-2 *
+          particlePairPotential(p, q, state.physics.planetGravityStrength)) /
+        reducedMass;
       const fullSpeedSquared = fullX * fullX + fullY * fullY;
       const inward = -(
         (accelerations[c.b].x - accelerations[c.a].x) * c.nx +

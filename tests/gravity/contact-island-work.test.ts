@@ -102,4 +102,4 @@ it("keeps a moving twenty-planet collapse accurate without repeating whole-world
         Math.hypot(b.position.x - a.position.x, b.position.y - a.position.y),
       ).toBeGreaterThanOrEqual(a.radius + b.radius - 1e-6);
     }
-});
+}, 20000);

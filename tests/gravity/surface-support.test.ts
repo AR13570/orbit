@@ -119,11 +119,14 @@ describe("gravitational surface support", () => {
   });
 
   it("releases touching surfaces when sideways momentum exceeds the gravity needed for a circular path", () => {
-    // 50 lies above this pair's circular speed (17.37) and below escape speed (125.26).
-    const state = pair(0, 50);
+    const state = pair();
+    const forces = planetAccelerations(state.particles, [], state.physics);
+    const circularSpeed = Math.sqrt((forces[0].x - forces[1].x) * 12);
+    state.particles[1].velocity.y = circularSpeed * 2;
+    const angular = conserved(state).angular;
     run(state, 0.5);
     expect(distance(state)).toBeGreaterThan(20);
-    expect(conserved(state).angular).toBeCloseTo(600, 7);
+    expect(conserved(state).angular).toBeCloseTo(angular, 7);
   });
 
   it("allows an already separating surface contact to leave without a pull from contact support", () => {

@@ -73,10 +73,10 @@ it("shared orbits require one planet to circle every named core, not just their 
   });
   fireFrom(state, { x: 450, y: 250 }, { x: 30, y: 0 });
   fireFrom(state, { x: 450, y: 650 }, { x: -30, y: 0 });
-  state.particles[0].orbits["well-1"].winding = 2 * Math.PI;
-  state.particles[1].orbits["well-2"].winding = 2 * Math.PI;
+  state.particles[0].orbits["well-1"].winding = 2.4 * Math.PI;
+  state.particles[1].orbits["well-2"].winding = 2.4 * Math.PI;
   expect(goalProgress(state).complete).toBe(false);
-  state.particles[0].orbits["well-2"].winding = 2 * Math.PI;
+  state.particles[0].orbits["well-2"].winding = 2.4 * Math.PI;
   expect(goalProgress(state).complete).toBe(true);
 });
 
@@ -91,14 +91,14 @@ it("requires two different planets moving in opposite directions for an opposing
   for (let i = 0; i < 2; i++)
     fireFrom(state, { x: 450, y: 250 }, { x: 30, y: 0 });
   for (const p of state.particles)
-    for (const id of ["well-1", "well-2"]) p.orbits[id].winding = 2 * Math.PI;
+    for (const id of ["well-1", "well-2"]) p.orbits[id].winding = 2.4 * Math.PI;
   expect(goalProgress(state)).toMatchObject({
     current: 1,
     target: 2,
     complete: false,
   });
   for (const id of ["well-1", "well-2"])
-    state.particles[1].orbits[id].winding = -2 * Math.PI;
+    state.particles[1].orbits[id].winding = -2.4 * Math.PI;
   expect(goalProgress(state)).toMatchObject({
     current: 2,
     target: 2,

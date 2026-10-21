@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("Gravity trails fade continuously without seams in both themes and busy skies", async ({
+test("Gravity lightweight trails stay connected with bounded fading bands in both themes", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 900, height: 700 });
@@ -56,19 +56,33 @@ test("Gravity trails fade continuously without seams in both themes and busy ski
               pixels.data[offset + 2];
             return theme === "dark" ? sum : 233 + 236 + 239 - sum;
           };
-          let worstSeam = 0;
+          let worstSeam = 0,
+            minimumContinuity = 1;
           for (
             let x = Math.ceil(from.x * dpr) + 30;
             x < Math.floor(to.x * dpr) - 30;
             x++
-          )
+          ) {
+            const surrounding = (brightness(x - 2) + brightness(x + 2)) / 2;
+            if (surrounding >= 30)
+              minimumContinuity = Math.min(
+                minimumContinuity,
+                brightness(x) / surrounding,
+              );
             worstSeam = Math.max(
               worstSeam,
               Math.abs(
                 brightness(x) - (brightness(x - 2) + brightness(x + 2)) / 2,
               ),
             );
-          measurements.push({ theme, count, dpr, worstSeam });
+          }
+          measurements.push({
+            theme,
+            count,
+            dpr,
+            worstSeam,
+            minimumContinuity,
+          });
         }
       }
     }
@@ -104,8 +118,13 @@ test("Gravity trails fade continuously without seams in both themes and busy ski
     "Smooth trail pixel and rendering checks",
     JSON.stringify(results),
   );
-  for (const sample of results.measurements)
-    expect(sample.worstSeam, JSON.stringify(sample)).toBeLessThanOrEqual(5);
+  // The restored bounded-band style trades tiny opacity steps for much cheaper drawing.
+  for (const sample of results.measurements) {
+    expect(sample.worstSeam, JSON.stringify(sample)).toBeLessThanOrEqual(20);
+    expect(sample.minimumContinuity, JSON.stringify(sample)).toBeGreaterThan(
+      0.7,
+    );
+  }
   expect(results.meanFrame).toBeLessThan(30);
   await page.screenshot({ path: "/private/tmp/orbit-smooth-trails.png" });
 });

@@ -11,7 +11,6 @@ import {
 import { buildGravityLayout, GRAVITY_LAYOUTS } from "../../src/gravity/layouts";
 import { createState, goalProgress } from "../../src/gravity/simulation";
 import {
-  GRAVITY_SPEED_SCALE,
   gravityLaunchSpeed,
   PARTICLE_GRAVITY_STRENGTH,
 } from "../../src/gravity/physics";
@@ -77,13 +76,12 @@ it("keeps current endless profile launches clear at maximum size with human sequ
         }
       }
       for (let shot = 1; shot < level.witness.length; shot++) {
-        const realSeconds =
-          (level.witness[shot].time - level.witness[shot - 1].time) /
-          GRAVITY_SPEED_SCALE;
+        const physicalSeconds =
+          level.witness[shot].time - level.witness[shot - 1].time;
         expect(
-          realSeconds,
-          `${profile}/${index} real launch gap`,
-        ).toBeGreaterThanOrEqual(4 - 1e-9);
+          physicalSeconds,
+          `${profile}/${index} reference launch gap`,
+        ).toBeGreaterThanOrEqual(6 - 1e-9);
       }
     }
   }

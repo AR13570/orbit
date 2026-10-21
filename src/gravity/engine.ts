@@ -55,6 +55,10 @@ export class GravityEngine {
     this.applyProjectileSize();
     this.launchPosition = { ...this.state.level.launch };
   }
+  /** Ephemeral level metadata for camera/input setup, without computing progress. */
+  getLevel(): GravityLevel {
+    return this.state.level;
+  }
   getSnapshot(): GravitySnapshot {
     return structuredClone(this.getRenderSnapshot());
   }
@@ -83,7 +87,10 @@ export class GravityEngine {
   }
   setPaused(paused: boolean): void {
     this.paused = paused;
-    if (paused) this.aiming = false;
+    if (paused) {
+      this.aiming = false;
+      this.accumulator = 0;
+    }
   }
   /** Slow only playback, preserving every physical velocity and fixed-step trajectory. */
   setAiming(aiming: boolean): void {
@@ -91,6 +98,14 @@ export class GravityEngine {
   }
   /** The outermost allowed camera view, independent of the player's current zoom. */
   setFlightBounds(bounds: WorldBounds): void {
+    if (
+      this.flightBounds &&
+      this.flightBounds.x === bounds.x &&
+      this.flightBounds.y === bounds.y &&
+      this.flightBounds.width === bounds.width &&
+      this.flightBounds.height === bounds.height
+    )
+      return;
     const valid = (rect: WorldBounds) =>
       [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) &&
       rect.width > 0 &&
@@ -101,7 +116,10 @@ export class GravityEngine {
   }
   setTimeScale(scale: number): void {
     if (Number.isFinite(scale))
-      this.timeScale = Math.max(0.25, Math.min(2, scale));
+      this.timeScale = Math.max(
+        0.25,
+        Math.min(Math.max(2, GRAVITY_SPEED_SCALE), scale),
+      );
   }
   setPhysics(options: GravityPhysicsOptions): void {
     this.state.groupSpin = { groups: {} };
@@ -184,9 +202,14 @@ export class GravityEngine {
   }
   update(dt: number): void {
     if (this.paused || !Number.isFinite(dt) || dt <= 0) return;
-    this.accumulator +=
-      Math.min(dt, 0.25) * this.timeScale * (this.aiming ? 0.65 : 1);
-    while (this.accumulator + 1e-9 >= GRAVITY_FIXED_STEP) {
+    // Carry slow frames forward, but bound work and debt after an extreme stall.
+    this.accumulator = Math.min(
+      2,
+      this.accumulator + dt * this.timeScale * (this.aiming ? 0.65 : 1),
+    );
+    let steps = 0;
+    while (this.accumulator + 1e-9 >= GRAVITY_FIXED_STEP && steps < 60) {
+      steps++;
       this.accumulator = Math.max(0, this.accumulator - GRAVITY_FIXED_STEP);
       step(this.state, GRAVITY_FIXED_STEP);
       if (!this.complete && goalProgress(this.state).complete) {

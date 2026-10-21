@@ -25,11 +25,13 @@ export function sampleGravityAimPreview(
   const dots: (Vec2 & { distance: number })[] = [];
   if (points.length < 2 || !(renderScale > 0)) return { dots, length: 0 };
   const limit = pathAssist === "full" ? Infinity : 600;
+  const segmentLengths: number[] = [];
   let totalLength = 0;
   for (let i = 1; i < points.length; i++) {
     const segment =
       Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y) *
       renderScale;
+    segmentLengths.push(segment);
     if (Number.isFinite(segment)) totalLength += segment;
     if (totalLength >= limit) {
       totalLength = limit;
@@ -37,16 +39,16 @@ export function sampleGravityAimPreview(
     }
   }
   // Full assist can cover a very long flight at close zoom, so retain a bounded draw budget.
-  const spacing = Math.max(9, totalLength / 240);
+  const spacing = Math.max(12, totalLength / 180);
   let length = 0;
   let nextDot = spacing;
   for (let i = 1; i < points.length && length < limit; i++) {
     const from = points[i - 1],
       to = points[i];
-    const segment = Math.hypot(to.x - from.x, to.y - from.y) * renderScale;
+    const segment = segmentLengths[i - 1];
     if (!Number.isFinite(segment) || segment <= 0) continue;
     const end = Math.min(limit, length + segment);
-    while (nextDot <= end && dots.length < 240) {
+    while (nextDot <= end && dots.length < 180) {
       const fraction = (nextDot - length) / segment;
       dots.push({
         x: from.x + (to.x - from.x) * fraction,

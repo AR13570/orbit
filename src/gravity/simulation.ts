@@ -21,7 +21,7 @@ import type {
   GravityState,
   WorldBounds,
 } from "./types";
-export { goalProgress, orbitFraction } from "./orbits";
+export { goalProgress, orbitFraction, orbitingCount } from "./orbits";
 export const TRAIL_SECONDS = 24;
 /** Legacy export retained without enforcing an active planet cap. */
 export const MAX_PROJECTILES = Infinity;

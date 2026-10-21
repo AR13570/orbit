@@ -10,6 +10,7 @@ import {
   supportSurfaces,
 } from "./surface-support";
 import { particlePairPotential } from "./physics";
+import { ContactCandidates } from "./contact-candidates";
 
 const ORIGIN = { x: 0, y: 0 };
 const CONTACT_EPSILON = 1e-9;
@@ -155,6 +156,7 @@ export function driftWithContacts(
       })
     : [];
   const planetContacts = state.physics.planetCollisions !== "none";
+  const candidates = new ContactCandidates(particles);
   // Conservative bound for pathological simultaneous overlap clusters. On
   // exhaustion retain the current contact pose/velocities for the next step,
   // rather than advancing unchecked through wells or replaying elapsed time.
@@ -165,6 +167,7 @@ export function driftWithContacts(
     // same event budget bounds any zero time overlap resolution.
     const remaining = Math.max(0, dt - elapsed);
     let event: ContactEvent | undefined;
+    if (planetContacts) candidates.get(remaining);
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       if (!p.alive) continue;
@@ -189,9 +192,18 @@ export function driftWithContacts(
         }
       }
       if (planetContacts)
-        for (let j = i + 1; j < particles.length; j++) {
-          const other = particles[j];
+        for (const other of candidates.neighbors.get(p) ?? []) {
           if (!other.alive) continue;
+          // Conservative swept bounds: crossing either axis is necessary for
+          // contact. Keep the exact circle sweep for every remaining candidate.
+          const radius = p.radius + other.radius + CONTACT_EPSILON;
+          if (
+            Math.abs(other.position.x - p.position.x) >
+              radius + Math.abs(other.velocity.x - p.velocity.x) * remaining ||
+            Math.abs(other.position.y - p.position.y) >
+              radius + Math.abs(other.velocity.y - p.velocity.y) * remaining
+          )
+            continue;
           if (state.passingContacts?.[contactKey(p, other)]) continue;
           if (supported.has(contactKey(p, other))) continue;
           const time = planetContact(
@@ -222,7 +234,13 @@ export function driftWithContacts(
       // through all touching surfaces before the next continuous sweep.
       const live = particles.filter((p) => p.alive);
       const islandSupport = supportSurfaces(
-        surfaceContacts(state, live, supported, true),
+        surfaceContacts(
+          state,
+          live,
+          supported,
+          true,
+          candidates.get(Math.max(0, dt - elapsed)),
+        ),
         Math.max(0, dt - elapsed),
       );
       supported.clear();

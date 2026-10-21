@@ -5,7 +5,8 @@ import { useSoundPreference } from "../soundPreference";
 import ThemeControl from "../components/ThemeControl";
 import { MIN_GRAVITY_ZOOM } from "../zoom";
 import { LiveGravityPreview } from "./live-preview";
-import { corePositionLabel } from "./core-position-label";
+import { gravityHudSnapshot } from "./hud";
+import { useTheme } from "../theme";
 import { AimHaptics } from "../haptics";
 import AdvancedToggle from "../components/AdvancedToggle";
 import AdvancedSettings from "../components/AdvancedSettings";
@@ -42,7 +43,6 @@ import {
 } from "./preferences";
 import { GravityEngine } from "./engine";
 import { createGravityRenderer } from "./renderer";
-import { objectiveText } from "./simulation";
 import GravityMenu from "./GravityMenu";
 import GravityGuide, {
   gravityGuideSeen,
@@ -50,20 +50,6 @@ import GravityGuide, {
 } from "./GravityGuide";
 import type { Vec2, GravityLevel, GravitySnapshot } from "./types";
 
-function hudSnapshot(engine: GravityEngine): GravitySnapshot {
-  const state = engine.getRenderSnapshot();
-  return {
-    ...state,
-    level: structuredClone(state.level),
-    physics: { ...state.physics },
-    progress: structuredClone(state.progress),
-    particles: state.particles.map((planet) => ({
-      ...planet,
-      trail: [],
-      orbits: {},
-    })),
-  };
-}
 export default function GravityGame({
   onExit,
   customLevel,
@@ -100,10 +86,28 @@ export default function GravityGame({
     return () => window.clearTimeout(timer);
   }, [blockedLaunch]);
   const [projectileScale, setProjectileScale] = useState(1);
-  const [snapshot, setSnapshot] = useState(() => hudSnapshot(engine));
+  const [snapshot, setSnapshot] = useState(() =>
+    gravityHudSnapshot(engine.getRenderSnapshot()),
+  );
+  const lastHudSnapshot = useRef(snapshot);
+  const renderRevision = useRef(0);
+  const invalidateRender = useCallback(() => {
+    renderRevision.current++;
+  }, []);
+  const publishHud = useCallback((state: GravitySnapshot) => {
+    const next = gravityHudSnapshot(state, lastHudSnapshot.current);
+    if (next !== lastHudSnapshot.current) {
+      lastHudSnapshot.current = next;
+      setSnapshot(next);
+    }
+  }, []);
+  const [theme] = useTheme();
+  useEffect(invalidateRender, [theme, invalidateRender]);
   const [levels, setLevels] = useState(false);
   const [confirmSkip, setConfirmSkip] = useState(false);
   const completionElapsed = useRef(0);
+  const autoNextCancelledRef = useRef(false);
+  const [autoNextCancelled, setAutoNextCancelled] = useState(false);
   const nextBorder = useRef<SVGPathElement>(null);
   const [paused, setPaused] = useState(false);
   const [help, setHelp] = useState(
@@ -146,7 +150,7 @@ export default function GravityGame({
   const syncWorldFrame = useCallback(() => {
     const r = renderer.current;
     if (!r) return;
-    r.prepareFrame?.(engine.getRenderSnapshot().level);
+    r.prepareFrame?.(engine.getLevel());
     const bounds = r.getFlightBounds?.();
     if (bounds) engine.setFlightBounds(bounds);
     const defaultScale = r.getDefaultScale?.();
@@ -155,9 +159,11 @@ export default function GravityGame({
   }, [engine, customLevel]);
   const refresh = useCallback(() => {
     syncWorldFrame();
-    setSnapshot(hudSnapshot(engine));
-  }, [engine, syncWorldFrame]);
+    publishHud(engine.getRenderSnapshot());
+    invalidateRender();
+  }, [engine, syncWorldFrame, publishHud, invalidateRender]);
   const cancel = useCallback(() => {
+    invalidateRender();
     const id = gesture.current.pointerId;
     gesture.current.cancel();
     origin.current = null;
@@ -168,7 +174,7 @@ export default function GravityGame({
     engine.setAiming(false);
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
-  }, [engine]);
+  }, [engine, invalidateRender]);
   useEffect(() => {
     cancel();
   }, [pathAssist, cancel]);
@@ -193,6 +199,7 @@ export default function GravityGame({
     engine.setPaused(false);
     setPaused(false);
     canvas.current?.focus();
+    invalidateRender();
   };
   const retry = useCallback(() => {
     if (helpRef.current) return;
@@ -232,6 +239,7 @@ export default function GravityGame({
       cancel();
       const rect = scene.current!.getBoundingClientRect();
       r.resize(rect.width, rect.height, window.devicePixelRatio);
+      invalidateRender();
       syncWorldFrame();
     };
     const observer = new ResizeObserver(resize);
@@ -242,15 +250,27 @@ export default function GravityGame({
     let frame = 0,
       last: number | null = null,
       lastHud = 0,
-      lastScale = 1;
+      lastScale = 1,
+      lastPaintedRevision = -1,
+      lastActive: boolean | undefined,
+      renderTime = 0;
     const reduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
     const tick = (time: number) => {
       const wallMilliseconds = last === null ? 0 : Math.max(0, time - last);
-      const dt = Math.min(0.05, wallMilliseconds / 1000);
+      const dt = wallMilliseconds / 1000;
       last = time;
       const active = !pause.current && !helpRef.current && !document.hidden;
+      const dirty =
+        lastPaintedRevision !== renderRevision.current || active !== lastActive;
+      lastActive = active;
+      // Keep the wall clock current while frozen, without rebuilding snapshots or painting.
+      if (document.hidden || (!active && !dirty)) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      if (active) renderTime += dt;
       syncWorldFrame();
       if (active) engine.update(dt);
       let state = engine.getRenderSnapshot();
@@ -277,35 +297,39 @@ export default function GravityGame({
         preview.current = [];
         engine.setAiming(false);
       }
-      if (!state.complete) completionElapsed.current = 0;
-      else if (!lastComplete.current) {
+      if (!state.complete || !lastComplete.current) {
         completionElapsed.current = 0;
-        saveCurrent(state.level.index, true);
-      } else if (active && !customLevel) {
+        if (autoNextCancelledRef.current) {
+          autoNextCancelledRef.current = false;
+          setAutoNextCancelled(false);
+        }
+        if (state.complete) saveCurrent(state.level.index, true);
+      } else if (active && !customLevel && !autoNextCancelledRef.current) {
         completionElapsed.current += wallMilliseconds;
         if (nextBorder.current)
           nextBorder.current.style.strokeDashoffset = String(
-            Math.max(0, 1 - completionElapsed.current / 3000),
+            Math.max(0, 1 - completionElapsed.current / 10000),
           );
-        if (completionElapsed.current >= 3000) {
+        if (completionElapsed.current >= 10000) {
           nextLevel();
           state = engine.getRenderSnapshot();
         }
       }
       lastComplete.current = state.complete;
-      r.render(state, preview.current, time / 1000, {
+      r.render(state, preview.current, renderTime, {
         paused: !active,
         reducedMotion: reduced,
         pull: pull.current,
         pathAssist: pathAssistRef.current,
       });
+      lastPaintedRevision = renderRevision.current;
       const scale = r.getScale();
       if (scale !== lastScale) {
         setProjectileScale(scale);
         lastScale = scale;
       }
-      if (time - lastHud >= 80) {
-        setSnapshot(hudSnapshot(engine));
+      if (dirty || time - lastHud >= 80) {
+        publishHud(state);
         lastHud = time;
       }
       frame = requestAnimationFrame(tick);
@@ -334,6 +358,8 @@ export default function GravityGame({
     openPause,
     saveCurrent,
     syncWorldFrame,
+    publishHud,
+    invalidateRender,
   ]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -395,7 +421,7 @@ export default function GravityGame({
     else resume();
     returnToPause.current = false;
   };
-  const alive = snapshot.particles.filter((p) => p.alive).length;
+  const alive = snapshot.alive;
   return (
     <main ref={scene} className="orbit-scene gravity-scene">
       <div
@@ -521,14 +547,12 @@ export default function GravityGame({
           }
         >
           <span className="gravity-level">
-            {customLevel ? "Playtest" : `Level ${snapshot.level.index + 1}`}
+            {customLevel ? "Playtest" : `Level ${snapshot.levelIndex + 1}`}
           </span>
         </GameHeader>
         <ProjectileSizeControl
           value={projectileSize}
-          baseRadius={
-            snapshot.physics.planetRadius / (snapshot.projectileSize ?? 1)
-          }
+          baseRadius={snapshot.planetRadius / snapshot.projectileSize}
           scale={projectileScale}
           onInteract={cancel}
           onChange={(value) => {
@@ -565,53 +589,34 @@ export default function GravityGame({
           </button>
         </div>
         <div className="gravity-objective">
-          {snapshot.level.orbitPadding !== undefined &&
-            snapshot.level.title && (
-              <h1 className="gravity-stage-title">{snapshot.level.title}</h1>
-            )}
-          {snapshot.level.requirements?.some(
-            (goal) => goal.direction && goal.direction !== "either",
-          ) && (
-            <span className="visually-hidden">
-              {snapshot.level.requirements
-                .map(
-                  (goal) =>
-                    `${corePositionLabel(snapshot.level, goal.bodyId)}: ${goal.direction ?? "either direction"}`,
-                )
-                .join(". ")}
-            </span>
+          {snapshot.title && (
+            <h1 className="gravity-stage-title">{snapshot.title}</h1>
           )}
-          <p>{objectiveText(snapshot.level)}</p>
-          {snapshot.level.journey ? (
+          {snapshot.directionText && (
+            <span className="visually-hidden">{snapshot.directionText}</span>
+          )}
+          <p>{snapshot.objective}</p>
+          {snapshot.journeyLabels ? (
             <div className="gravity-journey" aria-label="Route progress">
               <span>Same planet</span>
               <ol>
-                {snapshot.level.journey.legs.map((leg, index) => {
-                  const best = Math.max(
-                    0,
-                    ...snapshot.particles
-                      .filter((p) => p.alive)
-                      .map((p) => p.journey?.leg ?? 0),
-                  );
-                  const name = corePositionLabel(snapshot.level, leg.bodyId);
-                  return (
-                    <li
-                      key={index}
-                      data-complete={index < best}
-                      data-active={index === best}
-                      aria-label={`${name}${index < best ? ": passed" : index === best ? ": next" : ""}`}
-                    >
-                      {name}
-                    </li>
-                  );
-                })}
+                {snapshot.journeyLabels.map((name, index) => (
+                  <li
+                    key={index}
+                    data-complete={index < snapshot.bestJourneyLeg}
+                    data-active={index === snapshot.bestJourneyLeg}
+                    aria-label={`${name}${index < snapshot.bestJourneyLeg ? ": passed" : index === snapshot.bestJourneyLeg ? ": next" : ""}`}
+                  >
+                    {name}
+                  </li>
+                ))}
               </ol>
             </div>
           ) : (
-            snapshot.level.objective.kind !== "none" && (
+            snapshot.hasObjective && (
               <span>
-                {snapshot.progress.current} / {snapshot.progress.target}{" "}
-                {snapshot.level.sharedOrbit ? "shared orbits" : "orbits"}
+                {snapshot.current} / {snapshot.target}{" "}
+                {snapshot.sharedOrbit ? "shared orbits" : "orbits"}
               </span>
             )
           )}
@@ -640,6 +645,11 @@ export default function GravityGame({
             <GravityLevelAction
               complete={snapshot.complete}
               borderRef={nextBorder}
+              autoNextCancelled={autoNextCancelled}
+              onCancelAutoNext={() => {
+                autoNextCancelledRef.current = true;
+                setAutoNextCancelled(true);
+              }}
               onNext={nextLevel}
               onSkip={() => {
                 openPause();
@@ -695,7 +705,7 @@ export default function GravityGame({
                 title={level.title}
 
                 aria-current={
-                  snapshot.level.index === level.index ? "step" : undefined
+                  snapshot.levelIndex === level.index ? "step" : undefined
                 }
                 onClick={() => {
                   cancel();
@@ -747,7 +757,7 @@ export default function GravityGame({
             <AdvancedToggle
               label="Particle Interaction"
               description="On lets each planet attract other planets. Larger planets exert a stronger pull. Off removes this mutual pull; fixed cores still affect every planet."
-              enabled={snapshot.physics.planetGravity}
+              enabled={snapshot.planetGravity}
               onToggle={() => {
                 cancel();
                 const enabled =
@@ -774,7 +784,7 @@ export default function GravityGame({
             <AdvancedToggle
               label="Particle grouping"
               description="On lets slow bound encounters settle together. Fast or glancing encounters transfer momentum and can separate. Off lets planets pass through each other. Particle Interaction controls their mutual pull separately."
-              enabled={snapshot.physics.planetCollisions === "soft"}
+              enabled={snapshot.planetCollisions === "soft"}
               onToggle={() => {
                 cancel();
                 const enabled =

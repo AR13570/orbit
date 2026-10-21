@@ -15,7 +15,7 @@ import {
 } from "../../src/gravity/input";
 import { markTutorialSeen } from "./tutorial-fixture";
 
-test("Gravity follows the 1.4x trajectory and restores normal pace after aiming", async ({
+test("Gravity follows the calibrated trajectory and restores normal pace after aiming", async ({
   page,
 }) => {
   const viewport = { width: 1280, height: 800 };
@@ -62,6 +62,7 @@ test("Gravity follows the 1.4x trajectory and restores normal pace after aiming"
   const path = process.env.PLAYWRIGHT_GAME_PATH ?? "/";
   await page.goto(`${path}?mode=gravity&seed=42`);
   await expect(page.getByLabel("Gravity orbital field")).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
   await page.clock.runFor(100);
   const level = campaignBlueprint(0);
   const shot = JSON.parse(
@@ -108,11 +109,18 @@ test("Gravity follows the 1.4x trajectory and restores normal pace after aiming"
     await page.clock.runFor(1000);
     const actual = await page.evaluate(() => (window as any).pacePlanet);
     const position = project(expected.particles[0].position);
+    // The frozen clock can end between rendered frames, especially after resume.
+    // Allow one frame of travel plus one fixed physics step and pixel rounding.
+    const velocity = expected.particles[0].velocity;
+    const frameTolerance =
+      2 +
+      Math.hypot(velocity.x, velocity.y) *
+        (GRAVITY_SPEED_SCALE / 60 + GRAVITY_FIXED_STEP) *
+        camera.scale;
     expect(
       Math.hypot(actual.x - position.x, actual.y - position.y),
-    ).toBeLessThan(4);
+    ).toBeLessThan(frameTolerance);
   };
-  expect(GRAVITY_SPEED_SCALE).toBe(1.4);
   await advance(false);
   await page.mouse.move(1050, 350);
   await page.mouse.down();

@@ -1,4 +1,5 @@
 import type { GravityParticle, GravityState } from "./types";
+import type { ContactPair } from "./contact-candidates";
 import { GRAVITY_FIXED_STEP, particlePairPotential } from "./physics";
 
 // Numerical contact tolerance only, never an attraction or capture distance.
@@ -150,6 +151,10 @@ export function recoverSurfaceOverlaps(
       for (let j = i + 1; j < recoverable.length; j++) {
         const a = recoverable[i],
           b = recoverable[j];
+        const dx = b.position.x - a.position.x;
+        const dy = b.position.y - a.position.y;
+        const radius = a.radius + b.radius;
+        if (dx * dx + dy * dy >= radius * radius) continue;
         const key = contactKey(a, b),
           passage = state.passingContacts?.[key];
         if (passage) {
@@ -197,62 +202,68 @@ export function surfaceContacts(
   particles: GravityParticle[],
   supported: ReadonlySet<string> = new Set(),
   includeImpacts = false,
+  candidates?: readonly ContactPair[],
 ): SurfaceContact[] {
   if (state.physics.planetCollisions !== "soft") return [];
   const contacts: SurfaceContact[] = [];
-  for (let i = 0; i < particles.length; i++)
-    for (let j = i + 1; j < particles.length; j++) {
-      const a = particles[i],
-        b = particles[j];
-      if (!a.alive || !b.alive) continue;
-      const recovering = state.passingContacts?.[contactKey(a, b)]?.recovering;
-      const dx = b.position.x - a.position.x,
-        dy = b.position.y - a.position.y;
-      const distance = Math.hypot(dx, dy),
-        radius = a.radius + b.radius;
-      // An intervening impact can occur partway along a supported chord, whose
-      // interior lies slightly inside the curved surface. Rebuild that known
-      // contact's remaining chord from its current pose instead of projecting
-      // the entire island's positions and introducing new gaps/impact events.
-      // Newly approaching pairs still qualify only at their actual surface.
-      if (
-        (!recovering &&
-          distance < radius - SURFACE_EPSILON &&
-          !(includeImpacts && supported.has(contactKey(a, b)))) ||
-        distance > radius + SURFACE_EPSILON
-      )
-        continue;
-      if (
-        !(recovering ? boundMotion(state, a, b, 0.5) : canSettle(state, a, b))
-      )
-        continue;
-      const nx = dx / distance,
-        ny = dy / distance;
-      const normal =
-        (b.velocity.x - a.velocity.x) * nx + (b.velocity.y - a.velocity.y) * ny;
-      // A supported drift ends with the outward half of its curved path. It
-      // may be supported again after the second gravity kick, never pulled back.
-      if (
-        !recovering &&
-        !includeImpacts &&
-        !supported.has(contactKey(a, b)) &&
-        (normal > IMPULSE_EPSILON || normal < -RESTING_IMPACT_SPEED)
-      )
-        continue;
-      // During gentle pose recovery, support only the current separation.
-      // Using the final radius here would inject an outward launch velocity.
-      // This cancels compression from subsequent gravity kicks, allowing the
-      // bounded positional recovery to progress instead of collapsing again.
-      contacts.push({
-        a,
-        b,
-        nx,
-        ny,
-        distance,
-        radius: recovering ? distance : radius,
-        impulse: 0,
-      });
-    }
+  const append = (a: GravityParticle, b: GravityParticle) => {
+    if (!a.alive || !b.alive) return;
+    const dx = b.position.x - a.position.x,
+      dy = b.position.y - a.position.y;
+    const radius = a.radius + b.radius;
+    // Most pairs are distant, even inside a busy scene. Reject them before
+    // allocating contact keys or evaluating capture energy during every impact.
+    if (dx * dx + dy * dy > (radius + SURFACE_EPSILON) ** 2) return;
+    const recovering = state.passingContacts?.[contactKey(a, b)]?.recovering;
+    const distance = Math.hypot(dx, dy);
+    // An intervening impact can occur partway along a supported chord, whose
+    // interior lies slightly inside the curved surface. Rebuild that known
+    // contact's remaining chord from its current pose instead of projecting
+    // the entire island's positions and introducing new gaps/impact events.
+    // Newly approaching pairs still qualify only at their actual surface.
+    if (
+      (!recovering &&
+        distance < radius - SURFACE_EPSILON &&
+        !(includeImpacts && supported.has(contactKey(a, b)))) ||
+      distance > radius + SURFACE_EPSILON
+    )
+      return;
+    if (!(recovering ? boundMotion(state, a, b, 0.5) : canSettle(state, a, b)))
+      return;
+    const nx = dx / distance,
+      ny = dy / distance;
+    const normal =
+      (b.velocity.x - a.velocity.x) * nx + (b.velocity.y - a.velocity.y) * ny;
+    // A supported drift ends with the outward half of its curved path. It
+    // may be supported again after the second gravity kick, never pulled back.
+    if (
+      !recovering &&
+      !includeImpacts &&
+      !supported.has(contactKey(a, b)) &&
+      (normal > IMPULSE_EPSILON || normal < -RESTING_IMPACT_SPEED)
+    )
+      return;
+    // During gentle pose recovery, support only the current separation.
+    // Using the final radius here would inject an outward launch velocity.
+    // This cancels compression from subsequent gravity kicks, allowing the
+    // bounded positional recovery to progress instead of collapsing again.
+    contacts.push({
+      a,
+      b,
+      nx,
+      ny,
+      distance,
+      radius: recovering ? distance : radius,
+      impulse: 0,
+    });
+  };
+  if (candidates) {
+    for (const [a, b] of candidates) append(a, b);
+  } else {
+    for (let i = 0; i < particles.length; i++)
+      for (let j = i + 1; j < particles.length; j++)
+        append(particles[i], particles[j]);
+  }
   return contacts;
 }
 

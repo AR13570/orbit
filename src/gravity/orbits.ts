@@ -11,6 +11,28 @@ import type {
   OrbitTrack,
 } from "./types";
 export const TAU = Math.PI * 2;
+const FIRST_LAP_EXTRA = 0.2;
+/** Validate the initial orbit, then credit each additional complete revolution. */
+function creditedWinding(winding: number): number {
+  return (
+    Math.sign(winding) * Math.max(0, Math.abs(winding) - TAU * FIRST_LAP_EXTRA)
+  );
+}
+function sharedOrbiter(
+  state: GravityState,
+  particle: GravityParticle,
+  turns: number,
+): boolean {
+  return (
+    particle.alive &&
+    boundTo(state, particle, "pair") &&
+    state.level.sharedOrbit!.every(
+      (id) =>
+        Math.abs(creditedWinding(particle.orbits[id]?.winding ?? 0)) + 1e-9 >=
+        TAU * turns,
+    )
+  );
+}
 export function orbitTargets(
   level: GravityLevel,
 ): { id: string; position: Vec2 }[] {
@@ -67,7 +89,8 @@ export function updateOrbits(
     if (target.id === "pair") continue;
     const track = particle.orbits[target.id],
       lap = track.winding - track.lapStart;
-    if (Math.abs(lap) + 1e-9 < TAU) continue;
+    const lapLength = TAU * (track.lapStart === 0 ? 1 + FIRST_LAP_EXTRA : 1);
+    if (Math.abs(lap) + 1e-9 < lapLength) continue;
     const shared = targets.some(
       (other) =>
         other.id !== target.id &&
@@ -82,7 +105,8 @@ export function updateOrbits(
       for (const other of targets)
         if (other.id !== target.id) particle.orbits[other.id].localWinding = 0;
     track.localWinding = shared ? 0 : track.localWinding + Math.sign(lap) * TAU;
-    track.lapStart = track.winding;
+    // Keep the exact crossing so fixed-step overshoot cannot accumulate per lap.
+    track.lapStart += Math.sign(lap) * lapLength;
     track.lapBaseline = Object.fromEntries(
       targets.map((other) => [other.id, particle.orbits[other.id].winding]),
     );
@@ -126,7 +150,7 @@ function qualifies(
     !boundTo(state, particle, requirement.bodyId)
   )
     return false;
-  const winding = local ? track.localWinding : track.winding;
+  const winding = local ? track.localWinding : creditedWinding(track.winding);
   const turns = requirement.turns ?? state.level.objective.turns;
   if (Math.abs(winding) + 1e-9 < TAU * Math.max(0.01, turns)) return false;
   return requirement.direction === "clockwise"
@@ -195,14 +219,8 @@ export function goalProgress(state: GravityState): GoalProgress {
     };
   }
   if (state.level.sharedOrbit?.length) {
-    const orbiters = state.particles.filter(
-      (p) =>
-        p.alive &&
-        boundTo(state, p, "pair") &&
-        state.level.sharedOrbit!.every((bodyId) => {
-          const winding = p.orbits[bodyId]?.winding ?? 0;
-          return Math.abs(winding) + 1e-9 >= TAU * goal.turns;
-        }),
+    const orbiters = state.particles.filter((p) =>
+      sharedOrbiter(state, p, goal.turns),
     );
     const current = state.level.sharedCounter
       ? Number(
@@ -264,6 +282,25 @@ export function goalProgress(state: GravityState): GoalProgress {
     ...(perBody ? { bodies: perBody } : {}),
   };
 }
+/** Core numbers show recognized particles, independently of the level's lap target. */
+export function orbitingCount(state: GravityState, id: string): number {
+  if (state.level.journey)
+    return (
+      goalProgress(state).bodies?.find((body) => body.bodyId === id)?.current ??
+      0
+    );
+  if (state.level.sharedOrbit?.includes(id))
+    return state.particles.filter((p) => sharedOrbiter(state, p, 1)).length;
+  const requirements = state.level.requirements?.filter((r) => r.bodyId === id);
+  const local = Boolean(
+    state.level.requirements?.length || state.level.objective.kind === "paired",
+  );
+  return state.particles.filter((p) =>
+    (requirements?.length ? requirements : [{ bodyId: id, count: 1 }]).some(
+      (r) => qualifies(state, p, { ...r, turns: 1 }, local),
+    ),
+  ).length;
+}
 export function orbitFraction(
   state: GravityState,
   particle: GravityParticle,
@@ -287,7 +324,7 @@ export function orbitFraction(
     if (!particle.alive || !boundTo(state, particle, "pair")) return 0;
     return Math.min(
       1,
-      Math.abs(particle.orbits[id]?.winding ?? 0) /
+      Math.abs(creditedWinding(particle.orbits[id]?.winding ?? 0)) /
         (TAU * state.level.objective.turns),
     );
   }
@@ -298,11 +335,17 @@ export function orbitFraction(
   const winding = local
     ? Math.min(
         Math.abs(track.winding),
-        Math.abs(track.localWinding + track.winding - track.lapStart),
+        Math.abs(
+          track.localWinding +
+            (track.lapStart === 0
+              ? creditedWinding(track.winding)
+              : track.winding - track.lapStart),
+        ),
       )
-    : Math.abs(track.winding);
+    : Math.abs(creditedWinding(track.winding));
   const turns =
     state.level.requirements?.find((r) => r.bodyId === id)?.turns ??
     state.level.objective.turns;
-  return Math.min(1, winding / (TAU * Math.max(0.01, turns)));
+  const target = TAU * Math.max(0.01, turns);
+  return winding + 1e-9 >= target ? 1 : winding / target;
 }

@@ -107,7 +107,7 @@ describe("gentle particle encounters", () => {
     const forces = planetAccelerations(close.particles, [], close.physics);
     // The previous near-field law gives 1341.64 here, overwhelming small aim changes.
     expect(forces[0].x).toBeGreaterThan(10);
-    expect(forces[0].x).toBeLessThan(100);
+    expect(forces[0].x).toBeLessThan(200);
     expect(forces[0].x + 5 * forces[1].x).toBeCloseTo(0, 11);
     const far = pair(120);
     expect(

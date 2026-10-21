@@ -4,11 +4,15 @@ import Icon from "../components/Icon";
 export default function GravityLevelAction({
   complete,
   borderRef,
+  autoNextCancelled,
+  onCancelAutoNext,
   onNext,
   onSkip,
 }: {
   complete: boolean;
   borderRef: RefObject<SVGPathElement | null>;
+  autoNextCancelled: boolean;
+  onCancelAutoNext: () => void;
   onNext: () => void;
   onSkip: () => void;
 }) {
@@ -42,7 +46,7 @@ export default function GravityLevelAction({
     return () => observer.disconnect();
   }, [complete, borderRef]);
   return (
-    <>
+    <div className="gravity-level-actions">
       <button
         className={`gravity-skip gravity-level-action${complete ? " gravity-next" : ""}`}
         aria-label={complete ? "Next level" : "Skip level"}
@@ -58,23 +62,36 @@ export default function GravityLevelAction({
                 ry="15"
                 className="gravity-next-track"
               />
-              <path
-                ref={borderRef}
-                pathLength="1"
-                className="gravity-next-progress"
-                style={{ strokeDasharray: 1, strokeDashoffset: 1 }}
-              />
+              {!autoNextCancelled && (
+                <path
+                  ref={borderRef}
+                  pathLength="1"
+                  className="gravity-next-progress"
+                  style={{ strokeDasharray: 1, strokeDashoffset: 1 }}
+                />
+              )}
             </svg>
           )}
           {complete ? "Next level" : "Skip level"}
           <Icon name={complete ? "play" : "skip"} />
         </span>
       </button>
+      {complete && !autoNextCancelled && (
+        <button
+          className="gravity-auto-next-cancel"
+          aria-label="Cancel automatic next level"
+          onClick={onCancelAutoNext}
+        >
+          <span>Cancel</span>
+        </button>
+      )}
       {complete && (
         <span className="visually-hidden" role="status">
-          Level complete. The next level starts automatically in three seconds.
+          {autoNextCancelled
+            ? "Automatic advancement cancelled. Choose Next level when ready."
+            : "Level complete. The next level starts automatically in ten seconds."}
         </span>
       )}
-    </>
+    </div>
   );
 }

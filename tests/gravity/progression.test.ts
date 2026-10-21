@@ -18,7 +18,6 @@ import {
   ENDLESS_CAMPAIGN_TEMPLATES,
   CAMPAIGN_ENDLESS_IDS,
 } from "../../src/gravity/campaign-endless";
-import { GRAVITY_SPEED_SCALE } from "../../src/gravity/physics";
 import {
   createState,
   goalProgress,
@@ -123,10 +122,11 @@ it("physically replays every current field and difficulty band at calibrated siz
       level.witness.forEach((shot, i) => {
         expect(shot.power).toBeGreaterThanOrEqual(0);
         expect(shot.power).toBeLessThanOrEqual(1);
+        // Witnesses are physical-time references; calibrated-sequential-play tests real thinking time.
         if (i)
-          expect(
-            (shot.time - level.witness[i - 1].time) / GRAVITY_SPEED_SCALE,
-          ).toBeGreaterThanOrEqual(4 - 1e-9);
+          expect(shot.time - level.witness[i - 1].time).toBeGreaterThanOrEqual(
+            6 - 1e-9,
+          );
       });
     }
 }, 120000);

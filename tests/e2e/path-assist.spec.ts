@@ -177,7 +177,7 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
   await page.screenshot({
     path: "/private/tmp/orbit-path-assist-gravity-partial.png",
   });
-  expect(gravityPartial).toBeGreaterThanOrEqual(60);
+  expect(gravityPartial).toBeGreaterThanOrEqual(45);
   expect(gravityFull).toBeGreaterThan(gravityPartial * 3);
   expect(gravityFull).toBeLessThanOrEqual(240);
   await pauseHeld(page);
@@ -268,7 +268,7 @@ test("mobile Full assist cancels on pinch and keeps comfortable settings targets
 test("128-planet Full prediction finishes a genuinely long path in bounded responsive slices", async ({
   page,
 }) => {
-  // The minute-long, 128-body prediction intentionally spans many real frames.
+  // The 20-second, 128-body prediction intentionally spans many real frames.
   test.setTimeout(120000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");

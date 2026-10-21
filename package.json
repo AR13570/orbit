@@ -13,7 +13,7 @@
     "verify:odessey": "node scripts/run-odessey-verification.mjs"
   },
   "dependencies": {
-    "gravity-wave": "0.1.0",
+    "gravity-wave": "0.2.0",
     "gsap": "^3.15.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"

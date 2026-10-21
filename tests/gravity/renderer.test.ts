@@ -11,11 +11,13 @@ import {
 } from "../../src/gravity/endless";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
+import * as theme from "../../src/theme";
+import * as waves from "../../src/render/gravity-surface";
 function fixture() {
   const canvas = document.createElement("canvas"),
     segments: {
       alpha: number;
-      color: string;
+      color: unknown;
       width: number;
       circle: number[];
     }[] = [],
@@ -96,6 +98,91 @@ function fixture() {
   };
 }
 describe("Gravity rendering", () => {
+  it("keeps theme lookups bounded when drawing many fading trail bands", () => {
+    const { renderer } = fixture();
+    const draft = newDraft();
+    draft.bodies = [];
+    const engine = new GravityEngine(42, toGravityLevel(draft));
+    for (let i = 0; i < 16; i++)
+      engine.launchFrom({ x: 150 + i * 20, y: 400 }, { x: 20, y: 5 });
+    const state = engine.getSnapshot();
+    state.elapsed = 1;
+    for (const particle of state.particles)
+      particle.trail = Array.from({ length: 512 }, (_, i) => ({
+        x: 100 + i,
+        y: 300,
+        time: i / 511,
+      }));
+    renderer.resize(900, 700);
+    const colors = vi.spyOn(theme, "canvasColors");
+    try {
+      renderer.render(state, [], 0, { paused: true, reducedMotion: true });
+      expect(colors.mock.calls.length).toBeLessThan(20);
+    } finally {
+      colors.mockRestore();
+      renderer.destroy();
+    }
+  });
+  it.each([
+    [900, 700],
+    [390, 844],
+  ])(
+    "skips wholly offscreen waves while keeping edge waves when panned and zoomed at %ix%i",
+    (width, height) => {
+      const { renderer } = fixture();
+      const state = new GravityEngine(42, getGravityLevel(42, 0)).getSnapshot();
+      renderer.resize(width, height);
+      renderer.prepareFrame(state.level);
+      const draw = vi.spyOn(waves, "drawGravitySurface");
+      try {
+        for (const zoom of [0.5, 1, 2]) {
+          renderer.setZoom(zoom);
+          renderer.panBy(37, -53);
+          const bounds = renderer.getVisibleBounds();
+          const radius = state.level.bodies[0].radius + 230;
+          const margin = 2 / renderer.getScale();
+          const cx = bounds.x + bounds.width / 2;
+          const cy = bounds.y + bounds.height / 2;
+          const cases = [
+            { x: bounds.x - radius - margin, y: cy, visible: false },
+            { x: bounds.x - radius, y: cy, visible: true },
+            { x: bounds.x - radius + margin, y: cy, visible: true },
+            {
+              x: bounds.x + bounds.width + radius + margin,
+              y: cy,
+              visible: false,
+            },
+            { x: cx, y: bounds.y - radius - margin, visible: false },
+            { x: cx, y: bounds.y - radius + margin, visible: true },
+            {
+              x: cx,
+              y: bounds.y + bounds.height + radius + margin,
+              visible: false,
+            },
+            {
+              x: cx,
+              y: bounds.y + bounds.height + radius - margin,
+              visible: true,
+            },
+          ];
+          for (const { x, y, visible } of cases) {
+            state.level.bodies[0].position = { x, y };
+            draw.mockClear();
+            renderer.render(state, [], 0, {
+              paused: true,
+              reducedMotion: true,
+            });
+            expect(draw.mock.calls.length, JSON.stringify({ zoom, x, y })).toBe(
+              visible ? 1 : 0,
+            );
+          }
+        }
+      } finally {
+        draw.mockRestore();
+        renderer.destroy();
+      }
+    },
+  );
   it.each(["light", "dark"])(
     "keeps a held projectile's color through release in %s mode",
     (theme) => {
@@ -279,7 +366,7 @@ describe("Gravity rendering", () => {
     expect(cue?.circle[2]).toBe(12);
   });
   it.each(["partial", "full"] as const)(
-    "fades %s preview progressively along its whole length",
+    "keeps most of the %s preview visible and fades its far tail",
     (pathAssist) => {
       const { renderer, fillRecords } = fixture();
       renderer.resize(390, 844);
@@ -294,9 +381,11 @@ describe("Gravity rendering", () => {
         .map(({ alpha }) => alpha);
       expect(dots.length).toBeGreaterThan(15);
       expect(dots[0]).toBeGreaterThan(0.75);
-      expect(dots[Math.floor(dots.length / 2)]).toBeLessThan(0.45);
+      expect(dots[Math.floor(dots.length / 2)]).toBeGreaterThan(0.9);
+      expect(dots[Math.floor(dots.length * 0.7)]).toBeGreaterThan(0.9);
+      expect(dots[Math.floor(dots.length * 0.9)]).toBeLessThan(0.4);
       expect(dots.at(-1)).toBeLessThan(0.01);
-      expect(dots.every((a, i) => i === 0 || a < dots[i - 1])).toBe(true);
+      expect(dots.every((a, i) => i === 0 || a <= dots[i - 1])).toBe(true);
     },
   );
   it.each(
@@ -336,11 +425,13 @@ describe("Gravity rendering", () => {
       for (const dot of dots) expect(dot.circle[2] * scale).toBeCloseTo(1.5);
       for (let i = 1; i < dots.length; i++) {
         expect((dots[i].circle[0] - dots[i - 1].circle[0]) * scale).toBeCloseTo(
-          9,
+          12,
         );
-        expect(dots[i].alpha).toBeLessThan(dots[i - 1].alpha);
+        expect(dots[i].alpha).toBeLessThanOrEqual(dots[i - 1].alpha);
       }
-      expect((dots.at(-1)!.circle[0] - 250) * scale).toBeLessThanOrEqual(600);
+      expect((dots.at(-1)!.circle[0] - 250) * scale).toBeLessThanOrEqual(
+        600 + 1e-9,
+      );
       expect(dots.at(-1)!.alpha).toBeLessThan(0.01);
     },
   );
@@ -468,15 +559,17 @@ describe("Gravity rendering", () => {
     expect(extra).toHaveLength(4);
     renderer.resize(390, 844);
     renderer.render(state, [], 0, { paused: true, reducedMotion: true });
-    const trailSegments = segments.filter(({ color }) => color !== "#e9ecef");
-    expect(trailSegments).toHaveLength(0);
-    expect(gradients).toHaveLength(16 * 32);
+    const trailSegments = segments.filter(
+      ({ color }) => typeof color === "string" && /^(rgba|hsl)\(/.test(color),
+    );
+    expect(trailSegments).toHaveLength(16 * 32);
+    expect(gradients).toHaveLength(0);
     const bandAlpha = (color: string) =>
       Number(color.match(/(?:, | \/ )([\d.e+-]+)\)$/)?.[1]);
     for (let planet = 0; planet < 16; planet++) {
-      const bands = gradients
+      const bands = trailSegments
         .slice(planet * 32, planet * 32 + 32)
-        .map(({ stops }) => bandAlpha(stops[1].color));
+        .map(({ color }) => bandAlpha(color as string));
       expect(bands.every((alpha, i) => i === 0 || alpha > bands[i - 1])).toBe(
         true,
       );
@@ -486,14 +579,15 @@ describe("Gravity rendering", () => {
     for (const planet of extra) {
       expect(fills).toContain(planet.color);
       expect(
-        gradients.some((gradient) =>
-          gradient.stops[0].color.startsWith("hsl("),
+        trailSegments.some(
+          ({ color }) => typeof color === "string" && color.startsWith("hsl("),
         ),
       ).toBe(true);
     }
     expect(
-      segments.some((segment) =>
-        segment.color.startsWith("rgba(82, 124, 154,"),
+      segments.some(
+        ({ color }) =>
+          typeof color === "string" && color.startsWith("rgba(82, 124, 154,"),
       ),
     ).toBe(false);
     // The short ribbon path preserves the color family with a continuous opacity gradient.
@@ -509,8 +603,10 @@ describe("Gravity rendering", () => {
     ).toBe(true);
   });
   it("fades the far end of a fresh dense trail before its lifetime expires", () => {
-    const { renderer, gradients } = fixture();
-    const engine = new GravityEngine(42, toGravityLevel(newDraft()));
+    const { renderer, segments } = fixture();
+    const draft = newDraft();
+    draft.bodies = [];
+    const engine = new GravityEngine(42, toGravityLevel(draft));
     engine.launchFrom({ x: 250, y: 500 }, { x: 10, y: 0 });
     const state = engine.getSnapshot();
     state.elapsed = 1;
@@ -523,8 +619,8 @@ describe("Gravity rendering", () => {
     renderer.render(state, [], 0, { paused: true, reducedMotion: true });
     const alpha = (color: string) =>
       Number(color.match(/, ([\d.e+-]+)\)$/)?.[1]);
-    const bands = gradients.map(({ stops }) => alpha(stops[1].color));
-    expect(bands).toHaveLength(86);
+    const bands = segments.map(({ color }) => alpha(color as string));
+    expect(bands).toHaveLength(32);
     expect(bands[0]).toBeLessThan(0.04);
     expect(bands.at(-1)!).toBeGreaterThan(0.45);
     expect(bands.every((value, i) => i === 0 || value > bands[i - 1])).toBe(

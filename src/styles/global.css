@@ -35,9 +35,9 @@
   --shadow-rgb: 0 0 0;
   --attractor-body: #dedde5;
   --attractor-glyph: #24232b;
-  --repeller-body: #8f4925;
+  --repeller-body: #56316e;
   --attractor-wave: #c9acf5;
-  --repeller-wave: #ffc27d;
+  --repeller-wave: #bd93dc;
   --force-glyph: #edf7fa;
   --checkpoint: #62b5ff;
   --ship: #f09bbf;
@@ -78,9 +78,9 @@
   --shadow-rgb: 48 57 67;
   --attractor-body: #303943;
   --attractor-glyph: #e3eaf0;
-  --repeller-body: #a95724;
+  --repeller-body: #7043a2;
   --attractor-wave: #694880;
-  --repeller-wave: #965a2c;
+  --repeller-wave: #765298;
   --force-glyph: #d6edf5;
   --checkpoint: #168dff;
   --ship: #8a0f4b;
@@ -840,6 +840,33 @@ p {
   height: 16px;
   stroke-width: 1.5;
   flex-shrink: 0;
+}
+.gravity-level-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.gravity-auto-next-cancel {
+  pointer-events: auto;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.gravity-auto-next-cancel span {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: inherit;
+}
+@media (hover: hover) {
+  .gravity-auto-next-cancel:hover span {
+    color: var(--charcoal);
+    background: rgb(var(--ink-rgb) / 5%);
+  }
 }
 .gravity-level-action {
   padding: 0;

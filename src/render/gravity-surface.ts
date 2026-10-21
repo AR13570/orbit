@@ -50,13 +50,11 @@ export function drawGravitySurface(
       ...(dark
         ? {
             pointSize: 1.08,
-            opacity: 0.78,
+            opacity: 1,
+            intensity: 1.5,
           }
         : {}),
     },
   ];
   surface.draw(fields, motionTime, { scale, reducedMotion });
-  // A bounded second pass lifts faint crests on black without a blurred halo,
-  // larger footprints or more points in the lattice. Light keeps its original pass.
-  if (dark) surface.draw(fields, motionTime, { scale, reducedMotion });
 }

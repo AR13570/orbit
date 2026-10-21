@@ -38,7 +38,7 @@ function capture() {
   } as CanvasRenderingContext2D;
   return { ctx, points };
 }
-it("softens both dark wave passes without dimming light mode", () => {
+it("brightens dark waves in one library pass without changing light mode", () => {
   const previous = document.documentElement.dataset.theme;
   const surface = createGravitySurface(capture().ctx);
   const draw = vi.spyOn(surface, "draw");
@@ -55,9 +55,9 @@ it("softens both dark wave passes without dimming light mode", () => {
       "#c9acf5",
       surface,
     );
-    expect(draw).toHaveBeenCalledTimes(2);
-    for (const [fields] of draw.mock.calls)
-      expect(fields[0].opacity).toBe(0.78);
+    expect(draw).toHaveBeenCalledTimes(1);
+    expect(draw.mock.calls[0][0][0].opacity).toBe(1);
+    expect(draw.mock.calls[0][0][0].intensity).toBe(1.5);
     draw.mockClear();
     document.documentElement.dataset.theme = "light";
     drawGravitySurface(
@@ -73,6 +73,7 @@ it("softens both dark wave passes without dimming light mode", () => {
     );
     expect(draw).toHaveBeenCalledTimes(1);
     expect(draw.mock.calls[0][0][0].opacity).toBeUndefined();
+    expect(draw.mock.calls[0][0][0].intensity).toBeUndefined();
   } finally {
     if (previous === undefined) delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = previous;

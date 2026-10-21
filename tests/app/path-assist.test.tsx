@@ -285,7 +285,7 @@ describe("aim prediction setting behavior", () => {
     aim(canvas, "pointerdown", 100, 200);
     aim(canvas, "pointermove", 20, 200);
     act(() => frame(100));
-    expect(begin).toHaveBeenCalledWith(60);
+    expect(begin).toHaveBeenCalledWith(20);
     const first = begin.mock.results[0].value!;
     while (!first.done) act(() => frame(150));
     const completed = renders.gravity.mock.calls.at(-1)?.[1].length;
@@ -317,7 +317,7 @@ describe("aim prediction setting behavior", () => {
     const partialSeconds = begin.mock.calls.at(-1)![0]!;
     expect(partialSeconds).toBeGreaterThan(4.2);
     expect(partialSeconds).toBeLessThanOrEqual(12);
-    expect(partialSeconds).toBeLessThan(60);
+    expect(partialSeconds).toBeLessThan(20);
     const partial = begin.mock.results.at(-1)!.value!;
     while (!partial.done) act(() => frame(950));
     renders.gravityScale = 0.5;

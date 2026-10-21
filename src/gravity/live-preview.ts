@@ -152,13 +152,15 @@ export class LiveGravityPreview {
     }
     const frameSeconds = Math.max(0, Math.min(dt, 0.05));
     const prefixSamples = PREFIX_SECONDS / GRAVITY_FIXED_STEP / 4;
+    const blends: number[] = [];
     this.path = this.target.map((point, index) => {
       const previous = this.path[index];
       if (!previous || index === 0) return { ...point };
       // Keep the launch responsive while gently animating distant deflections
       // caused by the moving sky, including when the pointer is held still.
       const farWeight = Math.max(0, Math.min(1, (index - prefixSamples) / 5));
-      const blend = 1 - Math.exp(-frameSeconds / (0.045 + 0.035 * farWeight));
+      const blend = (blends[farWeight * 5] ??=
+        1 - Math.exp(-frameSeconds / (0.045 + 0.035 * farWeight)));
       return {
         x: previous.x + (point.x - previous.x) * blend,
         y: previous.y + (point.y - previous.y) * blend,

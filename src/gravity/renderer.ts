@@ -9,7 +9,7 @@ import { createGravitySurface } from "../render/gravity-surface";
 import { FORCE_PALETTE } from "../render/force-palette";
 import { drawGravitySurface } from "../render/renderer";
 import { drawGravityCore } from "./core-label";
-import { nextProjectileColor, orbitFraction } from "./simulation";
+import { nextProjectileColor, orbitingCount } from "./simulation";
 import type { GravitySnapshot, TrailPoint, GravityLevel } from "./types";
 import {
   contentBounds,
@@ -100,36 +100,62 @@ function trailOpacity(
     Math.pow(Math.max(0, 1 - (elapsed - point.time) / seconds), 1.6)
   );
 }
-function rgba(color: string, alpha: number): string {
+/** Prepare the invariant part once per trail, rather than once per fading band. */
+function trailColorPrefix(color: string, groundColor: string): string {
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(color);
   if (!match) {
     // The engine extends its finite hex palette with modern HSL colors in busy skies.
     const hsl = /^hsl\(([-+\d.]+)\s+([\d.]+)%\s+([\d.]+)%\)$/i.exec(color);
     if (hsl) {
       const lightness = Number(hsl[3]) + (93 - Number(hsl[3])) * 0.28;
-      return `hsl(${hsl[1]} ${Number(hsl[2]) * 0.8}% ${lightness}% / ${alpha})`;
+      return `hsl(${hsl[1]} ${Number(hsl[2]) * 0.8}% ${lightness}% / `;
     }
-    return `rgba(82, 124, 154, ${alpha})`;
+    return "rgba(82, 124, 154, ";
   }
   const ground = [1, 3, 5].map((index) =>
-    parseInt(canvasColors().ground.slice(index, index + 2), 16),
+    parseInt(groundColor.slice(index, index + 2), 16),
   );
   const channels = match.slice(1).map((channel, index) => {
     const value = parseInt(channel, 16);
     return Math.round(value + (ground[index] - value) * 0.28);
   });
-  return `rgba(${channels.join(", ")}, ${alpha})`;
+  return `rgba(${channels.join(", ")}, `;
 }
 function drawTrail(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   points: TrailPoint[],
   elapsed: number,
   width: number,
-  color: string,
+  colorPrefix: string,
   seconds: number,
   dense = false,
 ) {
   if (points.length < 2) return;
+  if (dense || points.length > 160) {
+    // Restore native, bounded strokes for long trails instead of gradient meshes.
+    const stride = Math.max(1, Math.ceil((points.length - 1) / 32));
+    ctx.lineWidth = width;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "butt";
+    for (let start = 0; start < points.length - 1; start += stride) {
+      const end = Math.min(points.length - 1, start + stride);
+      const middle = Math.floor((start + end) / 2);
+      const alpha = trailOpacity(
+        points[middle],
+        elapsed,
+        seconds,
+        middle / (points.length - 1),
+      );
+      if (alpha <= 0) continue;
+      ctx.strokeStyle = `${colorPrefix}${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(points[start].x, points[start].y);
+      for (let index = start + 1; index <= end; index++)
+        ctx.lineTo(points[index].x, points[index].y);
+      ctx.stroke();
+    }
+    return;
+  }
   const halfWidth = width / 2;
   const edges = points.map((point, index) => {
     const previous = points[Math.max(0, index - 1)],
@@ -218,8 +244,8 @@ function drawTrail(
     }
     ctx.closePath();
     const gradient = ctx.createLinearGradient(from.x, from.y, to.x, to.y);
-    gradient.addColorStop(0, rgba(color, startAlpha));
-    gradient.addColorStop(1, rgba(color, endAlpha));
+    gradient.addColorStop(0, `${colorPrefix}${startAlpha})`);
+    gradient.addColorStop(1, `${colorPrefix}${endAlpha})`);
     ctx.fillStyle = gradient;
     ctx.fill();
   }
@@ -434,7 +460,8 @@ export function createGravityRenderer(
       lastTime = time;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = canvasColors().ground;
+      const colors = canvasColors();
+      ctx.fillStyle = colors.ground;
       ctx.fillRect(0, 0, width, height);
       const renderCamera = displayCamera();
       const renderScale = renderCamera.scale;
@@ -444,7 +471,21 @@ export function createGravityRenderer(
       ctx.translate(centerX, centerY);
       ctx.scale(renderScale, renderScale);
       ctx.translate(-renderCamera.center.x, -renderCamera.center.y);
-      for (const body of snapshot.level.bodies)
+      const left = renderCamera.center.x - centerX / renderScale;
+      const top = renderCamera.center.y - centerY / renderScale;
+      const right = left + width / renderScale;
+      const bottom = top + height / renderScale;
+      for (const body of snapshot.level.bodies) {
+        // Include the entire wave field and a CSS pixel for edge antialiasing.
+        // Use the full canvas bounds: waves can extend behind the HUD insets.
+        const radius = body.radius + 230 + 1 / renderScale;
+        if (
+          body.position.x + radius < left ||
+          body.position.x - radius > right ||
+          body.position.y + radius < top ||
+          body.position.y - radius > bottom
+        )
+          continue;
         drawGravitySurface(
           ctx,
           body.position,
@@ -456,7 +497,15 @@ export function createGravityRenderer(
           FORCE_PALETTE[body.kind].wave,
           scratch,
         );
-      if (trailContext) {
+      }
+      const denseTrails = snapshot.particles.length > 12;
+      const hasRibbonTrails =
+        !denseTrails &&
+        snapshot.particles.some(
+          (particle) =>
+            particle.trail.length > 1 && particle.trail.length <= 160,
+        );
+      if (trailContext && hasRibbonTrails) {
         trailContext.setTransform(1, 0, 0, 1, 0, 0);
         trailContext.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
         trailContext.setTransform(
@@ -474,15 +523,17 @@ export function createGravityRenderer(
       }
       for (const particle of snapshot.particles)
         drawTrail(
-          trailContext ?? ctx,
+          denseTrails || particle.trail.length > 160
+            ? ctx
+            : (trailContext ?? ctx),
           particle.trail,
           snapshot.elapsed,
           2.4 / renderScale,
-          visibleParticleColor(particle.color),
+          trailColorPrefix(visibleParticleColor(particle.color), colors.ground),
           snapshot.physics.trailSeconds,
-          snapshot.particles.length > 12,
+          denseTrails,
         );
-      if (trailContext) {
+      if (trailContext && hasRibbonTrails) {
         trailContext.globalCompositeOperation = "source-over";
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -544,14 +595,7 @@ export function createGravityRenderer(
         }
       }
       snapshot.level.bodies.forEach((body) => {
-        const goal = snapshot.progress.bodies?.find(
-          (item) => item.bodyId === body.id,
-        );
-        const count =
-          goal?.current ??
-          snapshot.particles.filter(
-            (p) => p.alive && orbitFraction(snapshot, p, body.id) >= 1,
-          ).length;
+        const count = orbitingCount(snapshot, body.id);
         drawGravityCore(ctx, body, renderScale, count);
         if (body.kind === "repellent") return;
         const direction = snapshot.level.requirements?.find(
@@ -648,8 +692,11 @@ export function createGravityRenderer(
         options.pathAssist,
       );
       for (const dot of aimPreview.dots) {
-        const fade = 1 - dot.distance / aimPreview.length;
-        ctx.globalAlpha = fade * fade * 0.98;
+        const tail = Math.max(
+          0,
+          Math.min(1, (dot.distance / aimPreview.length - 0.7) / 0.3),
+        );
+        ctx.globalAlpha = (1 - tail * tail * (3 - 2 * tail)) * 0.98;
         circle(dot, 1.5 / renderScale);
         ctx.fill();
       }

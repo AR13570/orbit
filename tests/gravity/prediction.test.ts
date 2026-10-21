@@ -104,7 +104,7 @@ describe("incremental Gravity aim prediction", () => {
       ),
     ).toBe(true);
   });
-  it("simulates the actual sixty-second Full horizon and caps longer requests consistently", () => {
+  it("simulates the twenty-second Full horizon and caps longer requests consistently", () => {
     const draft = newDraft();
     draft.bodies = [];
     draft.physics = {
@@ -115,17 +115,17 @@ describe("incremental Gravity aim prediction", () => {
     const engine = new GravityEngine(42, toGravityLevel(draft));
     engine.setTimeScale(1);
     engine.setLaunch({ x: 100, y: 400 }, { angle: 0, power: 0.25 });
-    const expected = engine.predict(60),
+    const expected = engine.predict(20),
       job = engine.beginPrediction()!;
     while (!job.done) job.advance(2);
-    expect(job.path).toHaveLength(1801);
+    expect(job.path).toHaveLength(601);
     expect(job.path).toEqual(expected);
     expect(engine.predict(100)).toEqual(expected);
     const direct = engine.predictFrom({ x: 100, y: 400 }, { x: 10, y: 0 }, 60);
-    expect(direct).toHaveLength(1801);
-    expect(direct.at(-1)!.x).toBeCloseTo(700, 8);
+    expect(direct).toHaveLength(601);
+    expect(direct.at(-1)!.x).toBeCloseTo(300, 8);
     engine.launch();
-    for (let i = 0; i < 7200; i++) engine.update(1 / 120);
+    for (let i = 0; i < 2400; i++) engine.update(1 / 120);
     expect(engine.getSnapshot().particles[0].position.x).toBeCloseTo(
       job.path.at(-1)!.x,
       10,

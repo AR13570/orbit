@@ -409,8 +409,15 @@ describe("gentle gameplay group spin", () => {
         const state = engine.getSnapshot();
         if (distance(state) <= 2 * radius + 1e-6 && contactTime === undefined)
           contactTime = state.elapsed;
-        if (contactTime !== undefined && state.elapsed - contactTime < 0.34)
-          expect(motion(state).omega).toBeLessThanOrEqual(0.015001);
+        if (contactTime !== undefined && state.elapsed - contactTime < 0.34) {
+          // An energetic transit can briefly overlap before it settles. Its
+          // natural spin varies with separation, while angular momentum must
+          // remain unchanged until the optional torque starts.
+          expect(motion(state).omega * distance(state) ** 2).toBeCloseTo(
+            0.015 * (2 * radius) ** 2,
+            4,
+          );
+        }
       }
       const state = engine.getSnapshot();
       expect(contactTime).toBeDefined();

@@ -6,13 +6,13 @@ import type {
   GravityPhysicsSettings,
 } from "./types";
 
-/** Playback default, never multiplied into physical velocity or acceleration. */
-export const GRAVITY_SPEED_SCALE = 1.4;
+/** Slightly quicker than the restored pace: about 6 physical seconds in 2 wall seconds. */
+export const GRAVITY_SPEED_SCALE = 3;
 export const GRAVITY_FORCE_SCALE = 1;
 export const GRAVITY_FIXED_STEP = 1 / 120;
 export const WELL_SOFTENING = 40;
 export const PARTICLE_GRAVITY_STRENGTH = 96000;
-/** Broaden only the near field; distant attraction retains the authored strength. */
+/** Keep the established far-field law and smooth finite forces at contact. */
 export function particleSoftening(
   a: Pick<GravityParticle, "radius">,
   b: Pick<GravityParticle, "radius">,
@@ -20,7 +20,12 @@ export function particleSoftening(
   return Math.max(60, (a.radius + b.radius) * 1.5);
 }
 
-/** Pair potential matching the Plummer force, zero at infinity. */
+// A smooth, compact near field strengthens close encounters without changing
+// established distant orbits. Potential and its first two derivatives vanish
+// at the boundary, so entering this range cannot introduce a force jump.
+const PARTICLE_NEAR_RANGE = 60;
+const PARTICLE_NEAR_WEIGHT = 0.85;
+/** Pair potential matching both attraction terms, zero at infinity. */
 export function particlePairPotential(
   a: GravityParticle,
   b: GravityParticle,
@@ -28,9 +33,14 @@ export function particlePairPotential(
 ): number {
   const dx = b.position.x - a.position.x,
     dy = b.position.y - a.position.y;
+  const square = dx * dx + dy * dy;
+  const taper = Math.max(0, 1 - square / PARTICLE_NEAR_RANGE ** 2);
   return (
     -(strength * a.mass * b.mass) /
-    Math.sqrt(dx * dx + dy * dy + particleSoftening(a, b) ** 2)
+      Math.sqrt(square + particleSoftening(a, b) ** 2) -
+    ((strength * a.mass * b.mass * PARTICLE_NEAR_WEIGHT) /
+      PARTICLE_NEAR_RANGE) *
+      taper ** 3
   );
 }
 const finitePositive = (value: number | undefined, fallback: number) =>
@@ -125,9 +135,15 @@ export function planetAccelerations(
       const dx = b.position.x - a.position.x,
         dy = b.position.y - a.position.y;
       const softening = particleSoftening(a, b);
+      const square = dx * dx + dy * dy;
+      const taper = Math.max(0, 1 - square / PARTICLE_NEAR_RANGE ** 2);
       const factor =
         settings.planetGravityStrength /
-        (dx * dx + dy * dy + softening * softening) ** 1.5;
+          (square + softening * softening) ** 1.5 +
+        ((6 * settings.planetGravityStrength * PARTICLE_NEAR_WEIGHT) /
+          PARTICLE_NEAR_RANGE ** 3) *
+          taper *
+          taper;
       forces[i].x += dx * factor * b.mass;
       forces[i].y += dy * factor * b.mass;
       forces[j].x -= dx * factor * a.mass;

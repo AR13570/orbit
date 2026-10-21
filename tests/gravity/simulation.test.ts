@@ -221,7 +221,7 @@ it("counts a full wide orbit without an invisible distance cutoff", () => {
     angle: 0,
     power: Math.sqrt((1440000 * 360) / (360 * 360 + 40 * 40)) / 420,
   });
-  advance(state, 40);
+  advance(state, 48);
   expect(state.particles[0].alive).toBe(true);
   expect(goalProgress(state).complete).toBe(true);
 });
@@ -240,7 +240,7 @@ it("completes a familiar orbit in physical time without damping its radius", () 
   expect(
     Math.hypot(state.particles[0].velocity.x, state.particles[0].velocity.y),
   ).toBeCloseTo(83.20502943378436);
-  advance(state, 16);
+  advance(state, 20);
   expect(goalProgress(state).complete).toBe(true);
   advance(state, 20);
   const particle = state.particles[0];
@@ -275,7 +275,7 @@ it("counts a wide local orbit in a paired puzzle without awarding its neighborin
     angle: 0,
     power: Math.sqrt((1440000 * 360) / (360 * 360 + 40 * 40)) / 420,
   });
-  advance(state, 40);
+  advance(state, 48);
   expect(state.particles[0].alive).toBe(true);
   expect(goalProgress(state).current).toBe(1);
   expect(orbitFraction(state, state.particles[0], "a")).toBe(1);
