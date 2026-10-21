@@ -15,7 +15,7 @@ describe("Gravity aim preview", () => {
     const before = structuredClone(route);
     const hypot = vi.spyOn(Math, "hypot");
     try {
-      const result = sampleGravityAimPreview(route, 1, "full");
+      const result = sampleGravityAimPreview(route, 1);
       expect(result).toEqual({
         dots: [
           { x: 7.2, y: 9.600000000000001, distance: 12 },
@@ -62,20 +62,15 @@ describe("Gravity aim preview", () => {
       });
   });
   it("extends a zoomed-out physical prediction without making zoomed-in hints longer", () => {
-    expect(gravityAimPredictionSeconds("partial", 1, 200)).toBeCloseTo(4.2);
-    expect(gravityAimPredictionSeconds("partial", 0.4, 200)).toBeCloseTo(6);
-    expect(gravityAimPredictionSeconds("partial", 0.1, 200)).toBeCloseTo(12);
-    expect(gravityAimPredictionSeconds("partial", 4, 200)).toBeCloseTo(4.2);
+    expect(gravityAimPredictionSeconds(1, 200)).toBeCloseTo(4.2);
+    expect(gravityAimPredictionSeconds(0.4, 200)).toBeCloseTo(6);
+    expect(gravityAimPredictionSeconds(0.1, 200)).toBeCloseTo(12);
+    expect(gravityAimPredictionSeconds(4, 200)).toBeCloseTo(4.2);
   });
-  it("bounds prediction work in dense skies and keeps full assist at twenty seconds", () => {
-    expect(
-      gravityAimPredictionSeconds("partial", 0.1, 200, 32),
-    ).toBeLessThanOrEqual(7.2);
-    expect(
-      gravityAimPredictionSeconds("partial", 0.1, 200, 128),
-    ).toBeLessThanOrEqual(4.2);
-    expect(gravityAimPredictionSeconds("full", 0.1, 200, 128)).toBe(20);
-    expect(gravityAimPredictionSeconds("partial", 0, 0)).toBe(12);
+  it("bounds prediction work in dense skies", () => {
+    expect(gravityAimPredictionSeconds(0.1, 200, 32)).toBeLessThanOrEqual(7.2);
+    expect(gravityAimPredictionSeconds(0.1, 200, 128)).toBeLessThanOrEqual(4.2);
+    expect(gravityAimPredictionSeconds(0, 0)).toBe(12);
   });
   it("follows a bend instead of joining the beginning and end with a fake straight path", () => {
     const { dots, length } = sampleGravityAimPreview(
@@ -85,7 +80,6 @@ describe("Gravity aim preview", () => {
         { x: 20, y: 30 },
       ],
       1,
-      "partial",
     );
     expect(length).toBeCloseTo(50);
     expect(dots.map(({ x, y }) => [x, y])).toEqual([
@@ -103,7 +97,6 @@ describe("Gravity aim preview", () => {
         { x: 12, y: 0 },
       ],
       1,
-      "partial",
     );
     expect(collision.length).toBe(12);
     expect(collision.dots).toEqual([{ x: 12, y: 0, distance: 12 }]);
@@ -114,34 +107,29 @@ describe("Gravity aim preview", () => {
           { x: 1, y: 1 },
         ],
         1,
-        "partial",
       ).dots,
     ).toEqual([]);
   });
-  it("limits partial assist to a short visible section but retains the full simulated route", () => {
+  it("limits the hint to a short visible section", () => {
     const route = [
       { x: 0, y: 0 },
       { x: 2000, y: 0 },
     ];
-    const partial = sampleGravityAimPreview(route, 0.5, "partial");
-    const full = sampleGravityAimPreview(route, 0.5, "full");
+    const partial = sampleGravityAimPreview(route, 0.5);
     expect(partial.length).toBe(600);
     expect(partial.dots.at(-1)!.distance).toBe(600);
-    expect(full.length).toBe(1000);
-    expect(full.dots.at(-1)!.distance).toBe(996);
   });
-  it("bounds full-preview drawing for a fast trajectory at maximum zoom", () => {
+  it("bounds preview drawing for a fast trajectory at maximum zoom", () => {
     const { dots, length } = sampleGravityAimPreview(
       [
         { x: 0, y: 0 },
         { x: 10000, y: 0 },
       ],
       4,
-      "full",
     );
-    expect(length).toBe(40000);
-    expect(dots.length).toBeLessThanOrEqual(180);
-    expect(dots.length).toBeGreaterThan(150);
+    expect(length).toBe(600);
+    expect(dots.length).toBeLessThanOrEqual(50);
+    expect(dots.length).toBe(50);
     expect(dots.at(-1)!.x).toBeLessThanOrEqual(10000);
     expect(
       dots.every(

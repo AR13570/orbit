@@ -3,6 +3,7 @@ import { markTutorialSeen } from "./tutorial-fixture";
 async function boot(page: Page, mode = "odessey") {
   await page.addInitScript(markTutorialSeen);
   await page.addInitScript(() => {
+    localStorage.setItem("orbit.path-assist.v1", "full");
     const original = CanvasRenderingContext2D.prototype.arc,
       clear = CanvasRenderingContext2D.prototype.fillRect;
     const probe = window as typeof window & {
@@ -32,8 +33,14 @@ async function boot(page: Page, mode = "odessey") {
         ["#8a0f4b", "#7956cf", "#f09bbf", "#bd9cf2"].includes(
           String(this.fillStyle),
         )
-      )
-        probe.assistDots.push({ x, y });
+      ) {
+        const transform = this.getTransform();
+        const density =
+          this.canvas.width / this.canvas.getBoundingClientRect().width;
+        const radius = (r * Math.hypot(transform.a, transform.b)) / density;
+        if (Math.abs(radius - 2.1) < 0.01 || Math.abs(radius - 1.5) < 0.01)
+          probe.assistDots.push({ x, y });
+      }
       return original.call(this, x, y, r, start, end, anticlockwise);
     };
   });
@@ -47,14 +54,6 @@ async function dots(page: Page) {
     () =>
       (window as typeof window & { assistDots: unknown[] }).assistDots.length,
   );
-}
-async function choose(page: Page, value: "Full" | "Partial") {
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
-  await page.getByRole("button", { name: "Advanced", exact: true }).click();
-  await page
-    .getByRole("switch", { name: "Path assist", exact: true })
-    .setChecked(value === "Full");
-  await page.getByRole("button", { name: "Resume", exact: true }).click();
 }
 async function held(
   page: Page,
@@ -70,65 +69,70 @@ async function pauseHeld(page: Page) {
   await page.keyboard.press("p");
   await page.mouse.up();
   await page.clock.runFor(100);
-  await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Paused", exact: true }),
+  ).toBeVisible();
+  expect(await dots(page)).toBe(0);
+}
+async function noPathAssist(page: Page) {
+  const menu = page.getByRole("dialog", { name: "Paused", exact: true });
+  await expect(
+    menu.getByRole("switch", { name: "Path assist", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    menu.getByRole("button", { name: "About Path assist", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    menu.getByRole("button", { name: /^(Full|Partial)$/ }),
+  ).toHaveCount(0);
 }
 
-test("both modes share saved path assist and Full draws longer actual aimed trajectories", async ({
+test("both modes ignore saved Full assist and retain bounded short aiming previews", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await boot(page);
   const aim = await page.evaluate(async () => {
     const { OrbitEngine } = await import("/src/game/engine.ts");
-    const engine = new OrbitEngine(42);
-    let best = { angle: 0, power: 0.5, length: 0 };
-    for (const angle of [-1, -0.5, 0, 0.5, 1, 2, 3])
-      for (const power of [0.25, 0.5, 0.8]) {
-        engine.setAim(angle, power);
-        const path = engine.predict(22)[0];
-        if (path?.length > best.length)
-          best = { angle, power, length: path.length };
-      }
-    return best;
+    return new OrbitEngine(42).getSnapshot().sector.solution;
   });
   const start = { x: 600, y: 600 },
     end = {
       x: start.x - Math.cos(aim.angle) * aim.power * 160,
       y: start.y - Math.sin(aim.angle) * aim.power * 160,
     };
-  await choose(page, "Full");
   await held(page, start, end);
-  const odesseyFull = await dots(page);
+  const odesseyDots = await dots(page);
+  expect(odesseyDots).toBeGreaterThan(0);
+  expect(odesseyDots).toBeLessThanOrEqual(16);
   await page.screenshot({
-    path: "/private/tmp/orbit-path-assist-odessey-full.png",
+    path: "/private/tmp/orbit-path-assist-odessey-short.png",
   });
   await pauseHeld(page);
-  await page
-    .getByRole("switch", { name: "Path assist", exact: true })
-    .uncheck();
+  await noPathAssist(page);
+  await expect(
+    page.getByRole("button", { name: "Advanced", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Resume", exact: true }).click();
-  await held(page, start, end);
-  const odesseyPartial = await dots(page);
-  await page.screenshot({
-    path: "/private/tmp/orbit-path-assist-odessey-partial.png",
-  });
-  expect(odesseyFull).toBeGreaterThan(odesseyPartial * 2);
-  await pauseHeld(page);
+  await page.clock.runFor(32);
+  expect(await dots(page)).toBe(0);
+  await expect(page.locator(".game-surface [role=status]")).toHaveText(
+    "Ready to pull",
+  );
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.getByRole("button", { name: "Choose mode", exact: true }).click();
   await page.getByRole("button", { name: /(?:Play|Continue) Gravity/ }).click();
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
-  await page.getByRole("button", { name: "Advanced", exact: true }).click();
-  await expect(
-    page.getByRole("switch", { name: "Path assist", exact: true }),
-  ).toHaveAttribute("aria-checked", "false");
-  await page.getByRole("switch", { name: "Path assist", exact: true }).check();
-  await page.reload();
   await page.clock.runFor(1000);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  await page.clock.runFor(240);
+  await noPathAssist(page);
   await expect(
-    page.getByRole("switch", { name: "Path assist", exact: true }),
-  ).toHaveAttribute("aria-checked", "true");
+    page.getByRole("switch", { name: "Particle grouping", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("switch", { name: "Particle Interaction", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   const { start: gravityStart, end: gravityEnd } = await page.evaluate(
     async () => {
@@ -163,23 +167,12 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
     },
   );
   await held(page, gravityStart, gravityEnd);
-  const gravityFull = await dots(page);
+  const gravityDots = await dots(page);
+  expect(gravityDots).toBeGreaterThan(0);
+  expect(gravityDots).toBeLessThanOrEqual(50);
   await page.screenshot({
-    path: "/private/tmp/orbit-path-assist-gravity-full.png",
+    path: "/private/tmp/orbit-path-assist-gravity-short.png",
   });
-  await pauseHeld(page);
-  await page
-    .getByRole("switch", { name: "Path assist", exact: true })
-    .uncheck();
-  await page.getByRole("button", { name: "Resume", exact: true }).click();
-  await held(page, gravityStart, gravityEnd);
-  const gravityPartial = await dots(page);
-  await page.screenshot({
-    path: "/private/tmp/orbit-path-assist-gravity-partial.png",
-  });
-  expect(gravityPartial).toBeGreaterThanOrEqual(45);
-  expect(gravityFull).toBeGreaterThan(gravityPartial * 3);
-  expect(gravityFull).toBeLessThanOrEqual(240);
   await pauseHeld(page);
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   await page.clock.runFor(32);
@@ -187,15 +180,12 @@ test("both modes share saved path assist and Full draws longer actual aimed traj
   await expect(page.locator(".game-surface [role=status]")).toHaveText(
     "0 planets in motion",
   );
-  console.log("Path assist visible dots", {
-    odesseyFull,
-    odesseyPartial,
-    gravityFull,
-    gravityPartial,
-  });
+  expect(
+    await page.evaluate(() => localStorage.getItem("orbit.path-assist.v1")),
+  ).toBe("full");
 });
 
-test("mobile Full assist cancels on pinch and keeps comfortable settings targets", async ({
+test("mobile short preview cancels on pinch and keeps comfortable grouping targets", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -208,9 +198,7 @@ test("mobile Full assist cancels on pinch and keeps comfortable settings targets
     cdp = await context.newCDPSession(page);
   try {
     await boot(page, "gravity");
-    await choose(page, "Full");
     const start = { id: 1, x: 140, y: 370 };
-    // Preserve an orbiting trajectory so pinch cancellation begins with a long Full preview.
     const orbitPower = 0.558;
     const end = { ...start, x: start.x + 96 * Math.sqrt(orbitPower) };
     await cdp.send("Input.dispatchTouchEvent", {
@@ -222,7 +210,8 @@ test("mobile Full assist cancels on pinch and keeps comfortable settings targets
       touchPoints: [end],
     });
     await page.clock.runFor(100);
-    expect(await dots(page)).toBeGreaterThan(30);
+    expect(await dots(page)).toBeGreaterThan(0);
+    expect(await dots(page)).toBeLessThanOrEqual(50);
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchStart",
       touchPoints: [end, { id: 2, x: 220, y: 370 }],
@@ -247,28 +236,33 @@ test("mobile Full assist cancels on pinch and keeps comfortable settings targets
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     await page.getByRole("button", { name: "Advanced", exact: true }).click();
     await page.clock.runFor(250);
-    const box = (await page
-      .getByRole("switch", { name: "Path assist", exact: true })
-      .boundingBox())!;
+    await noPathAssist(page);
+    const grouping = page.getByRole("switch", {
+      name: "Particle grouping",
+      exact: true,
+    });
+    const box = (await grouping.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeGreaterThanOrEqual(50);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(320);
-    await page
-      .getByRole("switch", { name: "Path assist", exact: true })
-      .uncheck();
+    await grouping.check();
+    await expect(grouping).toHaveAttribute("aria-checked", "true");
     await page.getByRole("button", { name: "Resume", exact: true }).click();
     await page.clock.runFor(32);
     expect(await dots(page)).toBe(0);
+    await expect(page.locator(".game-surface [role=status]")).toHaveText(
+      "0 planets in motion",
+    );
   } finally {
     await context.close();
   }
 });
 
-test("128-planet Full prediction finishes a genuinely long path in bounded responsive slices", async ({
+test("128-planet short prediction stays within responsive frame budgets", async ({
   page,
 }) => {
-  // The 20-second, 128-body prediction intentionally spans many real frames.
+  // Stress the remaining preview with 128 mutually attracting planets.
   test.setTimeout(120000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
@@ -296,8 +290,16 @@ test("128-planet Full prediction finishes a genuinely long path in bounded respo
       );
     for (let i = 0; i < 96; i++) engine.update(0.25);
     engine.setLaunch({ x: 130, y: 650 }, { angle: Math.PI, power: 0.3 });
-    const partial = engine.predict(0.6),
-      job = engine.beginPrediction()!;
+    renderer.prepareFrame(engine.getLevel());
+    const { gravityAimPredictionSeconds } =
+      await import("/src/gravity/aim-preview.ts");
+    const { gravityLaunchSpeed } = await import("/src/gravity/physics.ts");
+    const seconds = gravityAimPredictionSeconds(
+      renderer.getScale(),
+      gravityLaunchSpeed(0.3),
+      128,
+    );
+    const job = engine.beginPrediction(seconds)!;
     const slices: number[] = [],
       frames: number[] = [];
     let count = 0;
@@ -314,14 +316,13 @@ test("128-planet Full prediction finishes a genuinely long path in bounded respo
         paused: false,
         reducedMotion: false,
         pull: { x: 50, y: 0 },
-        pathAssist: "full",
       });
       frames.push(performance.now() - frame);
     }
     const results = {
       done: job.done,
       points: job.path.length,
-      partialPoints: partial.length,
+      seconds,
       slices: slices.length,
       maxSlice: Math.max(...slices),
       meanSlice: slices.reduce((sum, n) => sum + n, 0) / slices.length,
@@ -335,10 +336,12 @@ test("128-planet Full prediction finishes a genuinely long path in bounded respo
     canvas.remove();
     return results;
   });
-  console.log("Full path assist 128-planet benchmark", JSON.stringify(result));
+  console.log("Short preview 128-planet benchmark", JSON.stringify(result));
   expect(result.done).toBe(true);
   expect(result.active).toBe(128);
-  expect(result.points).toBeGreaterThan(result.partialPoints * 10);
+  expect(result.seconds).toBeLessThanOrEqual(4.2);
+  expect(result.points).toBeGreaterThan(20);
+  expect(result.points).toBeLessThanOrEqual(127);
   expect(result.slices).toBeGreaterThan(1);
   expect(result.meanSlice).toBeLessThan(8);
   expect(result.maxSlice).toBeLessThan(35);

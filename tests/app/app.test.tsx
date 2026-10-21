@@ -264,6 +264,11 @@ describe("minimal scene lifecycle", () => {
     expect(container.querySelector(".offscreen-restart")).toBeNull();
   });
   it("predicts a stationary new pull with zero launch power", () => {
+    let nextFrame!: FrameRequestCallback;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      nextFrame = callback;
+      return 1;
+    });
     const powers: number[] = [];
     const original = OrbitEngine.prototype.predict;
     vi.spyOn(OrbitEngine.prototype, "predict").mockImplementation(function (
@@ -291,6 +296,8 @@ describe("minimal scene lifecycle", () => {
       pointerType: { value: "mouse" },
     });
     fireEvent(canvas, down);
+    expect(powers).toEqual([]);
+    act(() => nextFrame(100));
     expect(powers.length).toBeGreaterThan(0);
     expect(powers[powers.length - 1]).toBe(0);
   });
@@ -338,6 +345,11 @@ describe("minimal scene lifecycle", () => {
   });
   it("double tap selects split mode and a short in-flight tap branches once", () => {
     window.history.replaceState({}, "", "/?seed=4");
+    let nextFrame!: FrameRequestCallback;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      nextFrame = callback;
+      return 1;
+    });
     vi.spyOn(performance, "now").mockReturnValue(0);
     const toggle = vi.spyOn(OrbitEngine.prototype, "toggleShotCount");
     const predict = vi.spyOn(OrbitEngine.prototype, "predict");
@@ -350,6 +362,7 @@ describe("minimal scene lifecycle", () => {
     expect(launch).not.toHaveBeenCalled();
     expect(screen.getByText("Split mode")).toBeTruthy();
     pointer(canvas, "pointerdown", 200, 200);
+    act(() => nextFrame(100));
     const engine = predict.mock.instances.at(-1) as OrbitEngine;
     const solution = engine.getSnapshot().sector.solution;
     // Seed 4's straight half-power shot crashes before 0.2s. Exercise the
@@ -359,6 +372,7 @@ describe("minimal scene lifecycle", () => {
       y: 200 - Math.sin(solution.angle) * solution.power * 160,
     };
     pointer(canvas, "pointermove", release.x, release.y);
+    act(() => nextFrame(120));
     expect(predict.mock.results.at(-1)?.value).toHaveLength(1);
     pointer(canvas, "pointerup", release.x, release.y);
     expect(launch).toHaveBeenCalledTimes(1);

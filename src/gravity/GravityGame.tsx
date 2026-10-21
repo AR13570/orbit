@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGameplayZoom } from "../useGameplayZoom";
-import { usePathAssist } from "../pathAssist";
 import { useSoundPreference } from "../soundPreference";
 import ThemeControl from "../components/ThemeControl";
 import { MIN_GRAVITY_ZOOM } from "../zoom";
@@ -10,7 +9,6 @@ import { useTheme } from "../theme";
 import { AimHaptics } from "../haptics";
 import AdvancedToggle from "../components/AdvancedToggle";
 import AdvancedSettings from "../components/AdvancedSettings";
-import PathAssistControl from "../components/PathAssistControl";
 import ProjectileSizeControl from "./ProjectileSizeControl";
 import { PullGesture } from "../controls";
 import { gravityAim, gravityLaunchIsClear, gravityPullDistance } from "./input";
@@ -115,9 +113,6 @@ export default function GravityGame({
   );
   const [muted, setMuted] = useSoundPreference();
   const pauseMusic = useAmbientMusic(!muted && !paused && !help);
-  const pathAssist = usePathAssist(),
-    pathAssistRef = useRef(pathAssist);
-  pathAssistRef.current = pathAssist;
   const livePreview = useRef(new LiveGravityPreview()),
     haptics = useRef(new AimHaptics());
   const canvas = useRef<HTMLCanvasElement>(null),
@@ -175,9 +170,6 @@ export default function GravityGame({
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
   }, [engine, invalidateRender]);
-  useEffect(() => {
-    cancel();
-  }, [pathAssist, cancel]);
   const zoom = useGameplayZoom({
     canvas,
     minimum: MIN_GRAVITY_ZOOM,
@@ -284,7 +276,6 @@ export default function GravityGame({
         preview.current = livePreview.current.update(
           (seconds) => engine.beginPrediction(seconds),
           gravityAimPredictionSeconds(
-            pathAssistRef.current,
             r.getScale(),
             gravityLaunchSpeed(state.aim.power),
             state.particles.length,
@@ -320,7 +311,6 @@ export default function GravityGame({
         paused: !active,
         reducedMotion: reduced,
         pull: pull.current,
-        pathAssist: pathAssistRef.current,
       });
       lastPaintedRevision = renderRevision.current;
       const scale = r.getScale();
@@ -753,7 +743,6 @@ export default function GravityGame({
             Resume <Icon name="play" />
           </button>
           <AdvancedSettings>
-            <PathAssistControl />
             <AdvancedToggle
               label="Particle Interaction"
               description="On lets each planet attract other planets. Larger planets exert a stronger pull. Off removes this mutual pull; fixed cores still affect every planet."

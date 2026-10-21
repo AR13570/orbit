@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_GRAVITY_PREDICTION_SECONDS as horizon } from "../../src/gravity/prediction-settings";
+const horizon = 4.2;
 import { LiveGravityPreview } from "../../src/gravity/live-preview";
 import { GravityEngine } from "../../src/gravity/engine";
 import { newDraft, toGravityLevel } from "../../src/gravity/creator/model";
@@ -70,7 +70,7 @@ describe("continuous Gravity preview", () => {
       }
     }
   });
-  it("finishes the far path during continuous pointer changes while refreshing the moving-world prefix", () => {
+  it("finishes short captures during continuous pointer changes without a second prediction lane", () => {
     const engine = fixture(),
       preview = new LiveGravityPreview();
     const jobs: {
@@ -104,10 +104,8 @@ describe("continuous Gravity preview", () => {
         jobs.filter(({ seconds, job }) => seconds === horizon && job?.done)
           .length,
       ).toBeGreaterThan(1);
-      expect(jobs.filter(({ seconds }) => seconds < 1).length).toBeGreaterThan(
-        10,
-      );
-      expect(visible).toBeGreaterThan(500);
+      expect(jobs.every(({ seconds }) => seconds === horizon)).toBe(true);
+      expect(visible).toBeGreaterThan(100);
       const firstFull = jobs.find(({ seconds }) => seconds === horizon)!.job!;
       expect(firstFull.path).toEqual(expectedFirst);
       expect(preview.path[8].y).toBeGreaterThan(firstFull.path[8].y);
@@ -147,7 +145,7 @@ describe("continuous Gravity preview", () => {
     expect(preview.path[1].y).toBeGreaterThan(0);
     expect(preview.path[1].y).toBeLessThan(100);
   });
-  it("hides an obsolete far heading on a sharp aim change without cancelling its work", () => {
+  it("cancels an obsolete short capture and immediately streams the new heading", () => {
     const preview = new LiveGravityPreview();
     let angle = 0;
     const fullJobs: { cancelled: boolean; done: boolean }[] = [];
@@ -184,9 +182,9 @@ describe("continuous Gravity preview", () => {
     angle = Math.PI / 2;
     preview.update(create, horizon, 1 / 60, { angle, power: 0.3 });
     expect(preview.path.length).toBeLessThanOrEqual(16);
-    expect(preview.path.at(-1)!.y).toBeGreaterThan(10);
+    expect(preview.path.at(-1)!.y).toBeGreaterThan(0);
     expect(preview.path.at(-1)!.x).toBeCloseTo(0, 10);
-    expect(fullJobs[0].cancelled).toBe(false);
+    expect(fullJobs[0].cancelled).toBe(true);
     for (let frame = 0; frame < 40; frame++)
       preview.update(create, horizon, 1 / 60, { angle, power: 0.3 });
     expect(fullJobs[0].done).toBe(true);
@@ -201,6 +199,42 @@ describe("continuous Gravity preview", () => {
     expect(
       Math.max(...preview.path.map((point) => Math.abs(point.x))),
     ).toBeLessThan(1e-8);
+  });
+  it("replaces a slow capture when small aim changes accumulate, without blank frames", () => {
+    const preview = new LiveGravityPreview();
+    const jobs: { cancelled: boolean }[] = [];
+    let angle = 0;
+    const create = () => {
+      const captured = angle;
+      const job = {
+        path: [{ x: 0, y: 0 }],
+        done: false,
+        cancelled: false,
+        advance() {
+          const distance = job.path.length;
+          job.path.push({
+            x: Math.cos(captured) * distance,
+            y: Math.sin(captured) * distance,
+          });
+        },
+        cancel() {
+          job.cancelled = true;
+          job.done = true;
+        },
+      };
+      jobs.push(job);
+      return job;
+    };
+    for (let frame = 0; frame < 40; frame++) {
+      angle = frame * 0.02;
+      const path = preview.update(create, horizon, 1 / 60, {
+        angle,
+        power: 0.3,
+      });
+      expect(path.length, `blank preview at frame ${frame}`).toBeGreaterThan(1);
+    }
+    expect(jobs[0].cancelled).toBe(true);
+    expect(jobs.length).toBeGreaterThan(2);
   });
   it("eases a fixed aim's changing far deflection as existing particles move, while keeping the prefix responsive", () => {
     const engine = fixture(),
@@ -252,83 +286,23 @@ describe("continuous Gravity preview", () => {
       now.mockRestore();
     }
   });
-  it("retains a moving-obstacle terminal cutoff across fresh prefix captures until continuation is proven", () => {
+  it("truncates a newly captured short path at its terminal point", () => {
     const preview = new LiveGravityPreview();
-    let obstacleBlocks = false;
-    let farAdvances = 0;
-    const create = (seconds: number) => {
-      const limit = seconds === horizon ? 60 : obstacleBlocks ? 5 : 16;
-      const path = [{ x: 0, y: 0 }];
-      let cancelled = false;
-      return {
-        path,
-        get done() {
-          return (
-            cancelled ||
-            (seconds === horizon ? farAdvances >= 200 : path.length >= limit)
-          );
-        },
-        advance() {
-          if (seconds === horizon) farAdvances++;
-          const samples = seconds === horizon ? 60 : 2;
-          for (let n = 0; n < samples && path.length < limit; n++)
-            path.push({ x: path.length, y: 0 });
-        },
-        cancel() {
-          cancelled = true;
-        },
-      };
-    };
-    // The far lane captured the world before an obstacle moved into the route.
-    preview.update(create, horizon, 1 / 60, { angle: 0, power: 0.3 });
-    expect(preview.path.length).toBe(60);
-    obstacleBlocks = true;
-    for (let frame = 0; frame < 9; frame++)
-      preview.update(create, horizon, 1 / 60, { angle: 0, power: 0.3 });
-    expect(preview.path.length).toBe(5);
-    for (let frame = 0; frame < 8; frame++) {
-      preview.update(create, horizon, 1 / 60, { angle: 0, power: 0.3 });
-      expect(preview.path.length).toBeLessThanOrEqual(5);
-    }
-    obstacleBlocks = false;
-    // A fresh, still-short prefix cannot yet refute the previous collision.
-    preview.update(create, horizon, 1 / 60, { angle: 0, power: 0.3 });
-    expect(preview.path.length).toBeLessThanOrEqual(5);
-    for (let frame = 0; frame < 3; frame++)
-      preview.update(create, horizon, 1 / 60, { angle: 0, power: 0.3 });
-    // Once newer exact samples pass the cutoff, retain the valid far tail.
-    expect(preview.path.length).toBe(60);
-  });
-  it("restores a safe full tail when a fresh complete prefix survives the old terminal horizon sample", () => {
-    const preview = new LiveGravityPreview();
-    let obstacleBlocks = false;
-    const create = (seconds: number) => {
-      const blocked = obstacleBlocks;
-      let advanced = false;
-      return {
-        path: Array.from({ length: seconds === horizon ? 60 : 16 }, (_, x) => ({
-          x,
-          y: 0,
-        })),
-        get done() {
-          return seconds < horizon && advanced;
-        },
-        get terminated() {
-          return seconds < horizon && advanced && blocked;
-        },
-        advance() {
-          advanced = true;
-        },
-        cancel() {},
-      };
-    };
+    let length = 40;
+    const create = () => ({
+      path: Array.from({ length }, (_, x) => ({ x, y: 0 })),
+      done: true,
+      advance() {},
+      cancel() {},
+    });
     preview.update(create, horizon, 1 / 60);
-    expect(preview.path.length).toBe(60);
-    obstacleBlocks = true;
+    expect(preview.path).toHaveLength(40);
+    length = 5;
     preview.update(create, horizon, 1 / 60);
-    expect(preview.path.length).toBe(16);
-    obstacleBlocks = false;
+    expect(preview.path).toHaveLength(5);
+    expect(preview.path.at(-1)!.x).toBe(4);
+    length = 20;
     preview.update(create, horizon, 1 / 60);
-    expect(preview.path.length).toBe(60);
+    expect(preview.path).toHaveLength(20);
   });
 });

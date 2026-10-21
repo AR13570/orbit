@@ -107,13 +107,17 @@ for (const mode of ["gravity", "odessey"]) {
   });
 }
 
-test("Gravity Full prediction retains distant progress while aim and crowded live world change", async ({
+test("Gravity short preview stays continuous while aim and crowded live world change", async ({
   page,
 }) => {
   await page.goto("/");
   const result = await page.evaluate(async () => {
     const { GravityEngine } = await import("/src/gravity/engine.ts");
     const { LiveGravityPreview } = await import("/src/gravity/live-preview.ts");
+    const { gravityAimPredictionSeconds } =
+      await import("/src/gravity/aim-preview.ts");
+    const { gravityLaunchSpeed } = await import("/src/gravity/physics.ts");
+    const horizon = gravityAimPredictionSeconds(1, gravityLaunchSpeed(0.3), 96);
     const { newDraft, toGravityLevel } =
       await import("/src/gravity/creator/model.ts");
     const draft = newDraft();
@@ -135,8 +139,7 @@ test("Gravity Full prediction retains distant progress while aim and crowded liv
       );
     engine.setAiming(true);
     let finished = 0,
-      full = 0,
-      prefix = 0,
+      captures = 0,
       emptyFrames = 0,
       maxPoints = 0;
     const slices: number[] = [];
@@ -158,11 +161,10 @@ test("Gravity Full prediction retains distant progress while aim and crowded liv
         (seconds) => {
           const job = engine.beginPrediction(seconds);
           jobs.push({ seconds, job });
-          if (seconds === 20) full++;
-          else prefix++;
+          captures++;
           return job;
         },
-        20,
+        horizon,
         1 / 60,
         engine.getRenderSnapshot().aim,
       );
@@ -171,24 +173,28 @@ test("Gravity Full prediction retains distant progress while aim and crowded liv
       maxPoints = Math.max(maxPoints, path.length);
     }
     finished = jobs.filter(
-      ({ seconds, job }) => seconds === 20 && job?.done,
+      ({ seconds, job }) => seconds === horizon && job?.done,
     ).length;
     preview.cancel();
     return {
       finished,
-      full,
-      prefix,
+      captures,
+      horizon,
+      horizons: [...new Set(jobs.map(({ seconds }) => seconds))],
       emptyFrames,
       maxPoints,
       meanSlice: slices.reduce((sum, n) => sum + n, 0) / slices.length,
       maxSlice: Math.max(...slices),
     };
   });
-  console.log("Live Full assist crowd benchmark", result);
+  console.log("Live short preview crowd benchmark", result);
   expect(result.finished).toBeGreaterThan(0);
-  expect(result.prefix).toBeGreaterThanOrEqual(8);
+  expect(result.captures).toBeGreaterThanOrEqual(8);
+  expect(result.horizon).toBeLessThanOrEqual(4.2);
+  expect(result.horizons).toEqual([result.horizon]);
   expect(result.emptyFrames).toBe(0);
-  expect(result.maxPoints).toBe(601);
+  expect(result.maxPoints).toBeGreaterThan(20);
+  expect(result.maxPoints).toBeLessThanOrEqual(127);
   expect(result.meanSlice).toBeLessThan(10);
   expect(result.maxSlice).toBeLessThan(45);
 });

@@ -278,7 +278,7 @@ export class GravityEngine {
           1e-9,
       );
     for (let n = 0; n < steps; n++) {
-      step(state, GRAVITY_FIXED_STEP);
+      step(state, GRAVITY_FIXED_STEP, false);
       const p = state.particles.find((p) => p.id === id);
       if (!p) break;
       if ((n + 1) % 4 === 0 || n === steps - 1 || !p.alive)

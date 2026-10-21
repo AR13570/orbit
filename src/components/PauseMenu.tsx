@@ -1,6 +1,4 @@
 import { useEffect, useRef } from "react";
-import PathAssistControl from "./PathAssistControl";
-import AdvancedSettings from "./AdvancedSettings";
 import { dialogControls } from "./dialogFocus";
 import Icon from "./Icon";
 import Attribution from "./Attribution";
@@ -67,9 +65,6 @@ export default function PauseMenu({
             Resume
             <Icon name="play" />
           </button>
-          <AdvancedSettings>
-            <PathAssistControl />
-          </AdvancedSettings>
           <div className="pause-options">
             <ThemeControl />
             <button

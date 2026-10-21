@@ -117,7 +117,11 @@ function escaped(state: GravityState, p: GravityParticle): boolean {
   return state.flightBounds ? outsideView(p, state.flightBounds) : false;
 }
 /** One physical step. Callers use the exported fixed step, not playback time. */
-export function step(state: GravityState, dt: number): void {
+export function step(
+  state: GravityState,
+  dt: number,
+  recordTrails = true,
+): void {
   if (!Number.isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, GRAVITY_FIXED_STEP);
   const live = state.particles.filter((p) => p.alive);
@@ -146,34 +150,43 @@ export function step(state: GravityState, dt: number): void {
   });
   supportSurfaces(finalSurfaces, 0);
   state.elapsed += dt;
-  state.sampleClock += dt;
-  const sampleInterval = Math.max(1 / 30, state.physics.trailSeconds / 511);
-  const sample = state.sampleClock + 1e-9 >= sampleInterval;
-  if (sample)
-    state.sampleClock = Math.max(0, state.sampleClock - sampleInterval);
+  let sample = false;
+  if (recordTrails) {
+    state.sampleClock += dt;
+    const sampleInterval = Math.max(1 / 30, state.physics.trailSeconds / 511);
+    sample = state.sampleClock + 1e-9 >= sampleInterval;
+    if (sample)
+      state.sampleClock = Math.max(0, state.sampleClock - sampleInterval);
+  }
   for (const p of live) {
     if (p.alive && escaped(state, p)) p.alive = false;
     updateOrbits(state.level, p);
-    if (sample || !p.alive)
+    if (recordTrails && (sample || !p.alive))
       p.trail.push({ ...p.position, time: state.elapsed });
   }
-  const oldest = state.elapsed - state.physics.trailSeconds;
-  const maxPoints = Math.min(
-    512,
-    Math.ceil(state.physics.trailSeconds * 30) + 1,
-  );
-  for (const p of state.particles) {
-    let remove = 0;
-    while (remove < p.trail.length && p.trail[remove].time < oldest - 1e-9)
-      remove++;
-    remove = Math.max(remove, p.trail.length - maxPoints);
-    if (remove > 0) p.trail.splice(0, remove);
+  if (recordTrails) {
+    const oldest = state.elapsed - state.physics.trailSeconds;
+    const maxPoints = Math.min(
+      512,
+      Math.ceil(state.physics.trailSeconds * 30) + 1,
+    );
+    for (const p of state.particles) {
+      let remove = 0;
+      while (remove < p.trail.length && p.trail[remove].time < oldest - 1e-9)
+        remove++;
+      remove = Math.max(remove, p.trail.length - maxPoints);
+      if (remove > 0) p.trail.splice(0, remove);
+    }
+    const living = state.particles.filter((p) => p.alive);
+    const fading = state.particles
+      .filter((p) => !p.alive && p.trail.length)
+      .slice(-96);
+    state.particles = [...living, ...fading].sort((a, b) => a.id - b.id);
+  } else {
+    // Captured prediction worlds never display trails or spawn more particles.
+    // Retain a newly lost projectile until its job records the terminal sample.
+    state.particles.sort((a, b) => a.id - b.id);
   }
-  const living = state.particles.filter((p) => p.alive);
-  const fading = state.particles
-    .filter((p) => !p.alive && p.trail.length)
-    .slice(-96);
-  state.particles = [...living, ...fading].sort((a, b) => a.id - b.id);
   // Legacy snapshots keep this compatibility field at zero.
   state.held = 0;
 }

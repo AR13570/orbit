@@ -49,7 +49,7 @@ export function createGravityPrediction(
       const deadline = performance.now() + Math.min(8, budgetMs);
       while (count < steps) {
         if (performance.now() >= deadline) break;
-        step(state, GRAVITY_FIXED_STEP);
+        step(state, GRAVITY_FIXED_STEP, false);
         count++;
         const planet = state.particles.find((planet) => planet.id === id);
         if (!planet) {

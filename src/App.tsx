@@ -1,9 +1,7 @@
 import { AimHaptics } from "./haptics";
 import { MIN_ODESSEY_ZOOM, MAX_ODESSEY_ZOOM } from "./zoom";
 import { useGameplayZoom } from "./useGameplayZoom";
-import { usePathAssist } from "./pathAssist";
 import { useSoundPreference } from "./soundPreference";
-import { MAX_FLIGHT_SECONDS } from "./game/physics";
 import ModeChooser, { type OrbitMode } from "./ModeChooser";
 import GravityGame from "./gravity/GravityGame";
 import GravityCreator from "./gravity/creator/GravityCreator";
@@ -58,9 +56,6 @@ export function OdesseyGame({
   const [muted, setMuted] = useSoundPreference();
   const pauseMusic = useAmbientMusic(!muted && !paused && !help);
   const [modeFeedback, setModeFeedback] = useState("");
-  const pathAssist = usePathAssist(),
-    pathAssistRef = useRef(pathAssist);
-  pathAssistRef.current = pathAssist;
   const previewDirty = useRef(false);
   const canvas = useRef<HTMLCanvasElement>(null),
     scene = useRef<HTMLElement>(null),
@@ -124,9 +119,6 @@ export function OdesseyGame({
     if (id !== null && canvas.current?.hasPointerCapture?.(id))
       canvas.current.releasePointerCapture(id);
   }, []);
-  useEffect(() => {
-    cancel();
-  }, [pathAssist, cancel]);
   const zoom = useGameplayZoom({
     canvas,
     minimum: MIN_ODESSEY_ZOOM,
@@ -249,7 +241,6 @@ export function OdesseyGame({
         paused: !active,
         cameraLocked: gesture.current.active,
         slingshot: sling.current,
-        pathAssist: pathAssistRef.current,
       };
       r.prepareFrame(s, time / 1000, renderOptions);
       if (!helpRef.current) engine.setFlightBounds(r.getVisibleBounds());
@@ -267,13 +258,8 @@ export function OdesseyGame({
           persistCheckpoint(s);
         }
       } else clock.current.step(s.status, dt, false);
-      if (
-        active &&
-        gesture.current.active &&
-        pathAssistRef.current === "full" &&
-        previewDirty.current
-      ) {
-        preview.current = engine.predict(MAX_FLIGHT_SECONDS);
+      if (active && gesture.current.active && previewDirty.current) {
+        preview.current = engine.predict(1.6);
         previewDirty.current = false;
       }
       if (!helpRef.current)
@@ -367,11 +353,8 @@ export function OdesseyGame({
     };
     if (renderer.current)
       engine.setFlightBounds(renderer.current.getVisibleBounds());
-    if (pathAssistRef.current === "full") {
-      // Coalesce pointer events into one exact prediction before the next draw.
-      // Clearing here would blink the path off between pointer and render frames.
-      if (changed) previewDirty.current = true;
-    } else preview.current = engine.predict(1.6);
+    // Keep the displayed path until the next draw and combine pointer updates.
+    if (changed) previewDirty.current = true;
   };
   const restoreTutorialFocus = useRef(false);
   useEffect(() => {
@@ -560,8 +543,7 @@ export function OdesseyGame({
             };
             if (renderer.current)
               engine.setFlightBounds(renderer.current.getVisibleBounds());
-            if (pathAssistRef.current === "full") previewDirty.current = true;
-            else preview.current = engine.predict(1.6);
+            previewDirty.current = true;
             e.preventDefault();
           }}
           onPointerMove={(e) => {

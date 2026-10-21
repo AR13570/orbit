@@ -1173,41 +1173,45 @@ it("applies bounded gameplay zoom consistently to transforms and visible flight 
   renderer.destroy();
 });
 
-it("renders the full predicted Odessey route beyond the short aiming window with bounded dots", () => {
+it("keeps the Odessey aiming preview short and fading despite a stale full-route option", () => {
   const { renderer, context } = fixture(),
     board = snapshot();
   const path = Array.from({ length: 661 }, (_, index) => ({
     x: board.sector.launch.x + index * 2,
     y: 500,
   }));
-  const dots: number[] = [];
-  (context.arc as ReturnType<typeof vi.fn>).mockImplementation((x: number) => {
-    if (context.fillStyle === "#8a0f4b") dots.push(x);
-  });
-  renderer.render(board, [path], 0, {
+  const original = structuredClone(path);
+  const dots: { x: number; y: number; alpha: unknown }[] = [];
+  (context.arc as ReturnType<typeof vi.fn>).mockImplementation(
+    (x: number, y: number) => {
+      if (context.fillStyle === "#8a0f4b")
+        dots.push({ x, y, alpha: context.globalAlpha });
+    },
+  );
+  const options = {
     paused: true,
-    pathAssist: "partial",
     slingshot: {
       anchor: board.sector.launch,
       pull: board.sector.launch,
       power: 0.5,
     },
+  };
+  const expected = Array.from({ length: 16 }, (_, index) => {
+    const sample = (index + 1) * 3;
+    const fade = 1 - sample / 49;
+    return { x: path[sample].x, y: path[sample].y, alpha: 0.98 * fade * fade };
   });
-  const partial = dots.slice();
+  for (const renderOptions of [options, { ...options, pathAssist: "full" }]) {
+    dots.length = 0;
+    renderer.render(board, [path], 0, renderOptions);
+    expect(dots).toEqual(expected);
+    expect(path).toEqual(original);
+  }
   dots.length = 0;
-  renderer.render(board, [path], 1, {
-    paused: true,
-    pathAssist: "full",
-    slingshot: {
-      anchor: board.sector.launch,
-      pull: board.sector.launch,
-      power: 0.5,
-    },
-  });
-  expect(partial.length).toBeLessThanOrEqual(16);
-  expect(dots.length).toBeGreaterThan(partial.length * 5);
-  expect(dots.length).toBeLessThanOrEqual(220);
-  expect(dots.at(-1)!).toBeGreaterThan(partial.at(-1)! + 1000);
+  renderer.render(board, [path], 1);
+  expect(dots).toEqual([]);
+  renderer.render({ ...board, status: "flying" }, [path], 2, options);
+  expect(dots).toEqual([]);
 });
 
 for (const [width, height] of [

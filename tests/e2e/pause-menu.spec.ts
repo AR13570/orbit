@@ -21,39 +21,58 @@ for (const mode of ["odessey", "gravity"])
         name: "Advanced",
         exact: true,
       });
-      await expect(advanced).toHaveAttribute("aria-expanded", "false");
+      if (mode === "gravity")
+        await expect(advanced).toHaveAttribute("aria-expanded", "false");
+      else await expect(advanced).toHaveCount(0);
       await expect(menu.getByRole("switch")).toHaveCount(0);
+      await expect(
+        menu.getByRole("switch", { name: "Path assist", exact: true }),
+      ).toHaveCount(0);
       await menu.getByRole("button", { name: "Resume", exact: true }).focus();
       await page.keyboard.press("Tab");
-      await expect(advanced).toBeFocused();
-      await page.keyboard.press("Tab");
-      await expect(menu.getByRole("button", { name: "Dark mode", exact: true })).toBeFocused();
+      if (mode === "gravity") {
+        await expect(advanced).toBeFocused();
+        await page.keyboard.press("Tab");
+      }
+      await expect(
+        menu.getByRole("button", { name: "Dark mode", exact: true }),
+      ).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(
         menu.getByRole("button", { name: "Sound on", exact: true }),
       ).toBeFocused();
-      await advanced.click();
-      const assist = menu.getByRole("switch", {
-        name: "Path assist",
+      const grouping = menu.getByRole("switch", {
+        name: "Particle grouping",
         exact: true,
       });
-      await expect(assist).toHaveAttribute("aria-checked", "false");
+      if (mode === "gravity") {
+        await advanced.click();
+        await expect(grouping).toHaveAttribute("aria-checked", "false");
+        await expect(
+          menu.getByRole("switch", {
+            name: "Particle Interaction",
+            exact: true,
+          }),
+        ).toHaveAttribute("aria-checked", "true");
+      }
       await expect(
         menu.getByRole("button", { name: /^(Full|Partial)$/ }),
       ).toHaveCount(0);
-      const label = (await menu
-        .getByText("Path assist", { exact: true })
-        .boundingBox())!;
-      const soundLabel = (await menu
-        .getByText("Sound on", { exact: true })
-        .boundingBox())!;
-      const switchRow = (await assist.boundingBox())!;
-      expect(Math.abs(label.x - soundLabel.x)).toBeLessThan(1);
-      expect(
-        Math.abs(
-          label.y + label.height / 2 - switchRow.y - switchRow.height / 2,
-        ),
-      ).toBeLessThan(1);
+      if (mode === "gravity") {
+        const label = (await menu
+          .getByText("Particle grouping", { exact: true })
+          .boundingBox())!;
+        const soundLabel = (await menu
+          .getByText("Sound on", { exact: true })
+          .boundingBox())!;
+        const switchRow = (await grouping.boundingBox())!;
+        expect(Math.abs(label.x - soundLabel.x)).toBeLessThan(1);
+        expect(
+          Math.abs(
+            label.y + label.height / 2 - switchRow.y - switchRow.height / 2,
+          ),
+        ).toBeLessThan(1);
+      }
       expect(
         await menu.evaluate(
           (element) => element.scrollWidth <= element.clientWidth,
@@ -68,9 +87,9 @@ for (const mode of ["odessey", "gravity"])
 
       const actions = [
         "Resume",
-        "Advanced",
-        "Path assist",
-        ...(mode === "gravity" ? ["Particle Interaction"] : []),
+        ...(mode === "gravity"
+          ? ["Advanced", "Particle Interaction", "Particle grouping"]
+          : []),
         "Dark mode",
         "Sound on",
         "How to play",
@@ -80,7 +99,7 @@ for (const mode of ["odessey", "gravity"])
       ];
       for (const name of actions) {
         const button = menu.getByRole(
-          name === "Path assist" || name === "Particle Interaction"
+          name === "Particle grouping" || name === "Particle Interaction"
             ? "switch"
             : "button",
           { name, exact: true },
@@ -94,17 +113,15 @@ for (const mode of ["odessey", "gravity"])
         expect(box.y).toBeGreaterThanOrEqual(0);
         expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
       }
-      await menu
-        .getByRole("switch", { name: "Path assist", exact: true })
-        .click();
-      await expect(
-        menu.getByRole("switch", { name: "Path assist", exact: true }),
-      ).toHaveAttribute("aria-checked", "true");
-      await assist.focus();
-      await page.keyboard.press("Space");
-      await expect(assist).toHaveAttribute("aria-checked", "false");
-      await page.keyboard.press("Enter");
-      await expect(assist).toHaveAttribute("aria-checked", "true");
+      if (mode === "gravity") {
+        await grouping.click();
+        await expect(grouping).toHaveAttribute("aria-checked", "true");
+        await grouping.focus();
+        await page.keyboard.press("Space");
+        await expect(grouping).toHaveAttribute("aria-checked", "false");
+        await page.keyboard.press("Enter");
+        await expect(grouping).toHaveAttribute("aria-checked", "true");
+      }
       await menu.getByRole("button", { name: "Sound on", exact: true }).click();
       await expect(
         menu.getByRole("button", { name: "Sound off", exact: true }),
@@ -123,11 +140,15 @@ for (const mode of ["odessey", "gravity"])
       await page.keyboard.press("Escape");
       await expect(menu).toHaveCount(0);
       await page.keyboard.press("p");
-      await expect(advanced).toHaveAttribute("aria-expanded", "false");
-      await advanced.click();
-      await expect(
-        menu.getByRole("switch", { name: "Path assist", exact: true }),
-      ).toHaveAttribute("aria-checked", "true");
+      await expect(menu).toBeVisible();
+      if (mode === "gravity") {
+        await expect(advanced).toHaveAttribute("aria-expanded", "false");
+        await advanced.click();
+        await expect(grouping).toHaveAttribute("aria-checked", "true");
+      } else {
+        await expect(advanced).toHaveCount(0);
+        await expect(menu.getByRole("switch")).toHaveCount(0);
+      }
       await page.keyboard.press("p");
       await expect(menu).toHaveCount(0);
     });

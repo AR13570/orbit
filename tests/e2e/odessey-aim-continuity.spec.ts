@@ -6,7 +6,7 @@ for (const device of [
   { width: 390, height: 844, touch: true },
   { width: 844, height: 390, touch: true },
 ]) {
-  test(`Odessey Full path stays visible while continuously aiming on ${device.width}x${device.height}`, async ({
+  test(`Odessey short preview stays visible while continuously aiming despite legacy Full storage on ${device.width}x${device.height}`, async ({
     browser,
   }) => {
     const context = await browser.newContext({

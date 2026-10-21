@@ -22,11 +22,9 @@ import {
 } from "../render/coordinates";
 import type { Vec2 } from "../game/types";
 import { usesTouchLayout } from "../controls";
-import type { PathAssist } from "../pathAssist";
 import { sampleGravityAimPreview } from "./aim-preview";
 import { gravityLaunchIsClear } from "./input";
 interface DrawOptions {
-  pathAssist?: PathAssist;
   paused: boolean;
   reducedMotion: boolean;
   pull?: Vec2 | null;
@@ -689,7 +687,6 @@ export function createGravityRenderer(
       const aimPreview = sampleGravityAimPreview(
         blockedLaunch ? [] : preview,
         renderScale,
-        options.pathAssist,
       );
       for (const dot of aimPreview.dots) {
         const tail = Math.max(

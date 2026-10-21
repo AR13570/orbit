@@ -55,17 +55,22 @@ test("Gravity desktop free launches, wheel cancellation, player settings and res
   await advanced.click();
   await page.clock.runFor(240);
   await expect(
-    menu.getByRole("switch", { name: "Path assist" }),
+    menu.getByRole("switch", { name: "Particle grouping", exact: true }),
   ).toHaveAttribute("aria-checked", "false");
+  await expect(
+    menu.getByRole("switch", { name: "Path assist", exact: true }),
+  ).toHaveCount(0);
   await expect(
     menu.getByRole("button", { name: "Clear trails", exact: true }),
   ).toHaveCount(0);
   await expect(
     menu.getByRole("button", { name: "Save sky image", exact: true }),
   ).toHaveCount(0);
-  await menu.getByRole("switch", { name: "Path assist", exact: true }).click();
+  await menu
+    .getByRole("switch", { name: "Particle grouping", exact: true })
+    .click();
   await expect(
-    menu.getByRole("switch", { name: "Path assist", exact: true }),
+    menu.getByRole("switch", { name: "Particle grouping", exact: true }),
   ).toHaveAttribute("aria-checked", "true");
   await menu.getByRole("button", { name: "Sound on", exact: true }).click();
   await expect(
@@ -124,6 +129,11 @@ for (const viewport of [
       cdp = await context.newCDPSession(page);
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    let engineUrl = "";
+    page.on("response", (response) => {
+      if (new URL(response.url()).pathname === "/src/gravity/engine.ts")
+        engineUrl = response.url();
+    });
     try {
       await boot(page);
       const x = viewport.width * 0.48,
@@ -153,7 +163,8 @@ for (const viewport of [
       await expect(page.locator(".game-surface [role=status]")).toHaveText(
         "1 planet in motion",
       );
-      const q = { id: 4, x: viewport.width * 0.7, y: viewport.height * 0.55 };
+      // A new touch interrupts view reset, so leave space around the zoomed core.
+      const q = { id: 4, x: viewport.width * 0.75, y: viewport.height * 0.7 };
       await touch(cdp, "touchStart", [q]);
       await touch(cdp, "touchMove", [{ ...q, x: q.x - 45 }]);
       await touch(cdp, "touchEnd", []);
@@ -164,18 +175,53 @@ for (const viewport of [
       await page.screenshot({
         path: `/private/tmp/gravity-rebuild-touch-${viewport.width}x${viewport.height}.png`,
       });
-      const r = { id: 5, x: viewport.width * 0.5, y: viewport.height * 0.6 };
+      await page.evaluate(async (url) => {
+        const { GravityEngine } = await import(url);
+        const probe = window as typeof window & {
+          resizeAimProbe: { aiming: boolean; launches: number };
+        };
+        probe.resizeAimProbe = { aiming: false, launches: 0 };
+        const setAiming = GravityEngine.prototype.setAiming;
+        GravityEngine.prototype.setAiming = function (aiming) {
+          probe.resizeAimProbe.aiming = aiming;
+          return setAiming.call(this, aiming);
+        };
+        const launchFrom = GravityEngine.prototype.launchFrom;
+        GravityEngine.prototype.launchFrom = function (position, velocity) {
+          probe.resizeAimProbe.launches++;
+          return launchFrom.call(this, position, velocity);
+        };
+      }, engineUrl);
+      const r = { ...q, id: 5 };
       await touch(cdp, "touchStart", [r]);
       await touch(cdp, "touchMove", [{ ...r, x: r.x - 40 }]);
+      expect(
+        await page.evaluate(
+          () =>
+            (
+              window as typeof window & {
+                resizeAimProbe: { aiming: boolean };
+              }
+            ).resizeAimProbe.aiming,
+        ),
+      ).toBe(true);
       await page.setViewportSize({
         width: viewport.height,
         height: viewport.width,
       });
       await page.clock.runFor(100);
       await touch(cdp, "touchEnd", []);
-      await expect(page.locator(".game-surface [role=status]")).toHaveText(
-        "2 planets in motion",
-      );
+      // Existing planets can leave the rotated flight bounds independently.
+      expect(
+        await page.evaluate(
+          () =>
+            (
+              window as typeof window & {
+                resizeAimProbe: { aiming: boolean; launches: number };
+              }
+            ).resizeAimProbe,
+        ),
+      ).toEqual({ aiming: false, launches: 0 });
       await page.getByRole("button", { name: "Pause", exact: true }).click();
       await page.getByRole("button", { name: "Resume", exact: true }).click();
       expect(errors).toEqual([]);
@@ -305,7 +351,13 @@ test("Gravity creator portable link preserves physics and per-core goals", async
   await advanced.click();
   await expect(
     menu.getByRole("switch", { name: "Path assist", exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await expect(
+    menu.getByRole("switch", { name: "Particle grouping", exact: true }),
+  ).toHaveAttribute(
+    "aria-checked",
+    String(portable.physics.planetCollisions === "soft"),
+  );
   await expect(
     menu.getByRole("switch", { name: "Particle Interaction", exact: true }),
   ).toHaveAttribute("aria-checked", String(portable.physics.planetGravity));

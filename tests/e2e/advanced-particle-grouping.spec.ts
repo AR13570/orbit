@@ -28,11 +28,10 @@ for (const viewport of [
     });
     await expect(grouping).toHaveAttribute("aria-checked", "false");
     await expect(interaction).toHaveAttribute("aria-checked", "true");
-    for (const label of [
-      "Path assist",
-      "Particle Interaction",
-      "Particle grouping",
-    ]) {
+    await expect(
+      menu.getByRole("switch", { name: "Path assist", exact: true }),
+    ).toHaveCount(0);
+    for (const label of ["Particle Interaction", "Particle grouping"]) {
       const help = menu.getByRole("button", {
         name: `About ${label}`,
         exact: true,
@@ -75,18 +74,31 @@ for (const viewport of [
   });
 }
 
-test("Odessey explains Path assist without changing it", async ({ page }) => {
+test("Odessey omits Full path assist and an empty Advanced section despite legacy storage", async ({
+  page,
+}) => {
   await page.addInitScript(markTutorialSeen);
+  await page.addInitScript(() =>
+    localStorage.setItem("orbit.path-assist.v1", "full"),
+  );
   await page.goto("/?mode=odessey&seed=42");
   await page.getByRole("button", { name: "Pause", exact: true }).click();
-  await page.getByRole("button", { name: "Advanced", exact: true }).click();
-  await page
-    .getByRole("button", { name: "About Path assist", exact: true })
-    .click();
+  const menu = page.getByRole("dialog", { name: "Paused", exact: true });
   await expect(
-    page.getByRole("switch", { name: "Path assist", exact: true }),
-  ).toHaveAttribute("aria-checked", "false");
+    menu.getByRole("button", { name: "Advanced", exact: true }),
+  ).toHaveCount(0);
+  await expect(menu.locator(".pause-advanced-panel")).toHaveCount(0);
   await expect(
-    page.getByText("On shows the full predicted path", { exact: false }),
-  ).toBeVisible();
+    menu.getByRole("switch", { name: "Path assist", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    menu.getByRole("button", { name: "About Path assist", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    menu.getByRole("button", { name: "Resume", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    menu.getByRole("button", { name: "Dark mode", exact: true }),
+  ).toBeFocused();
 });

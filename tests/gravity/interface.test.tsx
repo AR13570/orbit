@@ -427,11 +427,7 @@ describe("Gravity interface", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Advanced", exact: true }),
     );
-    expect(
-      screen
-        .getByRole("switch", { name: "Path assist" })
-        .getAttribute("aria-checked"),
-    ).toBe("false");
+    expect(screen.queryByRole("switch", { name: "Path assist" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Clear trails" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Save sky image" })).toBeNull();
     for (const name of [
@@ -659,11 +655,7 @@ it("keeps grouping off independently of mutual gravity and explains Advanced tog
     exact: true,
   });
   expect(grouping.getAttribute("aria-checked")).toBe("false");
-  for (const label of [
-    "Path assist",
-    "Particle Interaction",
-    "Particle grouping",
-  ]) {
+  for (const label of ["Particle Interaction", "Particle grouping"]) {
     const help = screen.getByRole("button", {
       name: `About ${label}`,
       exact: true,

@@ -43,7 +43,7 @@ In **Gravity**, start a pull anywhere to launch from that spot. Launch again whi
 - Pause with the pause button, **Esc**, or **P**. Resume with the same keys, **Resume**, or a click outside the pause panel.
 - Use the **?** icon before Reset in the top bar to open How to play.
 - Press **R**, use the reset button, or choose **Restart level** in Pause to retry the current Odessey checkpoint or reset the current Gravity level. In Odessey, **New seed** starts a fresh checkpoint journey.
-- Open **Pause → Advanced → Path assist** to switch between the default partial aiming preview and a full predicted path. Gravity’s partial hint spans up to 600 screen pixels. Full assist predicts up to 60 physical seconds, updating smoothly against moving planets. The near path refreshes first while the longer horizon calculates within a frame budget. Holding a Gravity shot gently slows playback; release or cancel restores normal pace.
+- Both modes use a short aiming preview. Gravity’s hint spans up to 600 screen pixels and updates within a frame budget as other planets move. Holding a Gravity shot gently slows playback; release or cancel restores normal pace.
 - Supported mobile browsers give a short vibration when a deliberate aim begins and a successful shot launches. Devices without the Vibration API, including iOS browsers, continue without vibration.
 - Both game modes share a warm ambient melody with soft keys and occasional quiet chimes, with sound on by default. The sound toggle is remembered in this browser and shared across modes. Toggle sound in the pause menu, where you can also find **How to play**. Interactive guides appear on your first visit to each game mode.
 

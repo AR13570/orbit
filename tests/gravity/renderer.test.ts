@@ -243,7 +243,7 @@ describe("Gravity rendering", () => {
         { x: 500, y: 400 },
       ],
       0,
-      { paused: true, reducedMotion: true, pathAssist: "full" },
+      { paused: true, reducedMotion: true },
     );
     const dots = fillRecords.filter(({ color }) => color === "#7956cf");
     expect(dots.length).toBeGreaterThan(1);
@@ -365,29 +365,26 @@ describe("Gravity rendering", () => {
     );
     expect(cue?.circle[2]).toBe(12);
   });
-  it.each(["partial", "full"] as const)(
-    "keeps most of the %s preview visible and fades its far tail",
-    (pathAssist) => {
-      const { renderer, fillRecords } = fixture();
-      renderer.resize(390, 844);
-      renderer.render(
-        new GravityEngine(42, getGravityLevel(42, 0)).getSnapshot(),
-        Array.from({ length: 180 }, (_, i) => ({ x: 250 + i * 10, y: 400 })),
-        0,
-        { paused: true, reducedMotion: true, pathAssist },
-      );
-      const dots = fillRecords
-        .filter(({ color }) => color === "#7956cf")
-        .map(({ alpha }) => alpha);
-      expect(dots.length).toBeGreaterThan(15);
-      expect(dots[0]).toBeGreaterThan(0.75);
-      expect(dots[Math.floor(dots.length / 2)]).toBeGreaterThan(0.9);
-      expect(dots[Math.floor(dots.length * 0.7)]).toBeGreaterThan(0.9);
-      expect(dots[Math.floor(dots.length * 0.9)]).toBeLessThan(0.4);
-      expect(dots.at(-1)).toBeLessThan(0.01);
-      expect(dots.every((a, i) => i === 0 || a <= dots[i - 1])).toBe(true);
-    },
-  );
+  it("keeps most of the short preview visible and fades its far tail", () => {
+    const { renderer, fillRecords } = fixture();
+    renderer.resize(390, 844);
+    renderer.render(
+      new GravityEngine(42, getGravityLevel(42, 0)).getSnapshot(),
+      Array.from({ length: 180 }, (_, i) => ({ x: 250 + i * 10, y: 400 })),
+      0,
+      { paused: true, reducedMotion: true },
+    );
+    const dots = fillRecords
+      .filter(({ color }) => color === "#7956cf")
+      .map(({ alpha }) => alpha);
+    expect(dots.length).toBeGreaterThan(15);
+    expect(dots[0]).toBeGreaterThan(0.75);
+    expect(dots[Math.floor(dots.length / 2)]).toBeGreaterThan(0.9);
+    expect(dots[Math.floor(dots.length * 0.7)]).toBeGreaterThan(0.9);
+    expect(dots[Math.floor(dots.length * 0.9)]).toBeLessThan(0.4);
+    expect(dots.at(-1)).toBeLessThan(0.01);
+    expect(dots.every((a, i) => i === 0 || a <= dots[i - 1])).toBe(true);
+  });
   it.each(
     [1280, 390, 844, 320].flatMap((width, i) =>
       [0.5, 0.75, 1, 2, 4].map((zoom) => [
@@ -416,7 +413,6 @@ describe("Gravity rendering", () => {
       renderer.render(snapshot, points, 0, {
         paused: true,
         reducedMotion: true,
-        pathAssist: "partial",
       });
       const dots = fillRecords.filter(({ color }) => color === "#7956cf");
       expect(dots.length).toBeGreaterThanOrEqual(40);
@@ -742,7 +738,6 @@ it("keeps an obstructed held planet visible with a clear warning and no trajecto
       paused: true,
       reducedMotion: true,
       pull: { x: -45, y: 0 },
-      pathAssist: "full",
     },
   );
   const marker = fillRecords.find(({ color }) => color === "#c9675e");
