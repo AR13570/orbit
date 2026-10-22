@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
 import { getGravityLevel } from "../../src/gravity/campaign";
+import {
+  PARTICLE_GRAVITY_STRENGTH,
+  PARTICLE_NEAR_RANGE,
+  PARTICLE_NEAR_WEIGHT,
+} from "../../src/gravity/physics";
 it("requires two complete revolutions and human sequential launches throughout the campaign", () => {
   for (let index = 0; index < 45; index++) {
     const level = getGravityLevel(42, index);
@@ -19,6 +24,11 @@ it("uses only generated transforms backed by complete offline survival evidence"
     await import("../../src/gravity/campaign-endless-transforms.json");
   const { default: evidence } =
     await import("../../docs/verification/stable-campaign.json");
+  expect(evidence.protocol.particleGravityStrength).toBe(
+    PARTICLE_GRAVITY_STRENGTH,
+  );
+  expect(evidence.protocol.particleNearRange).toBe(PARTICLE_NEAR_RANGE);
+  expect(evidence.protocol.particleNearWeight).toBe(PARTICLE_NEAR_WEIGHT);
   for (const [key, variants] of Object.entries(transforms))
     for (const variant of variants) {
       const split = key.lastIndexOf(":"),

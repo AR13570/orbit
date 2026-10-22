@@ -6,9 +6,9 @@ import {
 import { contactKey } from "./surface-support";
 import type { GravityParticle, GravityState } from "./types";
 
-// Visible, gentle orientation drift: one revolution in about 52 physical seconds.
-const MINIMUM_SPIN = 0.12;
-const SPIN_ACCELERATION = 0.02;
+// Gentle orientation drift: one revolution in about 35 physical seconds.
+const MINIMUM_SPIN = 0.18;
+const SPIN_ACCELERATION = 0.04;
 const SETTLE_SECONDS = 0.35;
 // Numerical surface proximity only. This does not extend collision/capture range.
 const SURFACE_TOLERANCE = 1e-6;

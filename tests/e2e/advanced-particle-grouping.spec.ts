@@ -26,7 +26,7 @@ for (const viewport of [
       name: "Particle Interaction",
       exact: true,
     });
-    await expect(grouping).toHaveAttribute("aria-checked", "false");
+    await expect(grouping).toHaveAttribute("aria-checked", "true");
     await expect(interaction).toHaveAttribute("aria-checked", "true");
     await expect(
       menu.getByRole("switch", { name: "Path assist", exact: true }),
@@ -46,7 +46,7 @@ for (const viewport of [
       const box = (await help.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
-      await expect(grouping).toHaveAttribute("aria-checked", "false");
+      await expect(grouping).toHaveAttribute("aria-checked", "true");
       await expect(interaction).toHaveAttribute("aria-checked", "true");
       await help.click();
       await expect(explanation).toBeHidden();
@@ -55,7 +55,7 @@ for (const viewport of [
     await interaction.click();
     await page.reload();
     await open();
-    await expect(grouping).toHaveAttribute("aria-checked", "true");
+    await expect(grouping).toHaveAttribute("aria-checked", "false");
     await expect(interaction).toHaveAttribute("aria-checked", "false");
     await grouping.click();
     await interaction.click();

@@ -70,7 +70,9 @@ export default function GravityGame({
     const interaction = readParticleInteraction();
     if (interaction !== null || !customLevel)
       game.setParticleInteraction(interaction ?? true);
-    game.setParticleGrouping(readParticleGrouping());
+    const grouping = readParticleGrouping();
+    if (grouping !== null || !customLevel)
+      game.setParticleGrouping(grouping ?? true);
     game.setProjectileSize(readProjectileSize());
     return game;
   });
@@ -106,6 +108,10 @@ export default function GravityGame({
   const completionElapsed = useRef(0);
   const autoNextCancelledRef = useRef(false);
   const [autoNextCancelled, setAutoNextCancelled] = useState(false);
+  const cancelAutoNext = useCallback(() => {
+    autoNextCancelledRef.current = true;
+    setAutoNextCancelled(true);
+  }, []);
   const nextBorder = useRef<SVGPathElement>(null);
   const [paused, setPaused] = useState(false);
   const [help, setHelp] = useState(
@@ -367,7 +373,16 @@ export default function GravityGame({
           ))
       )
         return;
-      if (e.key.toLowerCase() === "r") {
+      if (
+        e.key === "Escape" &&
+        !pause.current &&
+        !customLevel &&
+        engine.getRenderSnapshot().complete &&
+        !autoNextCancelledRef.current
+      ) {
+        e.preventDefault();
+        cancelAutoNext();
+      } else if (e.key.toLowerCase() === "r") {
         e.preventDefault();
         retry();
       } else if (
@@ -380,7 +395,7 @@ export default function GravityGame({
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [retry, openPause]);
+  }, [retry, openPause, engine, customLevel, cancelAutoNext]);
   const updatePull = (id: number, x: number, y: number) => {
     const rawAim = gesture.current.move(id, { x, y });
     if (!rawAim || !origin.current) return;
@@ -636,10 +651,7 @@ export default function GravityGame({
               complete={snapshot.complete}
               borderRef={nextBorder}
               autoNextCancelled={autoNextCancelled}
-              onCancelAutoNext={() => {
-                autoNextCancelledRef.current = true;
-                setAutoNextCancelled(true);
-              }}
+              onCancelAutoNext={cancelAutoNext}
               onNext={nextLevel}
               onSkip={() => {
                 openPause();
@@ -772,7 +784,7 @@ export default function GravityGame({
             />
             <AdvancedToggle
               label="Particle grouping"
-              description="On lets slow bound encounters settle together. Fast or glancing encounters transfer momentum and can separate. Off lets planets pass through each other. Particle Interaction controls their mutual pull separately."
+              description="On keeps planets from passing through each other and transfers momentum on impact. Slow bound encounters can settle together; glancing encounters can slide or separate. Off lets planets pass through each other. Particle Interaction controls their mutual pull separately."
               enabled={snapshot.planetCollisions === "soft"}
               onToggle={() => {
                 cancel();

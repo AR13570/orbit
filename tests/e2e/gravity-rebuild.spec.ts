@@ -56,7 +56,7 @@ test("Gravity desktop free launches, wheel cancellation, player settings and res
   await page.clock.runFor(240);
   await expect(
     menu.getByRole("switch", { name: "Particle grouping", exact: true }),
-  ).toHaveAttribute("aria-checked", "false");
+  ).toHaveAttribute("aria-checked", "true");
   await expect(
     menu.getByRole("switch", { name: "Path assist", exact: true }),
   ).toHaveCount(0);
@@ -68,7 +68,7 @@ test("Gravity desktop free launches, wheel cancellation, player settings and res
   ).toHaveCount(0);
   await menu
     .getByRole("switch", { name: "Particle grouping", exact: true })
-    .click();
+    .setChecked(true);
   await expect(
     menu.getByRole("switch", { name: "Particle grouping", exact: true }),
   ).toHaveAttribute("aria-checked", "true");

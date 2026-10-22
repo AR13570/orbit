@@ -109,6 +109,14 @@
       "reflected": false
     },
     {
+      "quarter": 1,
+      "reflected": false
+    },
+    {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
       "quarter": 2,
       "reflected": false
     },
@@ -118,7 +126,7 @@
     },
     {
       "quarter": 3,
-      "reflected": true
+      "reflected": false
     }
   ],
   "the-shield:gentle:0": [
@@ -136,6 +144,14 @@
   "the-shield:gentle:2": [
     {
       "quarter": 0,
+      "reflected": false
+    },
+    {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
+      "quarter": 1,
       "reflected": false
     },
     {
@@ -169,10 +185,6 @@
       "reflected": false
     },
     {
-      "quarter": 0,
-      "reflected": true
-    },
-    {
       "quarter": 1,
       "reflected": false
     },
@@ -187,10 +199,6 @@
     {
       "quarter": 2,
       "reflected": true
-    },
-    {
-      "quarter": 3,
-      "reflected": false
     },
     {
       "quarter": 3,
@@ -277,8 +285,16 @@
       "reflected": false
     },
     {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
       "quarter": 3,
       "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
     }
   ],
   "closed-garden:gentle:0": [
@@ -299,12 +315,32 @@
       "reflected": false
     },
     {
+      "quarter": 0,
+      "reflected": true
+    },
+    {
       "quarter": 1,
       "reflected": false
     },
     {
+      "quarter": 1,
+      "reflected": true
+    },
+    {
+      "quarter": 2,
+      "reflected": false
+    },
+    {
+      "quarter": 2,
+      "reflected": true
+    },
+    {
       "quarter": 3,
       "reflected": false
+    },
+    {
+      "quarter": 3,
+      "reflected": true
     }
   ],
   "broken-necklace:gentle:0": [
@@ -417,27 +453,11 @@
       "reflected": false
     },
     {
-      "quarter": 0,
-      "reflected": true
-    },
-    {
-      "quarter": 1,
-      "reflected": false
-    },
-    {
       "quarter": 1,
       "reflected": true
     },
     {
       "quarter": 2,
-      "reflected": false
-    },
-    {
-      "quarter": 2,
-      "reflected": true
-    },
-    {
-      "quarter": 3,
       "reflected": false
     },
     {
@@ -469,10 +489,6 @@
     {
       "quarter": 1,
       "reflected": false
-    },
-    {
-      "quarter": 1,
-      "reflected": true
     },
     {
       "quarter": 2,
@@ -647,32 +663,16 @@
       "reflected": false
     },
     {
-      "quarter": 0,
-      "reflected": true
-    },
-    {
       "quarter": 1,
       "reflected": false
-    },
-    {
-      "quarter": 1,
-      "reflected": true
     },
     {
       "quarter": 2,
       "reflected": false
     },
     {
-      "quarter": 2,
-      "reflected": true
-    },
-    {
       "quarter": 3,
       "reflected": false
-    },
-    {
-      "quarter": 3,
-      "reflected": true
     }
   ],
   "open-sky:broad:0": [

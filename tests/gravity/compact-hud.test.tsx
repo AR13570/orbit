@@ -273,3 +273,26 @@ it("cancels automatic advancement while keeping manual Next available, then rese
   act(() => frame(40300));
   expect(engine.getRenderSnapshot().level.index).toBe(2);
 });
+
+it("cancels a running next-level countdown with Escape without opening pause", () => {
+  const setSize = vi.spyOn(GravityEngine.prototype, "setProjectileSize");
+  render(<GravityGame onExit={() => {}} />);
+  const engine = setSize.mock.instances[0] as GravityEngine;
+  finish(engine);
+  act(() => frame(100));
+  act(() => frame(2100));
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "Paused" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Cancel automatic next level" }),
+  ).toBeNull();
+  expect(document.querySelector(".gravity-next-progress")).toBeNull();
+  act(() => frame(30100));
+  expect(engine.getRenderSnapshot().level.index).toBe(0);
+  // Once the countdown is cancelled, Escape retains its normal pause action.
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.getByRole("dialog", { name: "Paused" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Resume", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Next level" }));
+  expect(engine.getRenderSnapshot().level.index).toBe(1);
+});

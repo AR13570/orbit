@@ -141,7 +141,7 @@ describe("settled group spin under core tides", () => {
     expect(s.groupSpin!.groups["0:1"]).toBeGreaterThan(age);
     setSpin(s, 0.04);
     assistGroupSpin(s, s.particles, 1 / 120);
-    expect(motion(s).omega).toBeCloseTo(0.04 + 0.02 / 120, 9);
+    expect(motion(s).omega).toBeCloseTo(0.04 + 0.04 / 120, 9);
   });
 
   it.each([
@@ -196,7 +196,7 @@ describe("settled group spin under core tides", () => {
     expect(alpha).toBeGreaterThan(0.02);
     assistGroupSpin(s, s.particles, 1 / 120);
     const after = motion(s);
-    expect(after.omega - before.omega).toBeCloseTo(-(0.02 + alpha) / 120, 9);
+    expect(after.omega - before.omega).toBeCloseTo(-(0.04 + alpha) / 120, 9);
     expect(after.px).toBeCloseTo(before.px, 10);
     expect(after.py).toBeCloseTo(before.py, 10);
     expect(
@@ -205,7 +205,7 @@ describe("settled group spin under core tides", () => {
     setSpin(s, 0.02);
     const positive = motion(s).omega;
     assistGroupSpin(s, s.particles, 1 / 120);
-    expect(motion(s).omega - positive).toBeCloseTo(0.02 / 120, 9);
+    expect(motion(s).omega - positive).toBeCloseTo(0.04 / 120, 9);
   });
 
   it("remembers a qualified direction only at nearzero and discards it on impact or membership loss", () => {

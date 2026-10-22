@@ -72,7 +72,7 @@ describe("gentle particle encounters", () => {
   it.each(["death", "policy"])(
     "clears transient passage state after %s",
     (change) => {
-      const state = pair(16, 400);
+      const state = pair(16, 400, 1, 200);
       step(state, 1 / 120);
       expect(state.passingContacts).toBeDefined();
       if (change === "death") state.particles[1].alive = false;
@@ -102,12 +102,13 @@ describe("gentle particle encounters", () => {
     expect(fine.passingContacts).toBeUndefined();
   });
 
-  it("limits contact acceleration while retaining distant visible attraction and mass response", () => {
+  it("retains radius-scaled surface attraction, distant pull and mass response", () => {
     const close = pair(16, 0, 5);
     const forces = planetAccelerations(close.particles, [], close.physics);
-    // The previous near-field law gives 1341.64 here, overwhelming small aim changes.
-    expect(forces[0].x).toBeGreaterThan(10);
-    expect(forces[0].x).toBeLessThan(200);
+    expect(forces[0].x).toBeCloseTo(
+      (1538.5607967879395 * close.physics.planetGravityStrength) / 96000,
+      8,
+    );
     expect(forces[0].x + 5 * forces[1].x).toBeCloseTo(0, 11);
     const far = pair(120);
     expect(
@@ -120,7 +121,7 @@ describe("gentle particle encounters", () => {
   });
 
   it.each([1, 4])(
-    "lets a fast head-on incoming planet continue past mass %s while transferring momentum",
+    "transfers a fast head-on impact to mass %s without crossing its surface",
     (mass) => {
       const state = pair(16, 400, mass);
       const identities = state.particles.map(({ id, mass, radius }) => ({
@@ -129,16 +130,14 @@ describe("gentle particle encounters", () => {
         radius,
       }));
       step(state, 1 / 120);
-      expect(state.particles[0].velocity.x).toBeGreaterThan(250);
-      expect(state.particles[1].velocity.x).toBeGreaterThan(3);
-      expect(state.particles[0].velocity.x).toBeGreaterThan(
-        state.particles[1].velocity.x,
-      );
+      expect(state.particles[0].velocity.x).toBeCloseTo(400 / (1 + mass), 8);
+      expect(state.particles[1].velocity.x).toBeCloseTo(400 / (1 + mass), 8);
       expect(totals(state).x).toBeCloseTo(400, 9);
       run(state, 1);
-      expect(state.particles[0].position.x).toBeGreaterThan(
-        state.particles[1].position.x + 100,
+      expect(state.particles[0].position.x).toBeLessThan(
+        state.particles[1].position.x,
       );
+      expect(distance(state)).toBeCloseTo(16, 6);
       expect(
         state.particles.map(({ id, mass, radius }) => ({ id, mass, radius })),
       ).toEqual(identities);
@@ -148,8 +147,8 @@ describe("gentle particle encounters", () => {
     },
   );
 
-  it("does not convert a weakly unbound glancing pass into a bound surface group", () => {
-    const state = pair(16, 110, 1, 50);
+  it("lets a glancing impact with enough tangential energy separate after normal momentum transfer", () => {
+    const state = pair(16, 110, 1, 300);
     const before = totals(state);
     const relativeEnergy = (world: GravityState) => {
       const [a, b] = world.particles;
@@ -163,7 +162,7 @@ describe("gentle particle encounters", () => {
     const energy = relativeEnergy(state);
     expect(energy).toBeGreaterThan(0);
     step(state, 1 / 120);
-    expect(relativeEnergy(state)).toBeGreaterThan(0.83 * energy);
+    expect(relativeEnergy(state)).toBeGreaterThan(0);
     expect(relativeEnergy(state)).toBeLessThan(energy);
     run(state, 3);
     expect(distance(state)).toBeGreaterThan(80);
@@ -194,7 +193,7 @@ describe("gentle particle encounters", () => {
     ).toBeLessThan(1e-6);
   });
 
-  it("keeps fast contact dissipative with interaction off and never snaps an overlapping transit outward", () => {
+  it("keeps fast contact dissipative with interaction off and preserves subsequent shared drift", () => {
     const state = pair(16, 400, 4);
     state.physics.planetGravity = false;
     const before = totals(state);
@@ -212,7 +211,7 @@ describe("gentle particle encounters", () => {
     expect(totals(state).x).toBeCloseTo(before.x, 10);
     expect(totals(state).kinetic).toBeLessThan(before.kinetic);
     run(state, 1);
-    expect(distance(state)).toBeGreaterThan(100);
+    expect(distance(state)).toBeCloseTo(16, 8);
   });
 
   it("clones active fast transits into prediction and converges across physical step sizes", () => {
@@ -238,18 +237,21 @@ describe("gentle particle encounters", () => {
       ).toBeLessThan(0.1);
   });
 
-  it("starts a fast overlapping encounter without a positional recovery snap", () => {
+  it("repairs an initially overlapping fast encounter while preserving its center of mass and momentum", () => {
     const state = pair(12, 400, 4);
     state.physics.planetGravity = false;
     step(state, 1 / 120);
-    expect(state.particles[0].position.x).toBeGreaterThan(2);
-    expect(state.particles[1].position.x).toBeLessThan(13);
-    expect(state.particles[0].velocity.x).toBeGreaterThan(250);
+    expect(distance(state)).toBeCloseTo(16, 8);
+    expect(
+      (state.particles[0].position.x + 4 * state.particles[1].position.x) / 5,
+    ).toBeCloseTo(9.6 + 80 / 120, 10);
+    expect(state.particles[0].velocity.x).toBeCloseTo(80, 8);
+    expect(state.particles[1].velocity.x).toBeCloseTo(80, 8);
     expect(totals(state).x).toBeCloseTo(400, 10);
   });
 
   it("releases a high tangential energy contact even when its inward normal speed is tiny", () => {
-    const state = pair(16, 0.2, 1, 200);
+    const state = pair(16, 0.2, 1, 300);
     const before = totals(state);
     run(state, 1);
     expect(distance(state)).toBeGreaterThan(100);

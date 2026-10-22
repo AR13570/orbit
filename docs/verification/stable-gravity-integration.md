@@ -1,6 +1,6 @@
 # Stable Gravity integration verification
 
-Verified on 18 October 2026, before committing.
+Historical verification from 18 October 2026. Particle gravity, solution recordings and the generation allowlist were revalidated on 22 October 2026; see the [current stable campaign report](stable-campaign.md). The softening-floor claims below describe the earlier implementation.
 
 ## Independent player reviews
 

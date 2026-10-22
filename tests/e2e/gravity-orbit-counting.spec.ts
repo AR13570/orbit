@@ -100,7 +100,10 @@ test("core recognizes a particle at 1.2 turns and the two-lap goal completes at 
     await cancel.evaluate((el) => getComputedStyle(el).backgroundColor),
   ).toBe("rgba(0, 0, 0, 0)");
   await page.screenshot({ path: "/private/tmp/orbit-next-cancel-mobile.png" });
-  await cancel.click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: "Paused", exact: true }),
+  ).toHaveCount(0);
   await expect(cancel).toHaveCount(0);
   await expect(page.locator(".gravity-next-progress")).toHaveCount(0);
   await page.clock.runFor(12000);

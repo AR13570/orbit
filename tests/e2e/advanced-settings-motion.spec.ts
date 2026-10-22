@@ -55,7 +55,7 @@ for (const mode of ["odessey", "gravity"]) {
         name: "Particle grouping",
         exact: true,
       });
-      await grouping.click();
+      await grouping.setChecked(true);
       await expect(grouping).toHaveAttribute("aria-checked", "true");
       await grouping.focus();
     } else {
@@ -141,7 +141,7 @@ test("gravity Advanced reverses smoothly and disables closing controls", async (
     name: "Particle grouping",
     exact: true,
   });
-  await grouping.click();
+  await grouping.setChecked(true);
   await expect(grouping).toHaveAttribute("aria-checked", "true");
 
   const closing = await toggleAndSample(toggle, panel);

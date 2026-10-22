@@ -7,6 +7,12 @@ import {
   CAMPAIGN_ENDLESS_IDS,
 } from "../../src/gravity/campaign-endless";
 import { proofScenarios, stableProof } from "./stable-authoring-utils";
+import {
+  GRAVITY_SPEED_SCALE,
+  PARTICLE_GRAVITY_STRENGTH,
+  PARTICLE_NEAR_RANGE,
+  PARTICLE_NEAR_WEIGHT,
+} from "../../src/gravity/physics";
 
 /** Portable exhaustive command: GRAVITY_VERIFY_STABILITY=1 npx vitest run tests/gravity/stable-authoring.test.ts */
 it.skipIf(process.env.GRAVITY_VERIFY_STABILITY !== "1")(
@@ -22,10 +28,14 @@ it.skipIf(process.env.GRAVITY_VERIFY_STABILITY !== "1")(
       protocol: {
         fixedStep: 1 / 120,
         particleGravity: true,
-        particleSofteningMinimum: 60,
+        particleGravityStrength: PARTICLE_GRAVITY_STRENGTH,
+        particleNearRange: PARTICLE_NEAR_RANGE,
+        particleNearWeight: PARTICLE_NEAR_WEIGHT,
+        particleSofteningMinimum: 2,
+        particleSofteningRadiusFactor: 0.5,
         grouping: false,
-        minimumRealLaunchGap: 5,
-        playback: 1.2,
+        minimumRealLaunchGap: 6 / GRAVITY_SPEED_SCALE,
+        playback: GRAVITY_SPEED_SCALE,
         postCompletionSeconds: 120,
         postCompletionFullLaps: 10,
         additionalPureThinkingScenarios:

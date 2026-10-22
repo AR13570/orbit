@@ -65,11 +65,11 @@ describe("gentle gameplay group spin", () => {
     advance(engine, 0.05);
     expect(motion(engine.getSnapshot()).omega).toBeCloseTo(0, 10);
     advance(engine, 0.5);
-    expect(motion(engine.getSnapshot()).omega).toBeGreaterThan(0.009);
-    expect(motion(engine.getSnapshot()).omega).toBeLessThan(0.0104);
+    expect(motion(engine.getSnapshot()).omega).toBeGreaterThan(0.018);
+    expect(motion(engine.getSnapshot()).omega).toBeLessThan(0.021);
     advance(engine, 7);
     const state = engine.getSnapshot();
-    expect(motion(state).omega).toBeCloseTo(0.12, 5);
+    expect(motion(state).omega).toBeCloseTo(0.18, 5);
     expect(distance(state)).toBeCloseTo(8, 6);
     expect(
       Math.abs(state.particles[1].position.y - state.particles[0].position.y),
@@ -82,7 +82,7 @@ describe("gentle gameplay group spin", () => {
     const before = motion(state);
     run(state, 7);
     const after = motion(state);
-    expect(after.omega).toBeCloseTo(-0.12, 5);
+    expect(after.omega).toBeCloseTo(-0.18, 5);
     expect(after.vx).toBeCloseTo(before.vx, 8);
     expect(after.vy).toBeCloseTo(before.vy, 8);
     expect(after.x).toBeCloseTo(before.x + before.vx * 7, 7);
@@ -116,11 +116,14 @@ describe("gentle gameplay group spin", () => {
     run(impact, 0.3);
     expect(motion(impact).omega).toBeCloseTo(0, 10);
     const flyby = pair(100).getSnapshot();
+    flyby.particles[0].velocity.x = 100;
+    flyby.particles[1].velocity.x = -100;
     const reference = structuredClone(flyby);
     delete reference.groupSpin;
     run(flyby, 1);
     run(reference, 1);
     expect(flyby.particles).toEqual(reference.particles);
+    expect(distance(flyby)).toBeGreaterThan(16);
   });
 
   it("requires binding strong enough for the whole remaining boost", () => {
@@ -254,7 +257,7 @@ describe("gentle gameplay group spin", () => {
     delete before.groupSpin;
     step(state, 1 / 120);
     step(before, 1 / 120);
-    expect(motion(state).omega - angularBefore).toBeCloseTo(0.02 / 120, 7);
+    expect(motion(state).omega - angularBefore).toBeCloseTo(0.04 / 120, 7);
     const normal =
       (b.velocity.x - a.velocity.x) * (b.position.x - a.position.x) +
       (b.velocity.y - a.velocity.y) * (b.position.y - a.position.y);
@@ -422,11 +425,11 @@ describe("gentle gameplay group spin", () => {
       const state = engine.getSnapshot();
       expect(contactTime).toBeDefined();
       expect(state.particles.every((p) => p.alive)).toBe(true);
-      // At the faster floor, the radius-32 tangent chord can leave a
-      // 3.2e-5 numerical gap without changing physical contact geometry.
+      // A radius-64 tangent chord at 0.18 rad/s over 1/120 s can leave a
+      // 0.000072 numerical gap before the next contact solve.
       expect(distance(state)).toBeGreaterThanOrEqual(2 * radius - 1e-6);
-      expect(distance(state)).toBeLessThan(2 * radius + 4e-5);
-      expect(motion(state).omega).toBeCloseTo(0.12, 5);
+      expect(distance(state)).toBeLessThan(2 * radius + 8e-5);
+      expect(motion(state).omega).toBeCloseTo(0.18, 5);
     },
   );
 

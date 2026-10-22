@@ -68,12 +68,14 @@ export function saveProjectileSize(value: number): void {
 }
 
 export const PARTICLE_GROUPING_KEY = "orbit.gravity.particle-grouping.v1";
-let sessionGrouping = false;
+let sessionGrouping: boolean | null = null;
 let groupingUnwritten = false;
-export function readParticleGrouping(): boolean {
+/** Null preserves custom contact rules until the player makes a choice. */
+export function readParticleGrouping(): boolean | null {
   if (groupingUnwritten) return sessionGrouping;
   try {
-    return localStorage.getItem(PARTICLE_GROUPING_KEY) === "true";
+    const value = localStorage.getItem(PARTICLE_GROUPING_KEY);
+    return value === "true" ? true : value === "false" ? false : null;
   } catch {
     return sessionGrouping;
   }

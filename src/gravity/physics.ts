@@ -11,21 +11,18 @@ export const GRAVITY_SPEED_SCALE = 3;
 export const GRAVITY_FORCE_SCALE = 1;
 export const GRAVITY_FIXED_STEP = 1 / 120;
 export const WELL_SOFTENING = 40;
-export const PARTICLE_GRAVITY_STRENGTH = 96000;
-/** Keep the established far-field law and smooth finite forces at contact. */
+export const PARTICLE_GRAVITY_STRENGTH = 110400;
+export const PARTICLE_NEAR_RANGE = 96;
+export const PARTICLE_NEAR_WEIGHT = 4;
+/** Match the original particle law: soften inside the bodies, not across a fixed world distance. */
 export function particleSoftening(
   a: Pick<GravityParticle, "radius">,
   b: Pick<GravityParticle, "radius">,
 ): number {
-  return Math.max(60, (a.radius + b.radius) * 1.5);
+  return Math.max(2, (a.radius + b.radius) * 0.5);
 }
 
-// A smooth, compact near field strengthens close encounters without changing
-// established distant orbits. Potential and its first two derivatives vanish
-// at the boundary, so entering this range cannot introduce a force jump.
-const PARTICLE_NEAR_RANGE = 60;
-const PARTICLE_NEAR_WEIGHT = 0.85;
-/** Pair potential matching both attraction terms, zero at infinity. */
+/** Conservative nearby enhancement; potential and force taper smoothly to zero. */
 export function particlePairPotential(
   a: GravityParticle,
   b: GravityParticle,

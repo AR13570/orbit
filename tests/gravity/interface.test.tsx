@@ -363,6 +363,24 @@ describe("Gravity interface", () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-checked")).toBe("true");
   });
+  it("preserves authored elastic contacts until the player chooses grouping", () => {
+    const draft = newDraft();
+    draft.physics.planetCollisions = "elastic";
+    const setSize = vi.spyOn(GravityEngine.prototype, "setProjectileSize");
+    render(
+      <GravityGame customLevel={toGravityLevel(draft)} onExit={() => {}} />,
+    );
+    const engine = setSize.mock.instances[0] as GravityEngine;
+    expect(engine.getSnapshot().physics.planetCollisions).toBe("elastic");
+    fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Advanced", exact: true }),
+    );
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Particle grouping", exact: true }),
+    );
+    expect(engine.getSnapshot().physics.planetCollisions).toBe("soft");
+  });
   it("opens the creator from the chooser and returns to modes", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /Gravity creator/ }));
@@ -637,14 +655,14 @@ it("checks the live core pose when a moving core crosses the held launch point",
   expect(screen.getByRole("status").textContent).toBe("Start in clear space");
 });
 
-it("keeps grouping off independently of mutual gravity and explains Advanced toggles", () => {
+it("defaults both particle settings on, keeps them independent and explains Advanced toggles", () => {
   const launch = vi.spyOn(GravityEngine.prototype, "launch");
   const view = render(<GravityGame onExit={() => {}} />);
   pull(field());
   const engine = launch.mock.instances[0] as GravityEngine;
   expect(engine.getSnapshot().physics).toMatchObject({
     planetGravity: true,
-    planetCollisions: "none",
+    planetCollisions: "soft",
   });
   fireEvent.click(screen.getByRole("button", { name: "Pause", exact: true }));
   fireEvent.click(
@@ -654,7 +672,7 @@ it("keeps grouping off independently of mutual gravity and explains Advanced tog
     name: "Particle grouping",
     exact: true,
   });
-  expect(grouping.getAttribute("aria-checked")).toBe("false");
+  expect(grouping.getAttribute("aria-checked")).toBe("true");
   for (const label of ["Particle Interaction", "Particle grouping"]) {
     const help = screen.getByRole("button", {
       name: `About ${label}`,
@@ -668,6 +686,11 @@ it("keeps grouping off independently of mutual gravity and explains Advanced tog
     ).toBeGreaterThan(30);
     fireEvent.click(help);
   }
+  fireEvent.click(grouping);
+  expect(engine.getSnapshot().physics).toMatchObject({
+    planetGravity: true,
+    planetCollisions: "none",
+  });
   fireEvent.click(grouping);
   expect(engine.getSnapshot().physics).toMatchObject({
     planetGravity: true,

@@ -25,7 +25,7 @@ function separation(state: GravityState, a: number, b: number) {
 }
 
 describe("natural gravitational gathering", () => {
-  it("partially dissipates approaching normal velocity in an unbound pass while preserving tangent and identity", () => {
+  it("dissipates approaching normal velocity at the surface while preserving tangent and identity", () => {
     const state = createState({
       ...empty,
       physics: { ...empty.physics, planetGravity: false },
@@ -37,14 +37,13 @@ describe("natural gravitational gathering", () => {
     expect(state.particles.map((p) => p.alive)).toEqual([true, true]);
     expect(state.particles[0].velocity.y).toBe(7);
     expect(state.particles[1].velocity.y).toBe(-3);
-    expect(state.particles[0].velocity.x).toBeGreaterThan(8);
-    expect(state.particles[0].velocity.x).toBeLessThan(10);
-    expect(state.particles[1].velocity.x).toBeLessThan(-8);
+    expect(state.particles[0].velocity.x).toBeCloseTo(0, 10);
+    expect(state.particles[1].velocity.x).toBeCloseTo(0, 10);
     expect(
       state.particles[0].velocity.x + state.particles[1].velocity.x,
     ).toBeCloseTo(0, 10);
     run(state, 1);
-    expect(state.particles[0].position.x).toBeGreaterThan(
+    expect(state.particles[0].position.x).toBeLessThan(
       state.particles[1].position.x,
     );
     expect(separation(state, 0, 1)).toBeGreaterThan(8);
@@ -153,7 +152,7 @@ describe("natural gravitational gathering", () => {
     expect(state.particles[1].velocity.x).toBeGreaterThan(100);
   });
 
-  it("sweeps fast unequal-mass contacts through a dissipative pass without losing momentum", () => {
+  it("sweeps fast unequal-mass contacts to their surfaces without losing momentum", () => {
     const state = createState({
       ...empty,
       physics: { ...empty.physics, planetGravity: false },
@@ -163,18 +162,15 @@ describe("natural gravitational gathering", () => {
     state.particles[0].mass = 2;
     state.particles[1].mass = 5;
     step(state, 1 / 120);
-    expect(state.particles[0].position.x).toBeGreaterThan(
+    expect(state.particles[0].position.x).toBeLessThan(
       state.particles[1].position.x,
     );
     expect(separation(state, 0, 1)).toBeGreaterThanOrEqual(8);
     expect(
       2 * state.particles[0].velocity.x + 5 * state.particles[1].velocity.x,
     ).toBeCloseTo(10000, 8);
-    expect(
-      state.particles[1].velocity.x - state.particles[0].velocity.x,
-    ).toBeLessThan(-30000);
-    expect(state.particles[0].velocity.x).toBeGreaterThan(25000);
-    expect(state.particles[1].velocity.x).toBeLessThan(-8000);
+    expect(state.particles[0].velocity.x).toBeCloseTo(10000 / 7, 8);
+    expect(state.particles[1].velocity.x).toBeCloseTo(10000 / 7, 8);
   });
 
   it("resolves coincident planets into finite distinct surfaces", () => {

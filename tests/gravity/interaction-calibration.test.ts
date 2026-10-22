@@ -67,14 +67,14 @@ it("lets nearby planets travelling together settle on their surfaces beside a co
   expect(touchingSteps).toBeGreaterThan(120);
 });
 
-it("keeps close attraction conservative and distant force unchanged", async () => {
+it("keeps close attraction conservative with the original radius-scaled far field", async () => {
   const { particlePairPotential, PARTICLE_GRAVITY_STRENGTH } =
     await import("../../src/gravity/physics");
   const state = createState({ ...level, bodies: [] });
   fireFrom(state, { x: 0, y: 0 }, { x: 0, y: 0 });
   fireFrom(state, { x: 40, y: 0 }, { x: 0, y: 0 });
   const [a, b] = state.particles;
-  for (const r of [0.01, 12, 30, 59.99, 60, 60.01, 120]) {
+  for (const r of [0.01, 12, 30, 60, 95.99, 96, 96.01, 120]) {
     b.position.x = r;
     const acceleration = planetAccelerations(
       state.particles,
@@ -86,9 +86,9 @@ it("keeps close attraction conservative and distant force unchanged", async () =
     b.position.x = r - 1e-4;
     const below = particlePairPotential(a, b, PARTICLE_GRAVITY_STRENGTH);
     expect(acceleration).toBeCloseTo((above - below) / 2e-4 / a.mass, 5);
-    if (r >= 60)
+    if (r >= 96)
       expect(acceleration).toBe(
-        (PARTICLE_GRAVITY_STRENGTH / (r * r + 60 * 60) ** 1.5) * r,
+        (PARTICLE_GRAVITY_STRENGTH / (r * r + 6 * 6) ** 1.5) * r,
       );
   }
 });

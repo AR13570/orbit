@@ -228,8 +228,9 @@ export function surfaceContacts(
       distance > radius + SURFACE_EPSILON
     )
       return;
-    if (!(recovering ? boundMotion(state, a, b, 0.5) : canSettle(state, a, b)))
-      return;
+    // Contact prevents compression even when the pair is not gravitationally
+    // bound. One-sided impulses cannot hold a separating or grazing pair.
+    if (recovering && !boundMotion(state, a, b, 0.5)) return;
     const nx = dx / distance,
       ny = dy / distance;
     const normal =

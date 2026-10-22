@@ -5,6 +5,7 @@ import {
   mixGravitySeed,
 } from "../../src/gravity/generator";
 import { getGravityLevel } from "../../src/gravity/campaign";
+import { PARTICLE_GRAVITY_STRENGTH } from "../../src/gravity/physics";
 import { createState, goalProgress } from "../../src/gravity/simulation";
 import {
   campaignEndlessLayoutId,
@@ -31,7 +32,7 @@ it("retains legacy fixtures for authoring without treating their solvability as 
       planetGravity: true,
       planetCollisions: "soft",
       planetRadius: 6,
-      planetGravityStrength: 96000,
+      planetGravityStrength: PARTICLE_GRAVITY_STRENGTH,
     });
     expect(
       retained.witness.every((shot) =>
